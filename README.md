@@ -49,6 +49,14 @@ Or pass its path: `./setup.sh path/to/Dogfighter.bin`.
 Setup takes a few minutes.
 If a step fails, fix the error it prints and run it again; finished steps are skipped.
 
+To start the game from anywhere as `dogfighter`, link it into a folder on your PATH:
+
+```sh
+ln -s "$PWD/dogfighter" /opt/homebrew/bin/dogfighter
+```
+
+Setup prints this command when `/opt/homebrew/bin` or `~/.local/bin` is on your PATH.
+
 ### Language
 
 The disc has English, French, German and Italian.
@@ -62,14 +70,6 @@ Run it again with another language to switch.
 Switching swaps the language pack, `game/readme.txt` and one line in `game/system.ini`.
 Your pilots and saves in `game/User` and your key bindings stay as they are.
 Without `--language`, a later run keeps the installed language.
-
-To start the game from anywhere as `dogfighter`, link it into a folder on your PATH:
-
-```sh
-ln -s "$PWD/dogfighter" /opt/homebrew/bin/dogfighter
-```
-
-Setup prints this command when `/opt/homebrew/bin` or `~/.local/bin` is on your PATH.
 
 ## Running
 
@@ -89,6 +89,9 @@ Once linked, `dogfighter` works from any folder.
 | `--no-focusfix` | Turn off the focus fix (see Troubleshooting). |
 | `--winecfg` | Open Wine's settings for this game instead of playing. |
 
+The first start creates a Wine prefix in `prefix/`, which takes a minute.
+The disc image is not needed while playing: `cd/` acts as the CD in drive D:.
+
 ### Dogfighter.app
 
 Setup also builds `Dogfighter.app` in this folder.
@@ -98,9 +101,6 @@ Its icon is made from `cd/Airfix.ico` on your Mac, so the app is not part of thi
 You can drag the app to `/Applications` or the Dock.
 It remembers where this folder is.
 If you move this folder, run `./setup.sh` again and use the new app.
-
-The first start creates a Wine prefix in `prefix/`, which takes a minute.
-The disc image is not needed while playing: `cd/` acts as the CD in drive D:.
 
 ## CD music
 
