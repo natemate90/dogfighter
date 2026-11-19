@@ -3,6 +3,10 @@
 An unofficial launcher for the Windows game Airfix Dogfighter (2000) on Apple Silicon Macs.
 It runs the game through Wine.
 
+[![Airfix Dogfighter for PC, gameplay video](https://img.youtube.com/vi/vuBLQVUCmEY/hqdefault.jpg)](https://www.youtube.com/watch?v=vuBLQVUCmEY)
+
+*Gameplay video by [Highretrogamelord](https://www.youtube.com/@Highretrogamelord) on YouTube.*
+
 You need your own original Airfix Dogfighter CD.
 This repo contains no game data.
 `setup.sh` builds everything from an image of your disc.
