@@ -81,7 +81,7 @@ DXVK_SHA=f67d99d0a8eeedd7d406b283a3df9f939b5965acb00efcb33d0c6235c195a516
 
 export WINEPREFIX="$HERE/prefix"
 if [ "$MODE" = stop ]; then
-  [ -x "$WINESERVER" ] && "$WINESERVER" -k 2>/dev/null
+  if [ -x "$WINESERVER" ]; then "$WINESERVER" -k 2>/dev/null || true; fi
   exit 0
 fi
 export WINEDEBUG="${WINEDEBUG:-fixme-all}"
