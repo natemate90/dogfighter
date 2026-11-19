@@ -133,6 +133,7 @@ get_sources() {
 
 make_cd() {
   [ -f "$HERE/cd/.windows-label" ] && return
+  check_image
   step "Copying the CD's data track to cd/"
   rm -rf "$WORK" "$HERE/cd"
   mkdir -p "$WORK/cd"
@@ -159,6 +160,7 @@ rip_music() {
   local t missing=0
   for t in $TRACKS; do [ -f "$HERE/music/Track$t.ogg" ] || missing=1; done
   if [ "$missing" = 1 ]; then
+    check_image
     step "Ripping the CD music to music/ (a few minutes)"
     "$HERE/tools/rip-music.sh" "$IMAGE" "$HERE/music"
   fi
@@ -190,7 +192,6 @@ path_hint() {
 }
 
 check_requirements
-check_image
 [ -x "$HERE/wine/bin/wine" ] && [ -f "$HERE/game/Resource.up" ] || check_space
 get_wine
 get_toolchain
