@@ -3,7 +3,8 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: dogfighter [--res=WxH] [--sharp] [--windowed[=WxH] | --fullscreen] [--no-focusfix] [--winecfg]
+Usage: dogfighter [--res=WxH] [--sharp] [--windowed[=WxH] | --fullscreen] [--no-focusfix]
+                  [--wrapper=dgvoodoo | --wrapper=dgvoodoo-dxvk] [--winecfg]
 
   (no option)       Play in a window at the largest resolution that fits the screen.
                     macOS scales it up on a Retina screen, so menu text stays readable.
@@ -13,6 +14,11 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed[=WxH] | --fullscreen] [--no-
   --fullscreen      Let the game switch the Mac's real display mode.
   --no-focusfix     Turn off the focus fix. By default the game keeps running after
                     Cmd+Tab and comes back to the front when you return to it.
+  --wrapper=dgvoodoo
+                    Test: draw the game through dgVoodoo2 in a normal Mac window that
+                    you can resize or make full screen; the picture scales with it.
+  --wrapper=dgvoodoo-dxvk
+                    The same, but dgVoodoo2 draws through DXVK and MoltenVK.
   --winecfg         Open Wine's settings for this game's prefix instead of playing.
 EOF
 }
@@ -22,6 +28,7 @@ DESKTOP_SIZE=
 GAME_RES=
 FOCUSFIX=1
 SHARP=0
+WRAPPER=none
 for arg in "$@"; do
   case "$arg" in
     --windowed) MODE=windowed ;;
@@ -31,6 +38,7 @@ for arg in "$@"; do
     --sharp) SHARP=1 ;;
     --focusfix) FOCUSFIX=1 ;;
     --no-focusfix) FOCUSFIX=0 ;;
+    --wrapper=none|--wrapper=dgvoodoo|--wrapper=dgvoodoo-dxvk) WRAPPER="${arg#--wrapper=}" ;;
     --winecfg) MODE=winecfg ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
@@ -39,6 +47,11 @@ done
 for size in "$DESKTOP_SIZE" "$GAME_RES"; do
   [[ -z "$size" || "$size" =~ ^[0-9]+x[0-9]+$ ]] || { echo "Bad size: $size" >&2; exit 2; }
 done
+if [ "$WRAPPER" != none ]; then
+  [ "$MODE" = windowed ] || { echo "--wrapper only works in windowed mode." >&2; exit 2; }
+  [ -z "$DESKTOP_SIZE" ] || { echo "--wrapper sizes its own window; leave out --windowed=WxH." >&2; exit 2; }
+  FOCUSFIX=0
+fi
 
 SELF="${BASH_SOURCE[0]}"
 while [ -L "$SELF" ]; do
@@ -56,10 +69,21 @@ FOCUSFIX_EXE="$HERE/build/focusfix.exe"
 FOCUSHOOK_DLL="$HERE/build/focushook.dll"
 SIZES="2560x1600 2560x1440 1920x1200 1920x1080 1680x1050 1600x1200 1600x900 1440x900
        1280x1024 1280x960 1280x800 1280x720 1024x768 800x600 640x480"
+DGVOODOO_ZIP=dgVoodoo2_87_6.zip
+DGVOODOO_URL=https://github.com/dege-diosg/dgVoodoo2/releases/download/2.87.6/dgVoodoo2_87_6.zip
+DGVOODOO_SHA=9afa493396feec7108f42a2d97661eef96bbaac5addf0dfb5cfbc3001cd76a0a
+DXVK_NAME=dxvk-macOS-async-v1.10.3-20230507-repack
+DXVK_URL=https://github.com/Gcenx/DXVK-macOS/releases/download/v1.10.3-20230507-repack/$DXVK_NAME.tar.gz
+DXVK_SHA=acd1520ad105d8ef124a09c8e11a259a5dc8bdc565ad18e0e52693f9807b2477
 
 export WINEPREFIX="$HERE/prefix"
 export WINEDEBUG="${WINEDEBUG:-fixme-all}"
-export WINEDLLOVERRIDES="winmm=n,b;mscoree=;mshtml="
+case "$WRAPPER" in
+  none) DLL_MODES="ddraw=b" ;;
+  dgvoodoo) DLL_MODES="ddraw,d3dimm=n;d3d11,d3d10core=b" ;;
+  dgvoodoo-dxvk) DLL_MODES="ddraw,d3dimm=n;d3d11,d3d10core=n" ;;
+esac
+export WINEDLLOVERRIDES="winmm=n,b;mscoree=;mshtml=;$DLL_MODES"
 
 mkdir -p "$HERE/logs"
 LOG="$HERE/logs/run-$(date +%Y%m%d-%H%M%S).log"
@@ -102,10 +126,62 @@ screen_info() {
     k + " " + Math.floor(f.size.width) + " " + Math.floor(f.size.height - 28)' 2>/dev/null || true
 }
 
-retina_in_prefix() {
-  awk '
-    /^\[/ { in_s = index($0, "[Software\\\\Wine\\\\Mac Driver]") == 1; next }
-    in_s && index($0, "\"RetinaMode\"=") == 1 { print; exit }' "$WINEPREFIX/user.reg" 2>/dev/null || true
+REG_CHANGED=0
+set_user_reg() {
+  local key="$1" name="$2" value="$3" current
+  current="$(SEC="[${key//\\/\\\\}]" NAME="\"$name\"=" awk '
+    /^\[/ { in_s = index($0, ENVIRON["SEC"]) == 1; next }
+    in_s && index($0, ENVIRON["NAME"]) == 1 { print; exit }' "$WINEPREFIX/user.reg" 2>/dev/null || true)"
+  [ "$current" = "\"$name\"=\"$value\"" ] && return
+  say "Setting Wine $name to $value."
+  "$WINE" reg add "HKCU\\$key" /v "$name" /t REG_SZ /d "$value" /f >>"$LOG" 2>&1
+  REG_CHANGED=1
+}
+
+fetch_pinned() {
+  local name="$1" url="$2" sha="$3" file="$HERE/downloads/$1"
+  if [ -f "$file" ] && [ "$(shasum -a 256 "$file" | cut -d' ' -f1)" = "$sha" ]; then return; fi
+  mkdir -p "$HERE/downloads"
+  say "Downloading $name"
+  curl -fL --retry 3 --progress-bar -o "$file.part" "$url" || { say "Download failed: $url"; exit 1; }
+  if [ "$(shasum -a 256 "$file.part" | cut -d' ' -f1)" != "$sha" ]; then
+    rm -f "$file.part"
+    say "$name does not match its pinned SHA-256 checksum."
+    exit 1
+  fi
+  mv "$file.part" "$file"
+}
+
+dgvoodoo_conf() {
+  awk -v api="$2" -v res="$3" '
+    BEGIN {
+      v["OutputAPI"] = api; v["FullScreenMode"] = "false"; v["ScalingMode"] = "stretched_ar"
+      v["KeepWindowAspectRatio"] = "true"; v["CaptureMouse"] = "false"; v["CenterAppWindow"] = "true"
+      v["AppControlledScreenMode"] = "false"; v["dgVoodooWatermark"] = "false"
+      v["ExtraEnumeratedResolutions"] = res
+    }
+    {
+      line = $0; sub(/\r$/, "", line)
+      key = line; sub(/[ \t]*=.*/, "", key)
+      if (index(line, "=") && (key in v)) { printf "%-37s= %s\r\n", key, v[key]; next }
+      print
+    }' "$1"
+}
+
+install_wrapper() {
+  local dir="$HERE/build/wrapper" api=d3d11_fl10_1
+  mkdir -p "$dir"
+  fetch_pinned "$DGVOODOO_ZIP" "$DGVOODOO_URL" "$DGVOODOO_SHA"
+  /usr/bin/unzip -q -o -j "$HERE/downloads/$DGVOODOO_ZIP" MS/x86/DDraw.dll MS/x86/D3DImm.dll dgVoodoo.conf -d "$dir"
+  cp "$dir/DDraw.dll" "$dir/D3DImm.dll" "$HERE/game/"
+  if [ "$WRAPPER" = dgvoodoo-dxvk ]; then
+    fetch_pinned "$DXVK_NAME.tar.gz" "$DXVK_URL" "$DXVK_SHA"
+    tar -xzf "$HERE/downloads/$DXVK_NAME.tar.gz" -C "$dir" --strip-components 2 \
+      "$DXVK_NAME/x32/d3d11.dll" "$DXVK_NAME/x32/d3d10core.dll"
+    cp "$dir/d3d11.dll" "$dir/d3d10core.dll" "$HERE/game/"
+    api=d3d11_fl11_0
+  fi
+  dgvoodoo_conf "$dir/dgVoodoo.conf" "$api" "$GAME_RES" >"$HERE/game/dgVoodoo.conf"
 }
 
 fits() {
@@ -187,11 +263,6 @@ if [[ "$SCREEN" =~ ^([12])\ ([0-9]+)\ ([0-9]+)$ ]]; then
   if [ "$scale" = 2 ]; then RETINA=y; fi
   LIMIT="$((BASH_REMATCH[2] * scale))x$((BASH_REMATCH[3] * scale))"
 fi
-if [ "$(retina_in_prefix)" != "\"RetinaMode\"=\"$RETINA\"" ]; then
-  say "Setting Wine RetinaMode to $RETINA for this screen."
-  "$WINE" reg add 'HKCU\Software\Wine\Mac Driver' /v RetinaMode /t REG_SZ /d "$RETINA" /f >>"$LOG" 2>&1
-  "$WINESERVER" -w
-fi
 
 if [ "$MODE" = windowed ] && [ -n "$LIMIT" ]; then
   if [ -z "$GAME_RES" ]; then
@@ -211,9 +282,25 @@ if [ -n "$GAME_RES" ] && [ "$GAME_RES" != "$(ini_size)" ]; then
     say "No video card in $INI yet; start the game once, then use --res."
   fi
 fi
-if [ "$MODE" = windowed ] && [ -z "$DESKTOP_SIZE" ]; then
+if [ "$MODE" = windowed ] && [ "$WRAPPER" = none ] && [ -z "$DESKTOP_SIZE" ]; then
   DESKTOP_SIZE="$(ini_size)"
   DESKTOP_SIZE="${DESKTOP_SIZE:-1024x768}"
+fi
+
+set_user_reg 'Software\Wine\Mac Driver' RetinaMode "$RETINA"
+if [ "$MODE" = fullscreen ]; then
+  set_user_reg 'Software\Wine\Mac Driver' CaptureDisplaysForFullscreen y
+else
+  set_user_reg 'Software\Wine\Mac Driver' CaptureDisplaysForFullscreen n
+fi
+# win32u builds the virtual desktop's mode list from this value, not from the
+# size on the explorer command line. Without it a size such as 1280x800 is
+# missing from the list and the game falls back to 640x480.
+[ -z "$DESKTOP_SIZE" ] || set_user_reg 'Software\Wine\Explorer\Desktops' Default "$DESKTOP_SIZE"
+if [ "$REG_CHANGED" = 1 ]; then "$WINESERVER" -w; fi
+
+if [ "$WRAPPER" != none ]; then
+  install_wrapper
 fi
 
 GAME_CMD=("$GAME_DOS\\Dogfighter.exe")
@@ -235,8 +322,13 @@ case "$MODE" in
     "$WINE" winecfg >>"$LOG" 2>&1
     ;;
   windowed)
-    say "Starting Airfix Dogfighter in a ${DESKTOP_SIZE} window. Log: $LOG"
-    "$WINE" explorer "/desktop=Dogfighter,$DESKTOP_SIZE" start /wait /d "$GAME_DOS" "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
+    if [ "$WRAPPER" != none ]; then
+      say "Starting Airfix Dogfighter through $WRAPPER in a resizable ${GAME_RES:-640x480} window. Log: $LOG"
+      "$WINE" start /wait /d "$GAME_DOS" "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
+    else
+      say "Starting Airfix Dogfighter in a ${DESKTOP_SIZE} window. Log: $LOG"
+      "$WINE" explorer "/desktop=Dogfighter,$DESKTOP_SIZE" start /wait /d "$GAME_DOS" "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
+    fi
     ;;
   fullscreen)
     say "Starting Airfix Dogfighter fullscreen. Log: $LOG"
