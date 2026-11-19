@@ -295,8 +295,12 @@ else
 fi
 # win32u builds the virtual desktop's mode list from this value, not from the
 # size on the explorer command line. Without it a size such as 1280x800 is
-# missing from the list and the game falls back to 640x480.
-[ -z "$DESKTOP_SIZE" ] || set_user_reg 'Software\Wine\Explorer\Desktops' Default "$DESKTOP_SIZE"
+# missing from the list and the game falls back to 640x480. It must be the
+# game's resolution, which --windowed=WxH can make differ from the window.
+if [ -n "$DESKTOP_SIZE" ]; then
+  MODE_SIZE="$(ini_size)"
+  set_user_reg 'Software\Wine\Explorer\Desktops' Default "${MODE_SIZE:-$DESKTOP_SIZE}"
+fi
 if [ "$REG_CHANGED" = 1 ]; then "$WINESERVER" -w; fi
 
 if [ "$WRAPPER" != none ]; then
