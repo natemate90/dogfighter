@@ -49,6 +49,20 @@ Or pass its path: `./setup.sh path/to/Dogfighter.bin`.
 Setup takes a few minutes.
 If a step fails, fix the error it prints and run it again; finished steps are skipped.
 
+### Language
+
+The disc has English, French, German and Italian.
+Setup installs English unless you pick another:
+
+```
+./setup.sh --language=German
+```
+
+Run it again with another language to switch.
+Switching swaps the language pack, `game/readme.txt` and one line in `game/system.ini`.
+Your pilots and saves in `game/User` and your key bindings stay as they are.
+Without `--language`, a later run keeps the installed language.
+
 To start the game from anywhere as `dogfighter`, link it into a folder on your PATH:
 
 ```sh
