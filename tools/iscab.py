@@ -4,6 +4,7 @@ usage: iscab.py <dir with data1.hdr> [<output dir>]
 
 Without an output dir it only lists the files. With one, it extracts the game files,
 English only, and skips any file that already exists there, so it can be run again.
+A newly extracted user.ini gets x as a second "next weapon" key.
 """
 import sys, struct, os, zlib
 if len(sys.argv) not in (2, 3):
@@ -14,6 +15,9 @@ extract = outdir is not None
 # Entries before this are InstallShield's own engine and setup files.
 FIRST_GAME_FILE = 35
 OTHER_LANGS = ('French', 'German', 'Italian')
+# "use next" is only on keypad 0 by default, a key MacBooks do not have.
+MAC_BIND_AFTER = b'bind KP0 "use next"\r\n'
+MAC_BIND = b'bind x "use next"\r\n'
 h = open(os.path.join(srcdir,'data1.hdr'),'rb').read()
 sig, ver, volinfo, cdo, cds = struct.unpack_from('<5I', h, 0)
 if not extract: print('ver %08x major' % ver, (ver>>12)&0xf, 'cdo %x cds %x' % (cdo,cds))
@@ -93,6 +97,10 @@ for i in range(filecount):
                 k=min(left,1<<20); o.write(r.read(k)); left-=k
     if os.path.getsize(part)!=exp:
         sys.exit('%s: size %d, expected %d' % (rel, os.path.getsize(part), exp))
+    if rel=='user.ini':
+        data=open(part,'rb').read()
+        if MAC_BIND_AFTER in data and b'\nbind x ' not in data:
+            with open(part,'wb') as o: o.write(data.replace(MAC_BIND_AFTER, MAC_BIND_AFTER+MAC_BIND, 1))
     os.replace(part, dst)
     print('extracted', rel)
 if not extract: print('total expanded', tot)

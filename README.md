@@ -90,7 +90,7 @@ To override it, set a number from 0 to 99 in `game/winmm.ini`; 100 means "use th
 ## Saves
 
 Pilots, levels, photos and stickers live in `game/User`.
-Screenshots (F12) go to `game/ScreenShots`.
+Screenshots (Fn + F12) go to `game/ScreenShots`.
 Back up `game/User` to keep your pilots.
 
 ## Online multiplayer
@@ -105,6 +105,11 @@ Back up `game/User` to keep your pilots.
 ## Controls
 
 These are the defaults from `game/user.ini` and `game/readme.txt`.
+Setup adds `x` for "next weapon" to a new `game/user.ini`, because MacBooks have no keypad.
+An existing `game/user.ini` is never changed.
+
+On a Mac keyboard, hold Fn for F1, F2 and F12.
+To use them without Fn, turn on "Use F1, F2, etc. keys as standard function keys" under System Settings > Keyboard > Keyboard Shortcuts > Function Keys.
 
 | Key | Action |
 | --- | --- |
@@ -113,7 +118,7 @@ These are the defaults from `game/user.ini` and `game/readme.txt`.
 | d / c | Throttle up / down |
 | Space | Fire primary weapon (machine guns) |
 | z | Fire secondary weapon |
-| Keypad 0 | Next weapon |
+| x or Keypad 0 | Next weapon |
 | 1 | Cannon |
 | 2 | Rockets |
 | 3 | Bombs |
@@ -124,12 +129,12 @@ These are the defaults from `game/user.ini` and `game/readme.txt`.
 | 8 | A-bomb |
 | Mouse | Look around (on by default, inverted) |
 | Left Shift | Rear view |
-| F1 | Change camera view |
-| F2 | Message window |
+| Fn + F1 | Change camera view |
+| Fn + F2 | Message window |
 | Tab | Mission info / multiplayer info |
 | p | Pause |
 | Esc | Menu |
-| F12 | Screenshot |
+| Fn + F12 | Screenshot |
 
 Joystick input is off by default; turn it on in Options.
 
