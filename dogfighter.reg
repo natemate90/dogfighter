@@ -1,0 +1,22 @@
+REGEDIT4
+
+[HKEY_LOCAL_MACHINE\Software\Wine\Drives]
+"d:"="cdrom"
+
+[HKEY_CURRENT_USER\Software\Wine\AppDefaults\Dogfighter.exe\DllOverrides]
+"winmm"="native,builtin"
+
+[HKEY_CURRENT_USER\Software\Wine\Direct3D]
+"renderer"="gl"
+"VideoMemorySize"="256"
+
+[HKEY_CURRENT_USER\Software\Wine\Mac Driver]
+"CaptureDisplaysForFullscreen"="y"
+
+[HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\App Paths\Dogfighter.exe]
+@="C:\\Games\\Dogfighter\\Dogfighter.exe"
+"Path"="C:\\Games\\Dogfighter"
+
+[HKEY_LOCAL_MACHINE\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\Dogfighter.exe]
+@="C:\\Games\\Dogfighter\\Dogfighter.exe"
+"Path"="C:\\Games\\Dogfighter"
