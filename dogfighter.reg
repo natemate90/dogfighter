@@ -11,7 +11,7 @@ REGEDIT4
 "VideoMemorySize"="256"
 
 [HKEY_CURRENT_USER\Software\Wine\Mac Driver]
-"CaptureDisplaysForFullscreen"="y"
+"WindowsFloatWhenInactive"="none"
 
 [HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\App Paths\Dogfighter.exe]
 @="C:\\Games\\Dogfighter\\Dogfighter.exe"
