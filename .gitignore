@@ -1,4 +1,7 @@
-/Dogfighter.bin
+*.bin
+*.cue
+*.toc
+*.iso
 /wine/
 /prefix/
 /game/
