@@ -173,10 +173,13 @@ build_helpers() {
     "$HERE/tools/build-winmm.sh" "$TOOLCHAIN" "$HERE/build"
   fi
   cmp -s "$HERE/build/winmm.dll" "$HERE/game/winmm.dll" || cp "$HERE/build/winmm.dll" "$HERE/game/winmm.dll"
-  if [ ! -f "$HERE/build/focusfix.exe" ] || [ ! -f "$HERE/build/focushook.dll" ]; then
-    step "Building the focus fix"
+  local helper
+  for helper in focusfix.exe focushook.dll windiag.exe crashlog.dll; do
+    [ -f "$HERE/build/$helper" ] && continue
+    step "Building the window helper and its diagnostics"
     "$HERE/tools/build-focusfix.sh" "$TOOLCHAIN"
-  fi
+    break
+  done
 }
 
 path_hint() {

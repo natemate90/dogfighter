@@ -4,22 +4,27 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage: dogfighter [--res=WxH] [--sharp] [--windowed[=WxH] | --fullscreen] [--no-focusfix]
-                  [--wrapper=dgvoodoo | --wrapper=dgvoodoo-dxvk] [--winecfg] [--stop]
+                  [--wrapper=dgvoodoo | --wrapper=dgvoodoo-dxvk] [--debug=CHANNELS]
+                  [--diag[=accept-setup|focus-test]] [--winecfg] [--stop]
 
-  (no option)       Play in a window at the largest resolution that fits the screen.
-                    macOS scales it up on a Retina screen, so menu text stays readable.
-  --res=WxH         Use this game resolution instead, e.g. --res=1440x900.
-  --sharp           Use Retina pixels: sharper, but the menu text gets half as big.
-  --windowed=WxH    Force another Wine window size, e.g. --windowed=1280x960.
-  --fullscreen      Let the game switch the Mac's real display mode.
-  --no-focusfix     Turn off the focus fix. By default the game keeps running after
-                    Cmd+Tab and comes back to the front when you return to it.
-  --wrapper=dgvoodoo
-                    Test: draw the game through dgVoodoo2 in a normal Mac window that
-                    you can resize or make full screen; the picture scales with it.
-                    dgVoodoo2 draws through Wine's own Direct3D 11 on Vulkan.
-  --wrapper=dgvoodoo-dxvk
-                    The same, but dgVoodoo2 draws through DXVK and MoltenVK.
+  (no option)       Play in a normal Mac window that you can resize. The picture is
+                    scaled to fill it, so menu text stays readable.
+  --res=WxH         Use this game resolution in flight, e.g. --res=1440x900.
+                    The menus are always 640x480.
+  --sharp           Use Retina pixels: a sharper picture in flight.
+  --windowed=WxH    Start with the picture at most this big, e.g. --windowed=1024x768.
+  --fullscreen      Let the game switch the Mac's real display mode. The game quit
+                    at once in the last test on Apple Silicon.
+  --no-focusfix     Start without the helper that scales the picture, makes the
+                    window resizable and keeps the game running after Cmd+Tab.
+  --wrapper=dgvoodoo, --wrapper=dgvoodoo-dxvk
+                    Test: draw the game through dgVoodoo2, on Wine's Direct3D 11 or
+                    on DXVK. Both crash when the game starts drawing.
+  --debug=CHANNELS  Write Wine debug channels to the log, e.g. --debug=+seh,+ddraw.
+  --diag            Write the game's windows, display mode and cursor state to the log.
+                    --diag=accept-setup also presses OK in the game's setup dialog,
+                    for test runs with nobody at the screen. --diag=focus-test
+                    then also takes the keyboard focus away for five seconds.
   --winecfg         Open Wine's settings for this game's prefix instead of playing.
   --stop            End a running game and all Wine processes of this prefix.
 EOF
@@ -31,6 +36,9 @@ GAME_RES=
 FOCUSFIX=1
 SHARP=0
 WRAPPER=none
+DEBUG=
+DIAG=0
+DIAG_ARGS=()
 for arg in "$@"; do
   case "$arg" in
     --windowed) MODE=windowed ;;
@@ -41,12 +49,17 @@ for arg in "$@"; do
     --focusfix) FOCUSFIX=1 ;;
     --no-focusfix) FOCUSFIX=0 ;;
     --wrapper=none|--wrapper=dgvoodoo|--wrapper=dgvoodoo-dxvk) WRAPPER="${arg#--wrapper=}" ;;
+    --debug=*) DEBUG="${arg#--debug=}" ;;
+    --diag) DIAG=1 ;;
+    --diag=accept-setup) DIAG=1; DIAG_ARGS=(accept-setup) ;;
+    --diag=focus-test) DIAG=1; DIAG_ARGS=(accept-setup focus-test) ;;
     --winecfg) MODE=winecfg ;;
     --stop) MODE=stop ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
   esac
 done
+WINDOW_SIZE="$DESKTOP_SIZE"
 for size in "$DESKTOP_SIZE" "$GAME_RES"; do
   [[ -z "$size" || "$size" =~ ^[0-9]+x[0-9]+$ ]] || { echo "Bad size: $size" >&2; exit 2; }
 done
@@ -70,6 +83,8 @@ REG="$HERE/dogfighter.reg"
 INI="$HERE/game/system.ini"
 FOCUSFIX_EXE="$HERE/build/focusfix.exe"
 FOCUSHOOK_DLL="$HERE/build/focushook.dll"
+WINDIAG_EXE="$HERE/build/windiag.exe"
+CRASHLOG_DLL="$HERE/build/crashlog.dll"
 SIZES="2560x1600 2560x1440 1920x1200 1920x1080 1680x1050 1600x1200 1600x900 1440x900
        1280x1024 1280x960 1280x800 1280x720 1024x768 800x600 640x480"
 DGVOODOO_ZIP=dgVoodoo2_87_6.zip
@@ -84,7 +99,7 @@ if [ "$MODE" = stop ]; then
   if [ -x "$WINESERVER" ]; then "$WINESERVER" -k 2>/dev/null || true; fi
   exit 0
 fi
-export WINEDEBUG="${WINEDEBUG:-fixme-all}"
+export WINEDEBUG="${DEBUG:-${WINEDEBUG:-fixme-all}}"
 case "$WRAPPER" in
   none) DLL_MODES="ddraw=b" ;;
   dgvoodoo) DLL_MODES="ddraw,d3dimm=n;d3d11,d3d10core,dxgi=b" ;;
@@ -146,13 +161,15 @@ screen_info() {
 
 REG_CHANGED=0
 set_user_reg() {
-  local key="$1" name="$2" value="$3" current
+  local key="$1" name="$2" value="$3" type="${4:-REG_SZ}" current want
   current="$(SEC="[${key//\\/\\\\}]" NAME="\"$name\"=" awk '
     /^\[/ { in_s = index($0, ENVIRON["SEC"]) == 1; next }
     in_s && index($0, ENVIRON["NAME"]) == 1 { print; exit }' "$WINEPREFIX/user.reg" 2>/dev/null || true)"
-  [ "$current" = "\"$name\"=\"$value\"" ] && return
+  want="\"$name\"=\"$value\""
+  if [ "$type" = REG_DWORD ]; then want="\"$name\"=dword:$(printf '%08x' "$value")"; fi
+  [ "$current" = "$want" ] && return
   say "Setting Wine $name to $value."
-  "$WINE" reg add "HKCU\\$key" /v "$name" /t REG_SZ /d "$value" /f >>"$LOG" 2>&1
+  "$WINE" reg add "HKCU\\$key" /v "$name" /t "$type" /d "$value" /f >>"$LOG" 2>&1
   REG_CHANGED=1
 }
 
@@ -303,14 +320,28 @@ if [ -n "$GAME_RES" ]; then
   done <<<"$SECTIONS"
   if [ "$RES_CHANGED" = 1 ]; then say "Game resolution set to $GAME_RES."; fi
 fi
+if [ "$MODE" != winecfg ]; then
+  DEVICE="$(ini_get "$INI" setup current_device)"
+  DEVICE="${DEVICE:-Direct3D}"
+  while IFS= read -r SECTION; do
+    CARD="${SECTION#"$DEVICE".}"
+    if [ "$WRAPPER" = none ]; then [[ "$CARD" != dgVoodoo* ]] || continue
+    else [[ "$CARD" == dgVoodoo* ]] || continue; fi
+    if [ "$(ini_get "$INI" "$DEVICE" device_card)" != "$CARD" ]; then
+      ini_set "$INI" "$DEVICE" device_card "$CARD"
+      say "Game video card set to $CARD."
+    fi
+    break
+  done <<<"$(card_sections)"
+fi
 if [ "$MODE" = windowed ] && [ "$WRAPPER" = none ] && [ -z "$DESKTOP_SIZE" ]; then
   DESKTOP_SIZE="$(ini_size)"
   DESKTOP_SIZE="${DESKTOP_SIZE:-1024x768}"
 fi
 
 set_user_reg 'Software\Wine\Mac Driver' RetinaMode "$RETINA"
-# Wine's dxgi starts wined3d, and wined3d's OpenGL adapter crashes inside
-# Apple's OpenGL when dgVoodoo2 creates its DXGI factory. The game's own
+# Wine's dxgi starts wined3d, and with the OpenGL renderer that start often
+# crashes (see START_CRASH), so the dgVoodoo2 path uses Vulkan. The game's own
 # Direct3D 7 path needs the OpenGL renderer, so this is set on every start.
 if [ "$WRAPPER" = dgvoodoo ]; then
   set_user_reg 'Software\Wine\Direct3D' renderer vulkan
@@ -330,6 +361,7 @@ if [ -n "$DESKTOP_SIZE" ]; then
   MODE_SIZE="$(ini_size)"
   set_user_reg 'Software\Wine\Explorer\Desktops' Default "${MODE_SIZE:-$DESKTOP_SIZE}"
 fi
+set_user_reg 'Software\Wine\WineDbg' ShowCrashDialog 0 REG_DWORD
 if [ "$REG_CHANGED" = 1 ]; then "$WINESERVER" -w; fi
 
 if [ "$WRAPPER" != none ]; then
@@ -337,42 +369,87 @@ if [ "$WRAPPER" != none ]; then
 fi
 
 GAME_CMD=("$GAME_DOS\\Dogfighter.exe")
+START=(start /wait /d "$GAME_DOS")
 WATCH_PID=
 if [ "$FOCUSFIX" = 1 ] && [ "$MODE" != winecfg ]; then
   FLAG="$WINEPREFIX/drive_c/dogfighter-focusfix.flag"
   cp "$FOCUSFIX_EXE" "$WINEPREFIX/drive_c/dogfighter-focusfix.exe"
   cp "$FOCUSHOOK_DLL" "$WINEPREFIX/drive_c/dogfighter-focushook.dll"
   GAME_CMD=('C:\dogfighter-focusfix.exe' 'C:\dogfighter-focusfix.flag' "$GAME_DOS\\Dogfighter.exe")
+  START=()
+  if [ "$MODE" = windowed ] && [ "$WRAPPER" = none ] && [ -n "$LIMIT" ]; then
+    export DOGFIGHTER_WINDOW="${WINDOW_SIZE:-$LIMIT}"
+    export DOGFIGHTER_SCREEN="${LIMIT%x*}x$((${LIMIT#*x} + 28))"
+  fi
   watch_front "$FLAG" &
   WATCH_PID=$!
   trap 'kill "$WATCH_PID" 2>/dev/null || true' EXIT
   say "Focus fix on: the game keeps running after Cmd+Tab and comes back to the front on return."
 fi
 
-cd "$HERE"
-case "$MODE" in
-  winecfg)
-    "$WINE" winecfg >>"$LOG" 2>&1
-    ;;
-  windowed)
-    if [ "$WRAPPER" != none ]; then
-      say "Starting Airfix Dogfighter through $WRAPPER in a resizable ${GAME_RES:-640x480} window. Log: $LOG"
+DESKTOP=()
+if [ "$MODE" = windowed ] && [ "$WRAPPER" = none ]; then
+  DESKTOP=(explorer "/desktop=Dogfighter,$DESKTOP_SIZE")
+fi
+if [ "$DIAG" = 1 ] && [ "$MODE" != winecfg ]; then
+  if [ ! -f "$WINDIAG_EXE" ] || [ ! -f "$CRASHLOG_DLL" ]; then
+    say "build/windiag.exe or build/crashlog.dll is missing. Run ./setup.sh to build them."
+    exit 1
+  fi
+  cp "$WINDIAG_EXE" "$WINEPREFIX/drive_c/dogfighter-windiag.exe"
+  cp "$CRASHLOG_DLL" "$WINEPREFIX/drive_c/dogfighter-crashlog.dll"
+  if [ "$FOCUSFIX" = 1 ]; then
+    export DOGFIGHTER_DIAG="${DIAG_ARGS[*]:-log}"
+  else
+    "$WINE" ${DESKTOP[@]+"${DESKTOP[@]}"} 'C:\dogfighter-windiag.exe' \
+      ${DIAG_ARGS[@]+"${DIAG_ARGS[@]}"} >>"$LOG" 2>&1 &
+  fi
+fi
+
+run_wine() {
+  case "$MODE" in
+    winecfg)
+      "$WINE" winecfg >>"$LOG" 2>&1
+      ;;
+    windowed)
+      if [ "$WRAPPER" != none ]; then
+        say "Starting Airfix Dogfighter through $WRAPPER in a resizable ${GAME_RES:-640x480} window. Log: $LOG"
+        "$WINE" start /wait /d "$GAME_DOS" "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
+      else
+        say "Starting Airfix Dogfighter in a window. Log: $LOG"
+        "$WINE" "${DESKTOP[@]}" ${START[@]+"${START[@]}"} "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
+      fi
+      ;;
+    fullscreen)
+      say "Starting Airfix Dogfighter fullscreen. Log: $LOG"
       "$WINE" start /wait /d "$GAME_DOS" "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
-    else
-      say "Starting Airfix Dogfighter in a ${DESKTOP_SIZE} window. Log: $LOG"
-      "$WINE" explorer "/desktop=Dogfighter,$DESKTOP_SIZE" start /wait /d "$GAME_DOS" "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
-    fi
-    ;;
-  fullscreen)
-    say "Starting Airfix Dogfighter fullscreen. Log: $LOG"
-    "$WINE" start /wait /d "$GAME_DOS" "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
-    ;;
-esac
-"$WINESERVER" -w
+      ;;
+  esac
+  "$WINESERVER" -w
+  cat "$WINEPREFIX/drive_c/dogfighter-focusfix.log" "$WINEPREFIX/drive_c/dogfighter-focushook.log" \
+    "$WINEPREFIX/drive_c/dogfighter-windiag.log" "$WINEPREFIX/drive_c/dogfighter-crash.log" \
+    >>"$LOG" 2>/dev/null || true
+  rm -f "$WINEPREFIX"/drive_c/dogfighter-{focusfix,focushook,windiag,crash}.log
+}
+
+# Under Rosetta, Wine sometimes runs its 32-to-64-bit switch as 32-bit code
+# while Direct3D starts. The game then dies or hangs in its first seconds,
+# with one of these lines in the log, and a second start usually works.
+START_CRASH='Unhandled page fault on read access to 00004DC9|Exception frame is not in stack limits|stuck while starting'
+cd "$HERE"
+TRY=1
+while :; do
+  LOG_LINES="$(wc -l <"$LOG")"
+  run_wine
+  [ "$TRY" -lt 5 ] || break
+  LC_ALL=C awk -v from="$LOG_LINES" -v crash="$START_CRASH" '
+    NR > from && $0 ~ crash { found = 1 } END { exit !found }' "$LOG" || break
+  TRY=$((TRY + 1))
+  say "Wine crashed while starting Direct3D. Starting again (try $TRY of 5)."
+done
 
 if [ -n "$WATCH_PID" ]; then
   kill "$WATCH_PID" 2>/dev/null || true
-  cat "$WINEPREFIX/drive_c/dogfighter-focusfix.log" >>"$LOG" 2>/dev/null || true
 fi
 if [ -f "$HERE/game/winmm.log" ]; then
   cp "$HERE/game/winmm.log" "${LOG%.log}-music.log"
