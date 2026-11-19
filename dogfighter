@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: ./run.sh [--res=WxH] [--sharp] [--windowed[=WxH] | --fullscreen] [--focusfix] [--winecfg]
+Usage: dogfighter [--res=WxH] [--sharp] [--windowed[=WxH] | --fullscreen] [--no-focusfix] [--winecfg]
 
   (no option)       Play in a window at the largest resolution that fits the screen.
                     macOS scales it up on a Retina screen, so menu text stays readable.
@@ -11,7 +11,8 @@ Usage: ./run.sh [--res=WxH] [--sharp] [--windowed[=WxH] | --fullscreen] [--focus
   --sharp           Use Retina pixels: sharper, but the menu text gets half as big.
   --windowed=WxH    Force another Wine window size, e.g. --windowed=1280x960.
   --fullscreen      Let the game switch the Mac's real display mode.
-  --focusfix        Keep the game running after Cmd+Tab and bring it back on return.
+  --no-focusfix     Turn off the focus fix. By default the game keeps running after
+                    Cmd+Tab and comes back to the front when you return to it.
   --winecfg         Open Wine's settings for this game's prefix instead of playing.
 EOF
 }
@@ -19,7 +20,7 @@ EOF
 MODE=windowed
 DESKTOP_SIZE=
 GAME_RES=
-FOCUSFIX=0
+FOCUSFIX=1
 SHARP=0
 for arg in "$@"; do
   case "$arg" in
@@ -29,6 +30,7 @@ for arg in "$@"; do
     --fullscreen) MODE=fullscreen ;;
     --sharp) SHARP=1 ;;
     --focusfix) FOCUSFIX=1 ;;
+    --no-focusfix) FOCUSFIX=0 ;;
     --winecfg) MODE=winecfg ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
@@ -38,7 +40,13 @@ for size in "$DESKTOP_SIZE" "$GAME_RES"; do
   [[ -z "$size" || "$size" =~ ^[0-9]+x[0-9]+$ ]] || { echo "Bad size: $size" >&2; exit 2; }
 done
 
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SELF="${BASH_SOURCE[0]}"
+while [ -L "$SELF" ]; do
+  LINK_DIR="$(cd -P "$(dirname "$SELF")" && pwd)"
+  SELF="$(readlink "$SELF")"
+  [[ "$SELF" == /* ]] || SELF="$LINK_DIR/$SELF"
+done
+HERE="$(cd -P "$(dirname "$SELF")" && pwd)"
 WINE="$HERE/wine/bin/wine"
 WINESERVER="$HERE/wine/bin/wineserver"
 GAME_DOS='C:\Games\Dogfighter'
@@ -147,8 +155,8 @@ if ! /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; then
 fi
 [ -x "$WINE" ] || { echo "Wine not found at $WINE" >&2; exit 1; }
 if [ "$FOCUSFIX" = 1 ] && { [ ! -f "$FOCUSFIX_EXE" ] || [ ! -f "$FOCUSHOOK_DLL" ]; }; then
-  echo "Missing $FOCUSFIX_EXE or $FOCUSHOOK_DLL; build them with tools/build-focusfix.sh" >&2
-  exit 1
+  say "Warning: build/focusfix.exe or build/focushook.dll is missing; starting without the focus fix. Run ./setup.sh to build them."
+  FOCUSFIX=0
 fi
 
 if [ ! -f "$WINEPREFIX/system.reg" ]; then
