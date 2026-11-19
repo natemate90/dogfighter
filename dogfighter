@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage: dogfighter [--res=WxH] [--sharp] [--windowed[=WxH] | --fullscreen] [--no-focusfix]
-                  [--wrapper=dgvoodoo | --wrapper=dgvoodoo-dxvk] [--winecfg]
+                  [--wrapper=dgvoodoo | --wrapper=dgvoodoo-dxvk] [--winecfg] [--stop]
 
   (no option)       Play in a window at the largest resolution that fits the screen.
                     macOS scales it up on a Retina screen, so menu text stays readable.
@@ -17,9 +17,11 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed[=WxH] | --fullscreen] [--no-
   --wrapper=dgvoodoo
                     Test: draw the game through dgVoodoo2 in a normal Mac window that
                     you can resize or make full screen; the picture scales with it.
+                    dgVoodoo2 draws through Wine's own Direct3D 11 on Vulkan.
   --wrapper=dgvoodoo-dxvk
                     The same, but dgVoodoo2 draws through DXVK and MoltenVK.
   --winecfg         Open Wine's settings for this game's prefix instead of playing.
+  --stop            End a running game and all Wine processes of this prefix.
 EOF
 }
 
@@ -40,6 +42,7 @@ for arg in "$@"; do
     --no-focusfix) FOCUSFIX=0 ;;
     --wrapper=none|--wrapper=dgvoodoo|--wrapper=dgvoodoo-dxvk) WRAPPER="${arg#--wrapper=}" ;;
     --winecfg) MODE=winecfg ;;
+    --stop) MODE=stop ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
   esac
@@ -72,16 +75,20 @@ SIZES="2560x1600 2560x1440 1920x1200 1920x1080 1680x1050 1600x1200 1600x900 1440
 DGVOODOO_ZIP=dgVoodoo2_87_6.zip
 DGVOODOO_URL=https://github.com/dege-diosg/dgVoodoo2/releases/download/2.87.6/dgVoodoo2_87_6.zip
 DGVOODOO_SHA=9afa493396feec7108f42a2d97661eef96bbaac5addf0dfb5cfbc3001cd76a0a
-DXVK_NAME=dxvk-macOS-async-v1.10.3-20230507-repack
-DXVK_URL=https://github.com/Gcenx/DXVK-macOS/releases/download/v1.10.3-20230507-repack/$DXVK_NAME.tar.gz
-DXVK_SHA=acd1520ad105d8ef124a09c8e11a259a5dc8bdc565ad18e0e52693f9807b2477
+DXVK_NAME=dxvk-macOS-async-v1.10.3-20230507
+DXVK_URL=https://github.com/Gcenx/DXVK-macOS/releases/download/v1.10.3-20230507/$DXVK_NAME.tar.gz
+DXVK_SHA=f67d99d0a8eeedd7d406b283a3df9f939b5965acb00efcb33d0c6235c195a516
 
 export WINEPREFIX="$HERE/prefix"
+if [ "$MODE" = stop ]; then
+  [ -x "$WINESERVER" ] && "$WINESERVER" -k 2>/dev/null
+  exit 0
+fi
 export WINEDEBUG="${WINEDEBUG:-fixme-all}"
 case "$WRAPPER" in
   none) DLL_MODES="ddraw=b" ;;
-  dgvoodoo) DLL_MODES="ddraw,d3dimm=n;d3d11,d3d10core=b" ;;
-  dgvoodoo-dxvk) DLL_MODES="ddraw,d3dimm=n;d3d11,d3d10core=n" ;;
+  dgvoodoo) DLL_MODES="ddraw,d3dimm=n;d3d11,d3d10core,dxgi=b" ;;
+  dgvoodoo-dxvk) DLL_MODES="ddraw,d3dimm=n;d3d11,d3d10core,dxgi=n" ;;
 esac
 export WINEDLLOVERRIDES="winmm=n,b;mscoree=;mshtml=;$DLL_MODES"
 
@@ -117,6 +124,17 @@ game_section() {
   dev="$(ini_get "$INI" setup current_device)"
   card="$(ini_get "$INI" "${dev:-Direct3D}" device_card)"
   [ -n "$card" ] && echo "${dev:-Direct3D}.$card"
+}
+
+# The game keeps one section per video card it has seen and picks the card at
+# start, so a wrapper run leaves a second card (dgVoodoo) next to Wine's.
+card_sections() {
+  local dev
+  [ -f "$INI" ] || return 0
+  dev="$(ini_get "$INI" setup current_device)"
+  awk -v p="[${dev:-Direct3D}." '
+    { sub(/\r$/, "") }
+    index($0, p) == 1 && /\]$/ { print substr($0, 2, length($0) - 2) }' "$INI"
 }
 
 screen_info() {
@@ -177,8 +195,8 @@ install_wrapper() {
   if [ "$WRAPPER" = dgvoodoo-dxvk ]; then
     fetch_pinned "$DXVK_NAME.tar.gz" "$DXVK_URL" "$DXVK_SHA"
     tar -xzf "$HERE/downloads/$DXVK_NAME.tar.gz" -C "$dir" --strip-components 2 \
-      "$DXVK_NAME/x32/d3d11.dll" "$DXVK_NAME/x32/d3d10core.dll"
-    cp "$dir/d3d11.dll" "$dir/d3d10core.dll" "$HERE/game/"
+      "$DXVK_NAME/x32/d3d11.dll" "$DXVK_NAME/x32/d3d10core.dll" "$DXVK_NAME/x32/dxgi.dll"
+    cp "$dir/d3d11.dll" "$dir/d3d10core.dll" "$dir/dxgi.dll" "$HERE/game/"
     api=d3d11_fl11_0
   fi
   dgvoodoo_conf "$dir/dgVoodoo.conf" "$api" "$GAME_RES" >"$HERE/game/dgVoodoo.conf"
@@ -272,15 +290,18 @@ if [ "$MODE" = windowed ] && [ -n "$LIMIT" ]; then
     GAME_RES="$(largest_fit)"
   fi
 fi
-if [ -n "$GAME_RES" ] && [ "$GAME_RES" != "$(ini_size)" ]; then
-  SECTION="$(game_section || true)"
-  if [ -n "$SECTION" ]; then
+if [ -n "$GAME_RES" ]; then
+  SECTIONS="$(card_sections)"
+  [ -n "$SECTIONS" ] || say "No video card in $INI yet; start the game once, then use --res."
+  RES_CHANGED=0
+  while IFS= read -r SECTION; do
+    [ -n "$SECTION" ] || continue
+    [ "$(ini_get "$INI" "$SECTION" screen_width)x$(ini_get "$INI" "$SECTION" screen_height)" != "$GAME_RES" ] || continue
     ini_set "$INI" "$SECTION" screen_width "${GAME_RES%x*}"
     ini_set "$INI" "$SECTION" screen_height "${GAME_RES#*x}"
-    say "Game resolution set to $GAME_RES."
-  else
-    say "No video card in $INI yet; start the game once, then use --res."
-  fi
+    RES_CHANGED=1
+  done <<<"$SECTIONS"
+  if [ "$RES_CHANGED" = 1 ]; then say "Game resolution set to $GAME_RES."; fi
 fi
 if [ "$MODE" = windowed ] && [ "$WRAPPER" = none ] && [ -z "$DESKTOP_SIZE" ]; then
   DESKTOP_SIZE="$(ini_size)"
@@ -288,6 +309,14 @@ if [ "$MODE" = windowed ] && [ "$WRAPPER" = none ] && [ -z "$DESKTOP_SIZE" ]; th
 fi
 
 set_user_reg 'Software\Wine\Mac Driver' RetinaMode "$RETINA"
+# Wine's dxgi starts wined3d, and wined3d's OpenGL adapter crashes inside
+# Apple's OpenGL when dgVoodoo2 creates its DXGI factory. The game's own
+# Direct3D 7 path needs the OpenGL renderer, so this is set on every start.
+if [ "$WRAPPER" = dgvoodoo ]; then
+  set_user_reg 'Software\Wine\Direct3D' renderer vulkan
+else
+  set_user_reg 'Software\Wine\Direct3D' renderer gl
+fi
 if [ "$MODE" = fullscreen ]; then
   set_user_reg 'Software\Wine\Mac Driver' CaptureDisplaysForFullscreen y
 else
