@@ -12,6 +12,7 @@
 /toolchain/
 /build/
 /logs/
+/Dogfighter.app/
 /src/*.tar.gz
 /src/ogg-1.3.6/
 /src/vorbis-1.3.7/

@@ -89,6 +89,16 @@ Once linked, `dogfighter` works from any folder.
 | `--no-focusfix` | Turn off the focus fix (see Troubleshooting). |
 | `--winecfg` | Open Wine's settings for this game instead of playing. |
 
+### Dogfighter.app
+
+Setup also builds `Dogfighter.app` in this folder.
+Double-click it to play without a terminal; it runs `./dogfighter` with no options.
+Its icon is made from `cd/Airfix.ico` on your Mac, so the app is not part of this repo.
+
+You can drag the app to `/Applications` or the Dock.
+It remembers where this folder is.
+If you move this folder, run `./setup.sh` again and use the new app.
+
 The first start creates a Wine prefix in `prefix/`, which takes a minute.
 The disc image is not needed while playing: `cd/` acts as the CD in drive D:.
 
@@ -174,5 +184,5 @@ They are listed in sections 1.1 and 1.2 of `game/readme.txt`.
 ## Legal
 
 For personal use with a disc you own.
-Never commit or share the game files: `Dogfighter.bin`, `cd/`, `game/` or `music/`.
+Never commit or share the game files: `Dogfighter.bin`, `cd/`, `game/`, `music/` or `Dogfighter.app`.
 `.gitignore` keeps them out of git.

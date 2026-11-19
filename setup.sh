@@ -250,6 +250,8 @@ make_cd
 install_game
 rip_music
 build_helpers
+step "Building Dogfighter.app"
+"$HERE/tools/build-app.sh"
 
-printf '\nSetup is done. Start the game with: ./dogfighter\n'
+printf '\nSetup is done. Start the game with ./dogfighter, or double-click Dogfighter.app.\n'
 path_hint
