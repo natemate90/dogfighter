@@ -45,8 +45,13 @@ Or pass its path: `./setup.sh path/to/Dogfighter.bin`.
 Setup takes a few minutes.
 If a step fails, fix the error it prints and run it again; finished steps are skipped.
 
-At the end it prints the command that puts `dogfighter` on your PATH.
-It never runs that command itself.
+To start the game from anywhere as `dogfighter`, link it into a folder on your PATH:
+
+```sh
+ln -s "$PWD/dogfighter" /opt/homebrew/bin/dogfighter
+```
+
+Setup prints this command when `/opt/homebrew/bin` or `~/.local/bin` is on your PATH.
 
 ## Running
 
