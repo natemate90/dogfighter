@@ -3,70 +3,89 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: dogfighter [--res=WxH] [--sharp] [--windowed[=WxH] | --fullscreen] [--no-focusfix]
-                  [--wrapper=dgvoodoo | --wrapper=dgvoodoo-dxvk] [--debug=CHANNELS]
-                  [--diag[=accept-setup|focus-test]] [--winecfg] [--stop]
+Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--setup] [--no-focusfix]
+                  [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|start-test|draw-test]]
+                  [--diag-keys=SECONDS:SCANCODE,...] [--diag-console=SECONDS:COMMAND]
+                  [--winecfg] [--stop]
 
   (no option)       Play in a normal Mac window that you can resize. The picture is
                     scaled to fill it, so menu text stays readable.
+                    Ctrl+Option frees the mouse, and gives it back to the game.
   --res=WxH         Use this game resolution in flight, e.g. --res=1440x900.
                     The menus are always 640x480.
   --sharp           Use Retina pixels: a sharper picture in flight.
   --windowed=WxH    Start with the picture at most this big, e.g. --windowed=1024x768.
-  --fullscreen      Let the game switch the Mac's real display mode. The game quit
-                    at once in the last test on Apple Silicon.
-  --no-focusfix     Start without the helper that scales the picture, makes the
-                    window resizable and keeps the game running after Cmd+Tab.
-  --wrapper=dgvoodoo, --wrapper=dgvoodoo-dxvk
-                    Test: draw the game through dgVoodoo2, on Wine's Direct3D 11 or
-                    on DXVK. Both crash when the game starts drawing.
+  --setup           Show the game's setup dialog (driver, language, advanced settings)
+                    and wait for OK. Without this the launcher presses OK itself.
+  --no-focusfix     Start without the helper. The picture is not scaled, the window
+                    has no title bar and the game stops when it loses the focus.
   --debug=CHANNELS  Write Wine debug channels to the log, e.g. --debug=+seh,+ddraw.
   --diag            Write the game's windows, display mode and cursor state to the log.
-                    --diag=accept-setup also presses OK in the game's setup dialog,
-                    for test runs with nobody at the screen. --diag=focus-test
-                    then also takes the keyboard focus away for five seconds.
+                    --diag=focus-test also runs a test with nobody at the screen: it
+                    takes the focus away and gives it back, frees and takes the mouse,
+                    resizes and zooms the window, then ends the game. It starts 10
+                    seconds after the first picture, or after SECONDS.
+                    --diag=start-test ends the game after 8 seconds of picture.
+                    --diag=draw-test runs a small test program in place of the game. It
+                    draws straight to the screen surface, which the game never does.
+  --diag-keys=LIST  Press keys in a test run, e.g. --diag-keys=30:1c,45:3b presses
+                    Enter 30 seconds after the first picture and F1 at 45 seconds.
+                    The codes are keyboard scan codes in hex.
+  --diag-console=SECONDS:COMMAND
+                    Run a game console command in a test run, e.g.
+                    --diag-console=30:mode+Singleplayer, with + for each space.
+                    Can be given more than once.
   --winecfg         Open Wine's settings for this game's prefix instead of playing.
   --stop            End a running game and all Wine processes of this prefix.
 EOF
 }
 
-MODE=windowed
-DESKTOP_SIZE=
+MODE=play
+WINDOW_SIZE=
 GAME_RES=
 FOCUSFIX=1
 SHARP=0
-WRAPPER=none
+SETUP=accept
 DEBUG=
-DIAG=0
-DIAG_ARGS=()
+DIAG=
+DIAG_KEYS=
+DIAG_CONSOLE=()
 for arg in "$@"; do
   case "$arg" in
-    --windowed) MODE=windowed ;;
-    --windowed=*) MODE=windowed; DESKTOP_SIZE="${arg#--windowed=}" ;;
+    --windowed=*) WINDOW_SIZE="${arg#--windowed=}" ;;
     --res=*) GAME_RES="${arg#--res=}" ;;
-    --fullscreen) MODE=fullscreen ;;
     --sharp) SHARP=1 ;;
-    --focusfix) FOCUSFIX=1 ;;
+    --setup) SETUP=show ;;
     --no-focusfix) FOCUSFIX=0 ;;
-    --wrapper=none|--wrapper=dgvoodoo|--wrapper=dgvoodoo-dxvk) WRAPPER="${arg#--wrapper=}" ;;
     --debug=*) DEBUG="${arg#--debug=}" ;;
-    --diag) DIAG=1 ;;
-    --diag=accept-setup) DIAG=1; DIAG_ARGS=(accept-setup) ;;
-    --diag=focus-test) DIAG=1; DIAG_ARGS=(accept-setup focus-test) ;;
+    --diag) DIAG=log ;;
+    --diag=focus-test) DIAG=focus-test ;;
+    --diag=focus-test:*) DIAG="focus-test wait=${arg#--diag=focus-test:}" ;;
+    --diag=start-test) DIAG=start-test ;;
+    --diag=draw-test) DIAG=draw-test ;;
+    --diag-keys=*) DIAG_KEYS="${arg#--diag-keys=}" ;;
+    --diag-console=*) DIAG_CONSOLE+=("${arg#--diag-console=}") ;;
     --winecfg) MODE=winecfg ;;
     --stop) MODE=stop ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
   esac
 done
-WINDOW_SIZE="$DESKTOP_SIZE"
-for size in "$DESKTOP_SIZE" "$GAME_RES"; do
+for size in "$WINDOW_SIZE" "$GAME_RES"; do
   [[ -z "$size" || "$size" =~ ^[0-9]+x[0-9]+$ ]] || { echo "Bad size: $size" >&2; exit 2; }
 done
-if [ "$WRAPPER" != none ]; then
-  [ "$MODE" = windowed ] || { echo "--wrapper only works in windowed mode." >&2; exit 2; }
-  [ -z "$DESKTOP_SIZE" ] || { echo "--wrapper sizes its own window; leave out --windowed=WxH." >&2; exit 2; }
-  FOCUSFIX=0
+if [ -n "$DIAG_KEYS" ]; then
+  [[ "$DIAG_KEYS" =~ ^[0-9]+:[0-9a-fA-F]+(,[0-9]+:[0-9a-fA-F]+)*$ ]] || { echo "Bad key list: $DIAG_KEYS" >&2; exit 2; }
+  DIAG="${DIAG:-log} keys=$DIAG_KEYS"
+fi
+for command in ${DIAG_CONSOLE[@]+"${DIAG_CONSOLE[@]}"}; do
+  [[ "$command" =~ ^[0-9]+:[A-Za-z0-9_.+\ ]+$ ]] || { echo "Bad console command: $command" >&2; exit 2; }
+  DIAG="${DIAG:-log} console=${command// /+}"
+done
+[[ "$DIAG" != *wait=* || "$DIAG" =~ wait=[0-9]+(\ |$) ]] || { echo "Bad number of seconds: $DIAG" >&2; exit 2; }
+if [ "$FOCUSFIX" = 0 ] && [[ "$DIAG" == *-test* || "$DIAG" == *=* ]]; then
+  echo "The diagnostic tests need the helper; leave out --no-focusfix." >&2
+  exit 2
 fi
 
 SELF="${BASH_SOURCE[0]}"
@@ -87,12 +106,6 @@ WINDIAG_EXE="$HERE/build/windiag.exe"
 CRASHLOG_DLL="$HERE/build/crashlog.dll"
 SIZES="2560x1600 2560x1440 1920x1200 1920x1080 1680x1050 1600x1200 1600x900 1440x900
        1280x1024 1280x960 1280x800 1280x720 1024x768 800x600 640x480"
-DGVOODOO_ZIP=dgVoodoo2_87_6.zip
-DGVOODOO_URL=https://github.com/dege-diosg/dgVoodoo2/releases/download/2.87.6/dgVoodoo2_87_6.zip
-DGVOODOO_SHA=9afa493396feec7108f42a2d97661eef96bbaac5addf0dfb5cfbc3001cd76a0a
-DXVK_NAME=dxvk-macOS-async-v1.10.3-20230507
-DXVK_URL=https://github.com/Gcenx/DXVK-macOS/releases/download/v1.10.3-20230507/$DXVK_NAME.tar.gz
-DXVK_SHA=f67d99d0a8eeedd7d406b283a3df9f939b5965acb00efcb33d0c6235c195a516
 
 export WINEPREFIX="$HERE/prefix"
 if [ "$MODE" = stop ]; then
@@ -100,15 +113,11 @@ if [ "$MODE" = stop ]; then
   exit 0
 fi
 export WINEDEBUG="${DEBUG:-${WINEDEBUG:-fixme-all}}"
-case "$WRAPPER" in
-  none) DLL_MODES="ddraw=b" ;;
-  dgvoodoo) DLL_MODES="ddraw,d3dimm=n;d3d11,d3d10core,dxgi=b" ;;
-  dgvoodoo-dxvk) DLL_MODES="ddraw,d3dimm=n;d3d11,d3d10core,dxgi=n" ;;
-esac
-export WINEDLLOVERRIDES="winmm=n,b;mscoree=;mshtml=;$DLL_MODES"
+export WINEDLLOVERRIDES="winmm=n,b;mscoree=;mshtml=;ddraw=b"
 
 mkdir -p "$HERE/logs"
 LOG="$HERE/logs/run-$(date +%Y%m%d-%H%M%S).log"
+: >>"$LOG"
 say() { echo "$*" | tee -a "$LOG"; }
 
 ini_get() {
@@ -134,6 +143,16 @@ ini_set() {
   mv "$tmp" "$1"
 }
 
+ini_drop_section() {
+  local tmp
+  tmp="$(mktemp "$1.XXXXXX")"
+  awk -v s="[$2]" '
+    { line = $0; sub(/\r$/, "", line) }
+    line ~ /^\[/ { in_s = (line == s) }
+    !in_s { print }' "$1" >"$tmp"
+  mv "$tmp" "$1"
+}
+
 game_section() {
   local dev card
   dev="$(ini_get "$INI" setup current_device)"
@@ -141,15 +160,19 @@ game_section() {
   [ -n "$card" ] && echo "${dev:-Direct3D}.$card"
 }
 
-# The game keeps one section per video card it has seen and picks the card at
-# start, so a wrapper run leaves a second card (dgVoodoo) next to Wine's.
-card_sections() {
-  local dev
-  [ -f "$INI" ] || return 0
-  dev="$(ini_get "$INI" setup current_device)"
-  awk -v p="[${dev:-Direct3D}." '
-    { sub(/\r$/, "") }
-    index($0, p) == 1 && /\]$/ { print substr($0, 2, length($0) - 2) }' "$INI"
+clean_wrapper_leftovers() {
+  local name wrapper_card='dgVoodoo DX API Layer' card
+  for name in DDraw.dll D3DImm.dll d3d11.dll d3d10core.dll dxgi.dll dgVoodoo.conf Dogfighter.dxvk-cache; do
+    [ ! -f "$HERE/game/$name" ] || { rm -f "$HERE/game/$name"; say "Removed game/$name, left by an old wrapper test."; }
+  done
+  rm -rf "$HERE/build/wrapper"
+  if [ ! -f "$INI" ] || ! grep -qF "[Direct3D.$wrapper_card]" "$INI"; then return 0; fi
+  ini_drop_section "$INI" "Direct3D.$wrapper_card"
+  if [ "$(ini_get "$INI" Direct3D device_card)" = "$wrapper_card" ]; then
+    card="$(awk '{ sub(/\r$/, "") } index($0, "[Direct3D.") == 1 { print substr($0, 11, length($0) - 11); exit }' "$INI")"
+    ini_set "$INI" Direct3D device_card "$card"
+  fi
+  say "Removed the dgVoodoo video card from game/system.ini."
 }
 
 screen_info() {
@@ -173,54 +196,8 @@ set_user_reg() {
   REG_CHANGED=1
 }
 
-fetch_pinned() {
-  local name="$1" url="$2" sha="$3" file="$HERE/downloads/$1"
-  if [ -f "$file" ] && [ "$(shasum -a 256 "$file" | cut -d' ' -f1)" = "$sha" ]; then return; fi
-  mkdir -p "$HERE/downloads"
-  say "Downloading $name"
-  curl -fL --retry 3 --progress-bar -o "$file.part" "$url" || { say "Download failed: $url"; exit 1; }
-  if [ "$(shasum -a 256 "$file.part" | cut -d' ' -f1)" != "$sha" ]; then
-    rm -f "$file.part"
-    say "$name does not match its pinned SHA-256 checksum."
-    exit 1
-  fi
-  mv "$file.part" "$file"
-}
-
-dgvoodoo_conf() {
-  awk -v api="$2" -v res="$3" '
-    BEGIN {
-      v["OutputAPI"] = api; v["FullScreenMode"] = "false"; v["ScalingMode"] = "stretched_ar"
-      v["KeepWindowAspectRatio"] = "true"; v["CaptureMouse"] = "false"; v["CenterAppWindow"] = "true"
-      v["AppControlledScreenMode"] = "false"; v["dgVoodooWatermark"] = "false"
-      v["ExtraEnumeratedResolutions"] = res
-    }
-    {
-      line = $0; sub(/\r$/, "", line)
-      key = line; sub(/[ \t]*=.*/, "", key)
-      if (index(line, "=") && (key in v)) { printf "%-37s= %s\r\n", key, v[key]; next }
-      print
-    }' "$1"
-}
-
-install_wrapper() {
-  local dir="$HERE/build/wrapper" api=d3d11_fl10_1
-  mkdir -p "$dir"
-  fetch_pinned "$DGVOODOO_ZIP" "$DGVOODOO_URL" "$DGVOODOO_SHA"
-  /usr/bin/unzip -q -o -j "$HERE/downloads/$DGVOODOO_ZIP" MS/x86/DDraw.dll MS/x86/D3DImm.dll dgVoodoo.conf -d "$dir"
-  cp "$dir/DDraw.dll" "$dir/D3DImm.dll" "$HERE/game/"
-  if [ "$WRAPPER" = dgvoodoo-dxvk ]; then
-    fetch_pinned "$DXVK_NAME.tar.gz" "$DXVK_URL" "$DXVK_SHA"
-    tar -xzf "$HERE/downloads/$DXVK_NAME.tar.gz" -C "$dir" --strip-components 2 \
-      "$DXVK_NAME/x32/d3d11.dll" "$DXVK_NAME/x32/d3d10core.dll" "$DXVK_NAME/x32/dxgi.dll"
-    cp "$dir/d3d11.dll" "$dir/d3d10core.dll" "$dir/dxgi.dll" "$HERE/game/"
-    api=d3d11_fl11_0
-  fi
-  dgvoodoo_conf "$dir/dgVoodoo.conf" "$api" "$GAME_RES" >"$HERE/game/dgVoodoo.conf"
-}
-
 fits() {
-  [ -z "$LIMIT" ] || { [ "${1%x*}" -le "${LIMIT%x*}" ] && [ "${1#*x}" -le "${LIMIT#*x}" ]; }
+  [ "${1%x*}" -le "${LIMIT%x*}" ] && [ "${1#*x}" -le "${LIMIT#*x}" ]
 }
 
 largest_fit() {
@@ -229,15 +206,6 @@ largest_fit() {
     if fits "$size"; then echo "$size"; return; fi
   done
   echo 640x480
-}
-
-ini_size() {
-  local section w h
-  section="$(game_section || true)"
-  [ -n "$section" ] || return 0
-  w="$(ini_get "$INI" "$section" screen_width)"
-  h="$(ini_get "$INI" "$section" screen_height)"
-  if [[ "$w" =~ ^[0-9]+$ && "$h" =~ ^[0-9]+$ ]]; then echo "${w}x${h}"; fi
 }
 
 watch_front() {
@@ -265,9 +233,13 @@ if ! /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; then
   exit 1
 fi
 [ -x "$WINE" ] || { echo "Wine not found at $WINE" >&2; exit 1; }
-if [ "$FOCUSFIX" = 1 ] && { [ ! -f "$FOCUSFIX_EXE" ] || [ ! -f "$FOCUSHOOK_DLL" ]; }; then
-  say "Warning: build/focusfix.exe or build/focushook.dll is missing; starting without the focus fix. Run ./setup.sh to build them."
-  FOCUSFIX=0
+if [ "$FOCUSFIX" = 1 ] && [ "$MODE" = play ] && { [ ! -f "$FOCUSFIX_EXE" ] || [ ! -f "$FOCUSHOOK_DLL" ]; }; then
+  say "build/focusfix.exe or build/focushook.dll is missing. Run ./setup.sh to build them."
+  exit 1
+fi
+if [ -n "$DIAG" ] && [ "$MODE" != winecfg ] && { [ ! -f "$WINDIAG_EXE" ] || [ ! -f "$CRASHLOG_DLL" ]; }; then
+  say "build/windiag.exe or build/crashlog.dll is missing. Run ./setup.sh to build them."
+  exit 1
 fi
 
 if [ ! -f "$WINEPREFIX/system.reg" ]; then
@@ -289,142 +261,87 @@ if [ "$(cat "$WINEPREFIX/.dogfighter-reg" 2>/dev/null || true)" != "$REG_SUM" ];
   echo "$REG_SUM" > "$WINEPREFIX/.dogfighter-reg"
 fi
 
+if [ "$MODE" = winecfg ]; then
+  "$WINE" winecfg >>"$LOG" 2>&1 || true
+  "$WINESERVER" -w
+  say "Done. Log: $LOG"
+  exit 0
+fi
+clean_wrapper_leftovers
+
 SCREEN="$(screen_info)"
-LIMIT=
+LIMIT=1024x768
 RETINA=n
 if [[ "$SCREEN" =~ ^([12])\ ([0-9]+)\ ([0-9]+)$ ]]; then
   scale="${BASH_REMATCH[1]}"
   [ "$SHARP" = 1 ] || scale=1
   if [ "$scale" = 2 ]; then RETINA=y; fi
   LIMIT="$((BASH_REMATCH[2] * scale))x$((BASH_REMATCH[3] * scale))"
+else
+  say "Could not read the screen size; assuming room for a $LIMIT picture."
 fi
 
-if [ "$MODE" = windowed ] && [ -n "$LIMIT" ]; then
-  if [ -z "$GAME_RES" ]; then
-    GAME_RES="$(largest_fit)"
-  elif ! fits "$GAME_RES"; then
-    say "$GAME_RES does not fit on this screen ($LIMIT max); using $(largest_fit)."
-    GAME_RES="$(largest_fit)"
-  fi
+if [ -z "$GAME_RES" ]; then
+  GAME_RES="$(largest_fit)"
+elif ! fits "$GAME_RES"; then
+  say "$GAME_RES does not fit on this screen ($LIMIT max); using $(largest_fit)."
+  GAME_RES="$(largest_fit)"
 fi
-if [ -n "$GAME_RES" ]; then
-  SECTIONS="$(card_sections)"
-  [ -n "$SECTIONS" ] || say "No video card in $INI yet; start the game once, then use --res."
-  RES_CHANGED=0
-  while IFS= read -r SECTION; do
-    [ -n "$SECTION" ] || continue
-    [ "$(ini_get "$INI" "$SECTION" screen_width)x$(ini_get "$INI" "$SECTION" screen_height)" != "$GAME_RES" ] || continue
-    ini_set "$INI" "$SECTION" screen_width "${GAME_RES%x*}"
-    ini_set "$INI" "$SECTION" screen_height "${GAME_RES#*x}"
-    RES_CHANGED=1
-  done <<<"$SECTIONS"
-  if [ "$RES_CHANGED" = 1 ]; then say "Game resolution set to $GAME_RES."; fi
-fi
-if [ "$MODE" != winecfg ]; then
-  DEVICE="$(ini_get "$INI" setup current_device)"
-  DEVICE="${DEVICE:-Direct3D}"
-  while IFS= read -r SECTION; do
-    CARD="${SECTION#"$DEVICE".}"
-    if [ "$WRAPPER" = none ]; then [[ "$CARD" != dgVoodoo* ]] || continue
-    else [[ "$CARD" == dgVoodoo* ]] || continue; fi
-    if [ "$(ini_get "$INI" "$DEVICE" device_card)" != "$CARD" ]; then
-      ini_set "$INI" "$DEVICE" device_card "$CARD"
-      say "Game video card set to $CARD."
-    fi
-    break
-  done <<<"$(card_sections)"
-fi
-if [ "$MODE" = windowed ] && [ "$WRAPPER" = none ] && [ -z "$DESKTOP_SIZE" ]; then
-  DESKTOP_SIZE="$(ini_size)"
-  DESKTOP_SIZE="${DESKTOP_SIZE:-1024x768}"
+SECTION="$(game_section || true)"
+if [ -z "$SECTION" ]; then
+  say "No video card in $INI yet. Press OK in the game's setup dialog; --res applies from the next start."
+  SETUP=show
+elif [ "$(ini_get "$INI" "$SECTION" screen_width)x$(ini_get "$INI" "$SECTION" screen_height)" != "$GAME_RES" ]; then
+  ini_set "$INI" "$SECTION" screen_width "${GAME_RES%x*}"
+  ini_set "$INI" "$SECTION" screen_height "${GAME_RES#*x}"
+  say "Game resolution set to $GAME_RES."
 fi
 
 set_user_reg 'Software\Wine\Mac Driver' RetinaMode "$RETINA"
-# Wine's dxgi starts wined3d, and with the OpenGL renderer that start often
-# crashes (see START_CRASH), so the dgVoodoo2 path uses Vulkan. The game's own
-# Direct3D 7 path needs the OpenGL renderer, so this is set on every start.
-if [ "$WRAPPER" = dgvoodoo ]; then
-  set_user_reg 'Software\Wine\Direct3D' renderer vulkan
-else
-  set_user_reg 'Software\Wine\Direct3D' renderer gl
-fi
-if [ "$MODE" = fullscreen ]; then
-  set_user_reg 'Software\Wine\Mac Driver' CaptureDisplaysForFullscreen y
-else
-  set_user_reg 'Software\Wine\Mac Driver' CaptureDisplaysForFullscreen n
-fi
-# win32u builds the virtual desktop's mode list from this value, not from the
-# size on the explorer command line. Without it a size such as 1280x800 is
-# missing from the list and the game falls back to 640x480. It must be the
-# game's resolution, which --windowed=WxH can make differ from the window.
-if [ -n "$DESKTOP_SIZE" ]; then
-  MODE_SIZE="$(ini_size)"
-  set_user_reg 'Software\Wine\Explorer\Desktops' Default "${MODE_SIZE:-$DESKTOP_SIZE}"
+set_user_reg 'Software\Wine\Mac Driver' CaptureDisplaysForFullscreen n
+set_user_reg 'Software\Wine\Direct3D' renderer gl
+# Without the helper the game runs inside a Wine virtual desktop. win32u
+# builds that desktop's mode list from this value, not from the size on the
+# explorer command line, and the game needs its own resolution in the list.
+if [ "$FOCUSFIX" = 0 ]; then
+  set_user_reg 'Software\Wine\Explorer\Desktops' Default "$GAME_RES"
 fi
 set_user_reg 'Software\Wine\WineDbg' ShowCrashDialog 0 REG_DWORD
 if [ "$REG_CHANGED" = 1 ]; then "$WINESERVER" -w; fi
 
-if [ "$WRAPPER" != none ]; then
-  install_wrapper
+if [ -n "$DIAG" ]; then
+  cp "$WINDIAG_EXE" "$WINEPREFIX/drive_c/dogfighter-windiag.exe"
+  cp "$CRASHLOG_DLL" "$WINEPREFIX/drive_c/dogfighter-crashlog.dll"
 fi
-
-GAME_CMD=("$GAME_DOS\\Dogfighter.exe")
-START=(start /wait /d "$GAME_DOS")
 WATCH_PID=
-if [ "$FOCUSFIX" = 1 ] && [ "$MODE" != winecfg ]; then
+if [ "$FOCUSFIX" = 1 ]; then
   FLAG="$WINEPREFIX/drive_c/dogfighter-focusfix.flag"
   cp "$FOCUSFIX_EXE" "$WINEPREFIX/drive_c/dogfighter-focusfix.exe"
   cp "$FOCUSHOOK_DLL" "$WINEPREFIX/drive_c/dogfighter-focushook.dll"
+  export DOGFIGHTER_WINDOW="${WINDOW_SIZE:-$LIMIT}"
+  export DOGFIGHTER_SCREEN="${LIMIT%x*}x$((${LIMIT#*x} + 28))"
+  export DOGFIGHTER_MODES="${SIZES//$'\n'/ } $GAME_RES"
+  export DOGFIGHTER_SETUP="$SETUP"
+  if [ -n "$DIAG" ]; then export DOGFIGHTER_DIAG="$DIAG"; fi
   GAME_CMD=('C:\dogfighter-focusfix.exe' 'C:\dogfighter-focusfix.flag' "$GAME_DOS\\Dogfighter.exe")
-  START=()
-  if [ "$MODE" = windowed ] && [ "$WRAPPER" = none ] && [ -n "$LIMIT" ]; then
-    export DOGFIGHTER_WINDOW="${WINDOW_SIZE:-$LIMIT}"
-    export DOGFIGHTER_SCREEN="${LIMIT%x*}x$((${LIMIT#*x} + 28))"
+  if [ "$DIAG" = draw-test ]; then
+    export DOGFIGHTER_DRAWTEST=1
+    unset DOGFIGHTER_DIAG
+    GAME_CMD[2]='C:\dogfighter-windiag.exe'
   fi
   watch_front "$FLAG" &
   WATCH_PID=$!
   trap 'kill "$WATCH_PID" 2>/dev/null || true' EXIT
-  say "Focus fix on: the game keeps running after Cmd+Tab and comes back to the front on return."
-fi
-
-DESKTOP=()
-if [ "$MODE" = windowed ] && [ "$WRAPPER" = none ]; then
-  DESKTOP=(explorer "/desktop=Dogfighter,$DESKTOP_SIZE")
-fi
-if [ "$DIAG" = 1 ] && [ "$MODE" != winecfg ]; then
-  if [ ! -f "$WINDIAG_EXE" ] || [ ! -f "$CRASHLOG_DLL" ]; then
-    say "build/windiag.exe or build/crashlog.dll is missing. Run ./setup.sh to build them."
-    exit 1
-  fi
-  cp "$WINDIAG_EXE" "$WINEPREFIX/drive_c/dogfighter-windiag.exe"
-  cp "$CRASHLOG_DLL" "$WINEPREFIX/drive_c/dogfighter-crashlog.dll"
-  if [ "$FOCUSFIX" = 1 ]; then
-    export DOGFIGHTER_DIAG="${DIAG_ARGS[*]:-log}"
-  else
-    "$WINE" ${DESKTOP[@]+"${DESKTOP[@]}"} 'C:\dogfighter-windiag.exe' \
-      ${DIAG_ARGS[@]+"${DIAG_ARGS[@]}"} >>"$LOG" 2>&1 &
+else
+  GAME_CMD=(explorer "/desktop=Dogfighter,$GAME_RES" start /wait /d "$GAME_DOS" "$GAME_DOS\\Dogfighter.exe")
+  if [ -n "$DIAG" ]; then
+    "$WINE" explorer "/desktop=Dogfighter,$GAME_RES" 'C:\dogfighter-windiag.exe' "$DIAG" >>"$LOG" 2>&1 &
   fi
 fi
 
 run_wine() {
-  case "$MODE" in
-    winecfg)
-      "$WINE" winecfg >>"$LOG" 2>&1
-      ;;
-    windowed)
-      if [ "$WRAPPER" != none ]; then
-        say "Starting Airfix Dogfighter through $WRAPPER in a resizable ${GAME_RES:-640x480} window. Log: $LOG"
-        "$WINE" start /wait /d "$GAME_DOS" "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
-      else
-        say "Starting Airfix Dogfighter in a window. Log: $LOG"
-        "$WINE" "${DESKTOP[@]}" ${START[@]+"${START[@]}"} "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
-      fi
-      ;;
-    fullscreen)
-      say "Starting Airfix Dogfighter fullscreen. Log: $LOG"
-      "$WINE" start /wait /d "$GAME_DOS" "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
-      ;;
-  esac
+  say "Starting Airfix Dogfighter. Log: $LOG"
+  "$WINE" "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
   "$WINESERVER" -w
   cat "$WINEPREFIX/drive_c/dogfighter-focusfix.log" "$WINEPREFIX/drive_c/dogfighter-focushook.log" \
     "$WINEPREFIX/drive_c/dogfighter-windiag.log" "$WINEPREFIX/drive_c/dogfighter-crash.log" \
@@ -433,23 +350,24 @@ run_wine() {
 }
 
 # Under Rosetta, Wine sometimes runs its 32-to-64-bit switch as 32-bit code
-# while Direct3D starts. The game then dies or hangs in its first seconds,
-# with one of these lines in the log, and a second start usually works.
-START_CRASH='Unhandled page fault on read access to 00004DC9|Exception frame is not in stack limits|stuck while starting'
+# while the game starts Direct3D. The game then dies or hangs before its setup
+# dialog shows. The helper reports that, and the next start usually works.
 cd "$HERE"
 TRY=1
 while :; do
   LOG_LINES="$(wc -l <"$LOG")"
   run_wine
-  [ "$TRY" -lt 5 ] || break
-  LC_ALL=C awk -v from="$LOG_LINES" -v crash="$START_CRASH" '
-    NR > from && $0 ~ crash { found = 1 } END { exit !found }' "$LOG" || break
+  [ "$TRY" -lt 8 ] || break
+  LC_ALL=C awk -v from="$LOG_LINES" '
+    NR > from && /focusfix: the game (ended before its setup dialog appeared|got stuck while starting)/ { found = 1 }
+    END { exit !found }' "$LOG" || break
   TRY=$((TRY + 1))
-  say "Wine crashed while starting Direct3D. Starting again (try $TRY of 5)."
+  say "The game did not get past Wine's start-up crash. Starting again (try $TRY of 8)."
 done
 
 if [ -n "$WATCH_PID" ]; then
   kill "$WATCH_PID" 2>/dev/null || true
+  wait "$WATCH_PID" 2>/dev/null || true
 fi
 if [ -f "$HERE/game/winmm.log" ]; then
   cp "$HERE/game/winmm.log" "${LOG%.log}-music.log"
