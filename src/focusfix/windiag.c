@@ -285,6 +285,48 @@ static void press_key(DWORD scan)
     note("pressed the key with scan code %02lx", scan);
 }
 
+static struct { DWORD second; int dx, dy; BOOL click; } moves[32];
+static int move_count, moves_done;
+
+static void read_moves(const char *list)
+{
+    int used;
+
+    while (move_count < 32
+           && sscanf(list, "%lu:%d:%d%n", &moves[move_count].second, &moves[move_count].dx, &moves[move_count].dy, &used) == 3)
+    {
+        list += used;
+        if ((moves[move_count].click = !strncmp(list, ":c", 2))) list += 2;
+        move_count++;
+        if (*list == ',') list++;
+    }
+}
+
+static void move_mouse(int dx, int dy, BOOL click)
+{
+    enum { STEPS = 20 };
+    INPUT input = { .type = INPUT_MOUSE, .mi.dwFlags = MOUSEEVENTF_MOVE };
+
+    for (int i = 0; i < STEPS; i++)
+    {
+        input.mi.dx = dx * (i + 1) / STEPS - dx * i / STEPS;
+        input.mi.dy = dy * (i + 1) / STEPS - dy * i / STEPS;
+        SendInput(1, &input, sizeof(INPUT));
+        Sleep(15);
+    }
+    if (click)
+    {
+        input.mi.dx = input.mi.dy = 0;
+        Sleep(300);
+        input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
+        SendInput(1, &input, sizeof(INPUT));
+        Sleep(150);
+        input.mi.dwFlags = MOUSEEVENTF_LEFTUP;
+        SendInput(1, &input, sizeof(INPUT));
+    }
+    note("moved the mouse by %d,%d%s", dx, dy, click ? " and clicked" : "");
+}
+
 static struct { DWORD second; char text[200]; } commands[24];
 static int command_count, commands_sent;
 
@@ -370,6 +412,7 @@ int main(int argc, char **argv)
         if (!strcmp(argv[i], "press-ok")) press_ok = TRUE;
         if (!strncmp(argv[i], "wait=", 5)) wait = atoi(argv[i] + 5);
         if (!strncmp(argv[i], "keys=", 5)) read_keys(argv[i] + 5);
+        if (!strncmp(argv[i], "mouse=", 6)) read_moves(argv[i] + 6);
         if (!strncmp(argv[i], "console=", 8)) read_command(argv[i] + 8);
     }
 
@@ -395,6 +438,11 @@ int main(int argc, char **argv)
         }
         while (keys_pressed < key_count && shown >= keys[keys_pressed].second)
             press_key(keys[keys_pressed++].scan);
+        while (moves_done < move_count && shown >= moves[moves_done].second)
+        {
+            move_mouse(moves[moves_done].dx, moves[moves_done].dy, moves[moves_done].click);
+            moves_done++;
+        }
         while (commands_sent < command_count && shown >= commands[commands_sent].second)
             send_command(commands[commands_sent++].text);
         while (window_test && shown >= wait && (int)(shown - wait) >= next_step)
