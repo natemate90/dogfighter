@@ -6,6 +6,7 @@ usage() {
 Usage: ./setup.sh [--language=English|French|German|Italian] [path/to/Dogfighter.bin]
 
 Builds everything the game needs from your own Airfix Dogfighter CD image.
+On macOS 26.4 or later it also fetches Mach9, a Wine that needs no Rosetta.
 The image must be a raw .bin (2352-byte sectors); it defaults to ./Dogfighter.bin.
 Run it again after an error: finished steps are skipped.
 
@@ -51,11 +52,25 @@ step() { printf '\n==> %s\n' "$*"; }
 trap 'die "a step failed (line $LINENO). Fix the error above, then run ./setup.sh again."' ERR
 trap 'rm -rf "$WORK"' EXIT
 
+rosetta_ok() { /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; }
+
+# Mach9, the Wine that needs no Rosetta, runs on macOS 26.4 and later.
+# DOGFIGHTER_MACOS stands in for the real version in a test.
+macos_runs_mach9() {
+  local version="${DOGFIGHTER_MACOS:-$(/usr/bin/sw_vers -productVersion 2>/dev/null || true)}" major minor
+  major="${version%%.*}"
+  minor=0
+  if [[ "$version" == *.* ]]; then minor="${version#*.}"; fi
+  minor="${minor%%.*}"
+  [[ "$major" =~ ^[0-9]+$ && "$minor" =~ ^[0-9]+$ ]] || return 1
+  [ "$major" -gt 26 ] || { [ "$major" -eq 26 ] && [ "$minor" -ge 4 ]; }
+}
+
 check_requirements() {
   [ "$(uname -s)" = Darwin ] || die "This needs macOS."
   [ "$(uname -m)" = arm64 ] || [ "$(sysctl -n hw.optional.arm64 2>/dev/null || true)" = 1 ] ||
     die "This needs a Mac with Apple Silicon (M1 or later)."
-  /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null ||
+  macos_runs_mach9 || rosetta_ok ||
     die "Rosetta 2 is missing. Install it with: softwareupdate --install-rosetta --agree-to-license"
   { xcode-select -p >/dev/null 2>&1 && xcrun --find clang >/dev/null 2>&1; } ||
     die "The Xcode Command Line Tools are missing. Install them with: xcode-select --install"
@@ -84,7 +99,7 @@ Make a raw image of your own disc first (see README.md), or pass its path: ./set
 check_space() {
   local free_kb
   free_kb="$(df -Pk "$HERE" | awk 'NR == 2 { print $4 }')"
-  [ "$free_kb" -ge $((3 * 1024 * 1024)) ] || die "Setup needs about 3 GB of free disk space."
+  [ "$free_kb" -ge $(($1 * 1024 * 1024)) ] || die "Setup needs about $1 GB of free disk space."
 }
 
 sha_ok() { [ "$(shasum -a 256 "$1" | cut -d' ' -f1)" = "$2" ]; }
@@ -92,7 +107,7 @@ sha_ok() { [ "$(shasum -a 256 "$1" | cut -d' ' -f1)" = "$2" ]; }
 fetch() {
   local name="$1" url="$2" sha="$3" file="$DL/$1"
   if [ -f "$file" ] && sha_ok "$file" "$sha"; then return; fi
-  mkdir -p "$DL"
+  mkdir -p "$(dirname "$file")"
   echo "Downloading $name"
   curl -fL --retry 3 --progress-bar -o "$file.part" "$url" || die "Download failed: $url"
   sha_ok "$file.part" "$sha" || {
@@ -111,8 +126,23 @@ unpack() {
   rm -rf "$WORK"
 }
 
+get_mach9() {
+  macos_runs_mach9 || return 0
+  [ -x "$HERE/wine-mach9/wine/bin/wine" ] || [ -x "$HERE/wine-mach9/bin/wine" ] && return
+  step "Mach9 0.4.0 (Wine that needs no Rosetta)"
+  fetch mach9/wine-v0.4.0-macos-arm64.tar.xz \
+    https://github.com/athei/mach9/releases/download/v0.4.0/wine-v0.4.0-macos-arm64.tar.xz \
+    3b81aac9b93d5652872673b400769ec525f3bc2f1f7e2ec82c9f851d0a0db05d
+  rm -rf "$HERE/wine-mach9/wine"
+  unpack "$DL/mach9/wine-v0.4.0-macos-arm64.tar.xz" wine "$HERE/wine-mach9/wine"
+  xattr -dr com.apple.quarantine "$HERE/wine-mach9" 2>/dev/null || true
+}
+
+# On macOS 26.4 and later this Wine is only the fallback, so it is skipped
+# there when Rosetta is not installed.
 get_wine() {
   [ -x "$HERE/wine/bin/wine" ] && return
+  rosetta_ok || return 0
   step "Wine 11.0 (Gcenx build)"
   fetch wine-stable-11.0_1-osx64.tar.xz \
     https://github.com/Gcenx/macOS_Wine_builds/releases/download/11.0_1/wine-stable-11.0_1-osx64.tar.xz \
@@ -245,7 +275,12 @@ path_hint() {
 }
 
 check_requirements
-[ -x "$HERE/wine/bin/wine" ] && [ -f "$HERE/game/Resource.up" ] || check_space
+if macos_runs_mach9 && [ ! -d "$HERE/wine-mach9" ]; then
+  check_space 5
+elif [ ! -x "$HERE/wine/bin/wine" ] || [ ! -f "$HERE/game/Resource.up" ]; then
+  check_space 3
+fi
+get_mach9
 get_wine
 get_toolchain
 get_sources
