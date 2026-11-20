@@ -1,5 +1,6 @@
 #include <windows.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static FILE *logf;
@@ -15,6 +16,12 @@ static BOOL env_is(const char *name, const char *value)
 {
     char text[32];
     return GetEnvironmentVariableA(name, text, sizeof(text)) && !strcmp(text, value);
+}
+
+static DWORD env_number(const char *name)
+{
+    char text[16];
+    return GetEnvironmentVariableA(name, text, sizeof(text)) ? strtoul(text, NULL, 10) : 0;
 }
 
 static HWND game_window(DWORD pid)
@@ -105,6 +112,7 @@ int main(int argc, char **argv)
     const char *flag = argv[1];
 
     logf = fopen("C:\\dogfighter-focusfix.log", "w");
+    HANDLE picture = CreateEventA(NULL, TRUE, FALSE, "DogfighterFirstPicture");
     DeleteFileA(flag);
     snprintf(cmd, sizeof(cmd), "\"%s\"", argv[2]);
     snprintf(dir, sizeof(dir), "%s", argv[2]);
@@ -115,32 +123,53 @@ int main(int argc, char **argv)
         say("could not start the game");
         return 1;
     }
-    say(load_hook(pi.hProcess) ? "game started with the focus hook loaded"
-                               : "game started, but the focus hook could not be loaded");
+    BOOL hooked = load_hook(pi.hProcess);
+    say(hooked ? "game started with the focus hook loaded" : "game started, but the focus hook could not be loaded");
     ResumeThread(pi.hThread);
     start_diagnostics();
 
-    BOOL accept_setup = env_is("DOGFIGHTER_SETUP", "accept"), started = FALSE;
-    DWORD began = GetTickCount();
+    enum { STARTING, IN_SETUP, WAITING_FOR_PICTURE, RUNNING } state = STARTING;
+    BOOL accept_setup = env_is("DOGFIGHTER_SETUP", "accept"), stalled = FALSE;
+    DWORD began = GetTickCount(), picture_wait = hooked ? env_number("DOGFIGHTER_PICTURE_WAIT_MS") : 0;
 
     while (WaitForSingleObject(pi.hProcess, 100) == WAIT_TIMEOUT)
     {
-        if (!started)
+        HWND dialog = state < WAITING_FOR_PICTURE ? setup_dialog(pi.dwProcessId) : NULL;
+
+        if (state == STARTING && dialog)
         {
-            HWND dialog = setup_dialog(pi.dwProcessId);
-            if (dialog && accept_setup)
+            state = IN_SETUP;
+            if (accept_setup)
             {
                 Sleep(500);
                 PostMessageA(dialog, WM_COMMAND, IDOK, 0);
                 say("pressed OK in the game's setup dialog");
             }
-            started = dialog || is_drawing(pi.dwProcessId);
-            if (!started && GetTickCount() - began > 15000)
-            {
-                say("the game got stuck while starting; ending it");
-                TerminateProcess(pi.hProcess, 3);
-                break;
-            }
+        }
+        else if (state == STARTING && is_drawing(pi.dwProcessId)) state = RUNNING;
+        else if (state == STARTING && GetTickCount() - began > 15000)
+        {
+            say("the game got stuck while starting; ending it");
+            TerminateProcess(pi.hProcess, 3);
+            break;
+        }
+        else if (state == IN_SETUP && !dialog)
+        {
+            state = picture && picture_wait ? WAITING_FOR_PICTURE : RUNNING;
+            began = GetTickCount();
+        }
+        else if (state == WAITING_FOR_PICTURE && WaitForSingleObject(picture, 0) == WAIT_OBJECT_0)
+        {
+            if (logf) fprintf(logf, "focusfix: first picture %lu ms after the setup dialog closed\n", GetTickCount() - began);
+            if (logf) fflush(logf);
+            state = RUNNING;
+        }
+        else if (state == WAITING_FOR_PICTURE && GetTickCount() - began > picture_wait)
+        {
+            say("the game drew nothing after its setup dialog; ending it");
+            stalled = TRUE;
+            TerminateProcess(pi.hProcess, 3);
+            break;
         }
 
         if (GetFileAttributesA(flag) == INVALID_FILE_ATTRIBUTES) continue;
@@ -158,6 +187,6 @@ int main(int argc, char **argv)
 
     WaitForSingleObject(pi.hProcess, 5000);
     GetExitCodeProcess(pi.hProcess, &code);
-    say(started ? "game exited" : "the game ended before its setup dialog appeared");
+    if (!stalled) say(state != STARTING ? "game exited" : "the game ended before its setup dialog appeared");
     return (int)code;
 }

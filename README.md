@@ -77,6 +77,8 @@ Cmd+Tab also frees the mouse, and the game takes it back when you return.
 | `--res=WxH` | Use this game resolution in flight, e.g. `--res=1440x900`. The menus are always 640x480. Without it, the largest size that fits the screen is used. |
 | `--sharp` | Use Retina pixels: a sharper picture in flight. |
 | `--windowed=WxH` | Start with the picture at most this big, e.g. `--windowed=1024x768`. |
+| `--wide` | Widen the view angle to fit a picture wider than 4:3 (see Picture quality). |
+| `--original` | Leave the picture settings as the game made them (see Picture quality). |
 | `--setup` | Show the game's setup dialog and wait for OK. |
 | `--no-focusfix` | Start without the helper (see Troubleshooting). |
 | `--stop` | End a running game and all its Wine processes. |
@@ -94,6 +96,31 @@ The very first start always shows it.
 
 `--diag` has test modes that run with nobody at the screen.
 `./dogfighter --help` lists them.
+
+## Picture quality
+
+At every start the launcher turns four of the game's settings up.
+
+| Setting | Game default | Launcher |
+| --- | --- | --- |
+| Colour depth in flight (`screen_depth` in `game/system.ini`) | 16 bit | 32 bit |
+| Draw distance (`view_distance` in `game/user.ini`) | 200 | 450, the game's maximum |
+| Light shafts (`detail_volumetriclight`) | 0 | 2 |
+| Rooms drawn through doorways (`view_portals`) | 4 | 5 |
+
+It also makes the ground and walls sharper in the distance (16x anisotropic filtering).
+Your other settings and key bindings are not touched.
+
+`--original` puts the four settings back to what they were and turns the sharper textures off.
+The old values are kept in `game/dogfighter-picture-before.txt` until then.
+A draw distance you set in the game's Options menu is raised again at the next start; use `--original` to keep it.
+
+`--sharp` gives smoother edges on a Retina screen: the flight is drawn with four times the pixels.
+On an M4 Max the frame rate stayed the same, about 30 frames a second.
+
+`--wide` widens the view angle for a 16:10 or 16:9 picture.
+Without it the game cuts off the top and bottom of the 4:3 view.
+It is not the default, because the glow around lamps is not drawn while it is on.
 
 ## CD music
 
@@ -164,7 +191,7 @@ They are listed in sections 1.1 and 1.2 of `game/readme.txt`.
 ## Troubleshooting
 
 - **Logs.** Each start writes `logs/run-<date>-<time>.log`. The music player's log is next to it, ending in `-music.log`.
-- **Slow start.** Wine sometimes crashes or hangs while the game starts Direct3D. The launcher sees this and starts the game again, up to eight times. A crashed start costs a few seconds, a hung one 15 seconds.
+- **Slow start.** Wine sometimes crashes or hangs while the game starts Direct3D. The launcher sees this and starts the game again, up to eight times. A crashed start costs a few seconds, a hung one 15 seconds. A start that shows no picture within 15 seconds after the setup dialog counts as hung.
 - **The mouse is stuck in the window.** Press Ctrl+Option. The game holds the mouse on purpose while you play.
 - **Cmd+Tab.** The game was not made for task switching. The helper keeps it running after Cmd+Tab and brings it back to the front when you return.
 - **The helper is missing.** If the launcher says `focusfix.exe` or `focushook.dll` is missing, run `./setup.sh` again.
