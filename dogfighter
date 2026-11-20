@@ -5,7 +5,7 @@ usage() {
   cat <<'EOF'
 Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures] [--original]
                   [--setup] [--no-focusfix] [--wine=NAME] [--wine-rule=KEY=VALUE]
-                  [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|start-test|stall-test|draw-test|press-ok]]
+                  [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|start-test|stall-test|crash-test|draw-test|press-ok|press-cancel]]
                   [--diag-keys=SECONDS:SCANCODE,...] [--diag-mouse=SECONDS:DX:DY[:c],...]
                   [--diag-console=SECONDS:COMMAND]
                   [--join=ADDRESS] [--winecfg] [--stop]
@@ -19,9 +19,10 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
                     The menus are always 640x480.
   --sharp           Use Retina pixels: a sharper picture in flight.
   --windowed=WxH    Start with the picture at most this big, e.g. --windowed=1024x768.
-  --wide            Widen the view angle to fit a picture wider than 4:3, so its top
-                    and bottom are not cut off. The glow around lamps is not drawn
-                    with this on.
+  --wide            Widen the view angle for a 16:10 or 16:9 picture. It shows more at
+                    the sides and the top. The bottom edge of the picture may show a
+                    stretched band in some scenes. It stays opt-in until a person has
+                    judged it.
   --hd-textures     Use the larger textures in hd-textures/. Make them once with
                     python3 tools/upscale-textures.py. Without this option the game
                     uses its own textures.
@@ -60,12 +61,15 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
                     --diag=start-test ends the game after 8 seconds of picture.
                     --diag=stall-test is the same, but treats the first start as one
                     that never drew, so the launcher has to start the game again.
+                    --diag=crash-test is the same, but ends the first start as its
+                    setup dialog closes, like a crash before the first picture.
                     --diag=draw-test runs a small test program in place of the game. It
                     draws straight to the screen surface, which the game never does.
                     It cannot be combined with --diag-keys, --diag-mouse or
                     --diag-console.
                     --diag=press-ok is for --no-focusfix: it presses OK in the setup
                     dialog, which the helper does otherwise.
+                    --diag=press-cancel is for --setup: it presses Cancel there.
   --diag-keys=LIST  Press keys in a test run, e.g. --diag-keys=30:1c,45:3b presses
                     Enter 30 seconds after the first picture and F1 at 45 seconds.
                     The codes are keyboard scan codes in hex.
@@ -101,6 +105,7 @@ JOIN=
 RESTORE_FILE=
 PICTURE_WAIT_MS=15000
 PICTURE_WAIT_FIRST_TRY=
+END_AFTER_SETUP_FIRST_TRY=
 for arg in "$@"; do
   case "$arg" in
     --windowed=*) WINDOW_SIZE="${arg#--windowed=}" ;;
@@ -119,8 +124,10 @@ for arg in "$@"; do
     --diag=focus-test:*) DIAG="focus-test wait=${arg#--diag=focus-test:}" ;;
     --diag=start-test) DIAG=start-test ;;
     --diag=stall-test) DIAG=start-test; PICTURE_WAIT_FIRST_TRY=1 ;;
+    --diag=crash-test) DIAG=start-test; END_AFTER_SETUP_FIRST_TRY=1 ;;
     --diag=draw-test) DIAG=draw-test ;;
     --diag=press-ok) DIAG=press-ok ;;
+    --diag=press-cancel) DIAG=press-cancel ;;
     --diag-keys=*) DIAG_KEYS="${arg#--diag-keys=}" ;;
     --diag-mouse=*) DIAG_MOUSE="${arg#--diag-mouse=}" ;;
     --diag-console=*) DIAG_CONSOLE+=("${arg#--diag-console=}") ;;
@@ -142,6 +149,7 @@ for arg in "$@"; do
   esac
 done
 if [ "$FOCUSFIX" = 0 ]; then ORIGINAL=1; fi
+if [ -n "$END_AFTER_SETUP_FIRST_TRY" ] && [ "$SETUP" = show ]; then DIAG="$DIAG press-ok"; fi
 for size in "$WINDOW_SIZE" "$GAME_RES"; do
   [[ -z "$size" || "$size" =~ ^[0-9]+x[0-9]+$ ]] || { echo "Bad size: $size" >&2; exit 2; }
 done
@@ -694,7 +702,8 @@ run_wine() {
     "$WINE" explorer "/desktop=Dogfighter,$GAME_RES" 'C:\dogfighter-windiag.exe' "$DIAG" >>"$LOG" 2>&1 &
   fi
   if [ -n "$WINE_NAME" ]; then say "Wine build: $WINE_DIR ($("$WINE" --version 2>/dev/null || true), $(/usr/bin/lipo -archs "$WINE" 2>/dev/null || true)), prefix: $WINEPREFIX${WINE_COMPATDB:+, rules: ${WINE_COMPATDB//$'\n'/ | }}"; fi
-  DOGFIGHTER_PICTURE_WAIT_MS="${PICTURE_WAIT_FIRST_TRY:-$PICTURE_WAIT_MS}" "$WINE" "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
+  DOGFIGHTER_PICTURE_WAIT_MS="${PICTURE_WAIT_FIRST_TRY:-$PICTURE_WAIT_MS}" \
+    DOGFIGHTER_END_AFTER_SETUP="${END_AFTER_SETUP_FIRST_TRY:-0}" "$WINE" "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
   "$WINESERVER" -w
   cat "$WINEPREFIX/drive_c/dogfighter-focusfix.log" "$WINEPREFIX/drive_c/dogfighter-focushook.log" \
     "$WINEPREFIX/drive_c/dogfighter-windiag.log" "$WINEPREFIX/drive_c/dogfighter-crash.log" \
@@ -704,10 +713,10 @@ run_wine() {
 
 # Under Rosetta, Wine sometimes runs its 32-to-64-bit switch as 32-bit code
 # while the game starts Direct3D. The game then dies or hangs before its setup
-# dialog shows, or hangs right after it and never draws. The helper reports
+# dialog shows, or dies or hangs right after it and never draws. The helper reports
 # that, and the next start usually works.
 # Without the helper only Wine's own crash text tells.
-START_CRASH='focusfix: the game (ended before its setup dialog appeared|got stuck while starting|drew nothing after its setup dialog)'
+START_CRASH='focusfix: the game (ended before its setup dialog appeared|got stuck while starting|drew nothing after its setup dialog|ended before its first picture)'
 if [ "$FOCUSFIX" = 0 ]; then
   START_CRASH='Unhandled page fault on read access to 00004DC9|Exception frame is not in stack limits'
 fi
@@ -717,6 +726,7 @@ while :; do
   LOG_LINES="$(wc -l <"$LOG")"
   run_wine
   if grep -q 'drew nothing after its setup dialog' "$LOG"; then PICTURE_WAIT_FIRST_TRY=; fi
+  if grep -q 'crash test: ending the game' "$LOG"; then END_AFTER_SETUP_FIRST_TRY=; fi
   [ "$TRY" -lt 8 ] || break
   LC_ALL=C awk -v from="$LOG_LINES" -v crash="$START_CRASH" '
     NR > from && $0 ~ crash { found = 1 } END { exit !found }' "$LOG" || break

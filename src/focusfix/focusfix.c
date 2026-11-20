@@ -157,6 +157,11 @@ int main(int argc, char **argv)
         {
             state = picture && picture_wait ? WAITING_FOR_PICTURE : RUNNING;
             began = GetTickCount();
+            if (env_is("DOGFIGHTER_END_AFTER_SETUP", "1"))
+            {
+                say("crash test: ending the game as its setup dialog closed");
+                TerminateProcess(pi.hProcess, STATUS_ACCESS_VIOLATION);
+            }
         }
         else if (state == WAITING_FOR_PICTURE && WaitForSingleObject(picture, 0) == WAIT_OBJECT_0)
         {
@@ -187,6 +192,16 @@ int main(int argc, char **argv)
 
     WaitForSingleObject(pi.hProcess, 5000);
     GetExitCodeProcess(pi.hProcess, &code);
-    if (!stalled) say(state != STARTING ? "game exited" : "the game ended before its setup dialog appeared");
+    /* With --setup the player may have pressed Cancel, so there only an exception code counts as a crash. */
+    BOOL crashed = (state == IN_SETUP || state == WAITING_FOR_PICTURE)
+        && (accept_setup || (code & 0xC0000000) == 0xC0000000);
+    if (stalled) return (int)code;
+    if (state == STARTING) say("the game ended before its setup dialog appeared");
+    else if (logf)
+    {
+        fprintf(logf, crashed ? "focusfix: the game ended before its first picture, exit code 0x%08lx\n"
+                              : "focusfix: game exited, exit code 0x%08lx\n", code);
+        fflush(logf);
+    }
     return (int)code;
 }
