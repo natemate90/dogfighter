@@ -97,7 +97,8 @@ Cmd+Tab also frees the mouse, and the game takes it back when you return.
 | --- | --- |
 | (none) | Play in a window you can resize. The picture is scaled to fill it. |
 | `--res=WxH` | Use this game resolution in flight, e.g. `--res=1440x900`. The menus are always 640x480. Without it, the largest size that fits the screen is used. |
-| `--sharp` | Use Retina pixels: a sharper picture in flight. |
+| `--full-res` | Draw the 3D picture with the Retina screen's own pixels and keep the HUD, the menus and the letters at normal size (see Picture quality). |
+| `--sharp` | Use Retina pixels: a sharper picture in flight, with a half-size HUD. |
 | `--retina` | Draw the window with the Retina screen's own pixels and keep the game's resolution (see Picture quality). |
 | `--windowed=WxH` | Start with the picture at most this big, e.g. `--windowed=1024x768`. |
 | `--wide` | Widen the view angle for a 16:10 or 16:9 picture (see Picture quality). |
@@ -209,6 +210,19 @@ A draw distance you set in the game's Options menu is raised again at the next s
 
 `--sharp` gives smoother edges on a Retina screen: the flight is drawn with four times the pixels.
 On an M4 Max the frame rate stayed the same, about 30 frames a second.
+
+`--full-res` draws the picture with as many pixels as the window has on a Retina screen.
+The HUD, the menus and all letters keep the size they have without it.
+The game goes on working in its own resolution, 1280x800 in a flight and 640x480 in the menus.
+The helper enlarges the surface the game draws into and moves every corner point the game draws to the larger surface.
+So 3D edges and letters are drawn at the full size, not stretched afterwards.
+Pictures in the menus and the HUD have no more detail than before; they are enlarged while drawing.
+
+- On an M4 Max a flight ran at 62 to 89 frames a second at 2774x1734, with 4 samples per pixel.
+- It works together with `--hd-textures`.
+- F12 screenshots keep the game's own size.
+- A window you resize later is scaled from the size it had at the start.
+- Nobody has looked at it on a screen or clicked through the menus with it yet.
 
 `--retina` opens the window with the Retina screen's own pixels and keeps the game's resolution.
 Wine then scales the picture once to those pixels, and macOS does not scale it a second time.
