@@ -28,6 +28,7 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--setup] [--no-focusfi
                     --diag=start-test ends the game after 8 seconds of picture.
                     --diag=draw-test runs a small test program in place of the game. It
                     draws straight to the screen surface, which the game never does.
+                    It cannot be combined with --diag-keys or --diag-console.
   --diag-keys=LIST  Press keys in a test run, e.g. --diag-keys=30:1c,45:3b presses
                     Enter 30 seconds after the first picture and F1 at 45 seconds.
                     The codes are keyboard scan codes in hex.
@@ -82,6 +83,10 @@ for command in ${DIAG_CONSOLE[@]+"${DIAG_CONSOLE[@]}"}; do
   [[ "$command" =~ ^[0-9]+:[A-Za-z0-9_.+\ ]+$ ]] || { echo "Bad console command: $command" >&2; exit 2; }
   DIAG="${DIAG:-log} console=${command// /+}"
 done
+if [[ "$DIAG" == draw-test\ * ]]; then
+  echo "--diag=draw-test runs a test program in place of the game; leave out --diag-keys and --diag-console." >&2
+  exit 2
+fi
 [[ "$DIAG" != *wait=* || "$DIAG" =~ wait=[0-9]+(\ |$) ]] || { echo "Bad number of seconds: $DIAG" >&2; exit 2; }
 if [ "$FOCUSFIX" = 0 ] && [[ "$DIAG" == *-test* || "$DIAG" == *=* ]]; then
   echo "The diagnostic tests need the helper; leave out --no-focusfix." >&2
@@ -352,15 +357,19 @@ run_wine() {
 # Under Rosetta, Wine sometimes runs its 32-to-64-bit switch as 32-bit code
 # while the game starts Direct3D. The game then dies or hangs before its setup
 # dialog shows. The helper reports that, and the next start usually works.
+# Without the helper only Wine's own crash text tells.
+START_CRASH='focusfix: the game (ended before its setup dialog appeared|got stuck while starting)'
+if [ "$FOCUSFIX" = 0 ]; then
+  START_CRASH='Unhandled page fault on read access to 00004DC9|Exception frame is not in stack limits'
+fi
 cd "$HERE"
 TRY=1
 while :; do
   LOG_LINES="$(wc -l <"$LOG")"
   run_wine
   [ "$TRY" -lt 8 ] || break
-  LC_ALL=C awk -v from="$LOG_LINES" '
-    NR > from && /focusfix: the game (ended before its setup dialog appeared|got stuck while starting)/ { found = 1 }
-    END { exit !found }' "$LOG" || break
+  LC_ALL=C awk -v from="$LOG_LINES" -v crash="$START_CRASH" '
+    NR > from && $0 ~ crash { found = 1 } END { exit !found }' "$LOG" || break
   TRY=$((TRY + 1))
   say "The game did not get past Wine's start-up crash. Starting again (try $TRY of 8)."
 done

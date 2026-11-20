@@ -49,7 +49,7 @@ static struct wined3d_display_mode_copy game_mode;
 static BOOL mode_set, dinput_wants_mouse, mouse_free;
 static void *front_swapchain, *front_texture;
 static DWORD front_thread;
-static volatile LONG flips, direct_draws, gdi_draws, unscaled_draws, to_announce;
+static volatile LONG flips, direct_draws, gdi_draws, unscaled_draws, to_announce, dinput_clips, dinput_moves;
 
 static void say(const char *fmt, ...)
 {
@@ -226,7 +226,14 @@ static BOOL WINAPI ddraw_clip_cursor(const RECT *rect)
 static BOOL WINAPI dinput_clip_cursor(const RECT *rect)
 {
     dinput_wants_mouse = rect != NULL;
+    if (rect) InterlockedIncrement(&dinput_clips);
     return TRUE;
+}
+
+static BOOL WINAPI dinput_set_cursor_pos(int x, int y)
+{
+    InterlockedIncrement(&dinput_moves);
+    return SetCursorPos(x, y);
 }
 
 static BOOL patch_import(HMODULE module, const char *dll, const char *name, void *replacement)
@@ -293,6 +300,8 @@ static BOOL install_hooks(void)
     }
     if (!patch_import(dinput, "user32.dll", "ClipCursor", dinput_clip_cursor))
         say("dinput.dll does not import ClipCursor; the mouse is not kept inside the picture");
+    if (!patch_import(dinput, "user32.dll", "SetCursorPos", dinput_set_cursor_pos))
+        say("dinput.dll does not import SetCursorPos; its pointer moves are not counted");
     return TRUE;
 }
 
@@ -398,7 +407,8 @@ static void keep_mouse_inside(void)
     else if (keys_down && !keys_were_down)
     {
         mouse_free = !mouse_free;
-        say(mouse_free ? "Ctrl+Option: the mouse is free" : "Ctrl+Option: the mouse belongs to the game again");
+        say("Ctrl+Option: the mouse %s; so far DirectInput asked %ld times to hold it and moved the pointer itself %ld times",
+            mouse_free ? "is free" : "belongs to the game again", dinput_clips, dinput_moves);
     }
     keys_were_down = keys_down;
 
@@ -463,8 +473,8 @@ static DWORD WINAPI watch(void *arg)
             RECT client = { 0 };
             if (game_window) GetClientRect(game_window, &client);
             reported = flips + direct_draws + gdi_draws + unscaled_draws;
-            say("so far %ld flips and %ld direct draws scaled into client area %ldx%ld; not scaled: %ld through GDI, %ld without a back buffer",
-                flips, direct_draws, client.right, client.bottom, gdi_draws, unscaled_draws);
+            say("so far %ld flips and %ld direct draws scaled into client area %ldx%ld; not scaled: %ld through GDI, %ld without a back buffer; DirectInput asked %ld times to hold the mouse and moved the pointer itself %ld times",
+                flips, direct_draws, client.right, client.bottom, gdi_draws, unscaled_draws, dinput_clips, dinput_moves);
         }
         Sleep(50);
     }

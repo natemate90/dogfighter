@@ -128,6 +128,18 @@ static void press_ctrl_option(void)
     SendInput(2, keys, sizeof(INPUT));
 }
 
+static const char *pointer_place(POINT at)
+{
+    RECT window = { 0 }, client = { 0 };
+
+    GetWindowRect(game_hwnd, &window);
+    GetClientRect(game_hwnd, &client);
+    MapWindowPoints(game_hwnd, NULL, (POINT *)&client, 2);
+    if (PtInRect(&client, at)) return "in the picture";
+    if (PtInRect(&window, at)) return at.y < client.top ? "on the title bar" : "on the window frame";
+    return "outside the window";
+}
+
 static void note_pointer(void)
 {
     POINT at = { 0, 0 };
@@ -135,8 +147,40 @@ static void note_pointer(void)
 
     GetCursorPos(&at);
     GetClipCursor(&clip);
-    note("window test, the pointer is at %ld,%ld, %s the rectangle it is kept in", at.x, at.y,
-         PtInRect(&clip, at) ? "inside" : "outside");
+    note("window test, the pointer is at %ld,%ld, %s, %s the rectangle it is kept in", at.x, at.y,
+         pointer_place(at), PtInRect(&clip, at) ? "inside" : "outside");
+}
+
+/* Wine hands these moves to DirectInput but does not move the Mac pointer for
+   them, so an unchanged position is the good result: a jump to the middle of
+   the picture means DirectInput warped the pointer. GetCursorPos only asks the
+   Mac when Wine's own position is older than 100 ms, hence the waits. */
+static void push_mouse(int dx, int dy)
+{
+    INPUT move = { .type = INPUT_MOUSE, .mi.dx = dx / 20, .mi.dy = dy / 20, .mi.dwFlags = MOUSEEVENTF_MOVE };
+    POINT from = { 0, 0 }, to = { 0, 0 };
+    UINT sent = 0;
+
+    Sleep(300);
+    GetCursorPos(&from);
+    for (int i = 0; i < 20; i++)
+    {
+        sent += SendInput(1, &move, sizeof(INPUT));
+        Sleep(25);
+    }
+    Sleep(300);
+    GetCursorPos(&to);
+    note("window test, %u mouse moves adding up to %d,%d: the pointer went from %ld,%ld (%s) to %ld,%ld (%s)",
+         sent, dx / 20 * 20, dy / 20 * 20, from.x, from.y, pointer_place(from), to.x, to.y, pointer_place(to));
+}
+
+static void put_pointer_on_title_bar(void)
+{
+    RECT window = { 0 };
+
+    GetWindowRect(game_hwnd, &window);
+    note("window test, putting the pointer on the title bar at %ld,%ld: %d", window.left + 400, window.top + 14,
+         SetCursorPos(window.left + 400, window.top + 14));
 }
 
 static void resize_client(int width, int height)
@@ -176,12 +220,22 @@ static BOOL window_test_step(int step)
         break;
     case 10:
         note_pointer();
+        put_pointer_on_title_bar();
+        push_mouse(-100, 0);
+        push_mouse(0, 300);
+        push_mouse(-4000, -4000);
+        put_pointer_on_title_bar();
         break;
     case 11:
         note("window test, pressing Ctrl+Option to give the mouse back");
         press_ctrl_option();
         break;
     case 13:
+        note_pointer();
+        push_mouse(4000, 4000);
+        push_mouse(-8000, -8000);
+        put_pointer_on_title_bar();
+        Sleep(300);
         note_pointer();
         break;
     case 14:
