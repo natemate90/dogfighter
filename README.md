@@ -256,7 +256,7 @@ python3 tools/upscale-textures.py
 ```
 
 - The first command needs only the Xcode Command Line Tools.
-- It writes 1,192 textures to `hd-textures/cache/`, twice as large as the originals.
+- It writes 1,192 textures and the 11 font pictures to `hd-textures/cache/`, twice as large as the originals.
 - That takes under a minute and about 180 MB of disk space.
 - The packs in `game/` are never changed.
 - Without `--hd-textures` the game uses its own textures, as before.
@@ -308,7 +308,9 @@ In the one full run they sent 52 of 1,192 textures to the next way.
 The tool prints the count per way at the end.
 It also makes eight textures a second time and says whether they came out the same.
 A run that stops can be started again and goes on where it stopped.
-The old set is replaced only when the new one is complete.
+A later run makes only what is missing or changed.
+New files go into the set only after all of them are made.
+`--only TEXT` makes the textures whose path contains the text, and leaves the rest of the set alone.
 
 `--upscaler vimage` keeps the macOS filter even when the upscalers are there.
 `--sheets FOLDER` writes pictures that put the macOS filter next to the set.
@@ -318,9 +320,42 @@ That needs about 730 MB of disk space.
 With the macOS filter it loaded in the first mission at the same frame rate, and looked much like 2x.
 Longer missions are not tested: the game is a 32-bit program and may run out of memory.
 
-Only textures on 3D shapes are resized: walls, floors, models, sky and effects.
-Menus, loading screens, fonts, the HUD and the maps keep their size.
+Only textures on 3D shapes and the font pictures are resized.
+Menus, loading screens, the HUD and the maps keep their size.
 The game draws those at the size stored in the file, so larger files would break the layout.
+
+### Sharper letters
+
+The game cuts its letters out of 11 font pictures in `Graphics\Fonts`.
+The tool makes those twice as large and puts an empty file `<name>.gti.2x` next to each.
+The helper draws a picture with that marker at its old size.
+So letters keep their place and size, and get twice the pixels.
+
+- You see the gain with `--full-res --hd-textures`, where a letter covers more screen pixels than the original has.
+- waifu2x makes the letter shapes, and the macOS filter when the upscalers are missing.
+- Real-ESRGAN is not used for letters: it left grey smears in them.
+- The enlarged letter shapes, shrunk again, match the originals at 68 dB or better.
+- A pixel that was empty stays empty, so no letter grows into its neighbour.
+- This is not made with `--scale 4`.
+
+One test run opened the Pilot Roster with `--full-res --hd-textures`.
+The text stood in the same place and its strokes were crisper.
+Other screens were not compared.
+Window frames and other menu pictures do not work this way and are left alone.
+
+### Your own textures
+
+Put a `.gti` file in `texture-overrides/`, under the same path as in `hd-textures/cache/`.
+The next run of the tool puts it in the set in place of the made texture.
+
+- It must have the size, pixel format and number of mipmap levels of the made texture. Otherwise the tool refuses it and says why.
+- It gets no other check.
+- The manifest lists it with the way `override`.
+- Change the file and the next run takes the new one.
+- Remove the file and the next run puts the made texture back.
+
+This is meant for textures where an upscaler garbled small lettering.
+`texture-overrides/` is not part of the repository, because it holds game art.
 
 How it works:
 - The game opens `cache\<path>` in its folder before it looks in its packs.
