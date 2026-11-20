@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Makes larger copies of the game's 3D textures for ./dogfighter --hd-textures.
+"""Makes larger copies of the game's 3D textures for ./dogfighter, which uses them by default.
 
 It reads the textures from the packs in game/, resizes them 2x or 4x and
 writes them as loose files to hd-textures/cache/<path in the pack>. The game
@@ -768,7 +768,7 @@ def summary(records):
 
 def main():
     root = os.path.dirname(HERE)
-    parser = argparse.ArgumentParser(description="Make larger textures for ./dogfighter --hd-textures.")
+    parser = argparse.ArgumentParser(description="Make larger textures for ./dogfighter, which uses them by default.")
     parser.add_argument("--scale", type=int, choices=(2, 4), default=2, help="2 (default) or 4")
     parser.add_argument("--upscaler", choices=("auto", "ai", "vimage"), default="auto",
                         help="auto (default) uses the fetched upscalers if they are there, else the Mac's own vimage")
@@ -1109,7 +1109,7 @@ def settle(args, setup, settings, key, sources, records, run, old):
     written = sum(record.get("bytes", 0) for record in final)
     print("%d textures, %.0f MB, in %s. Made %d now, in %.0f seconds." % (
         len(final) - counts["none"], written / 1e6, cache, run["made"], run["seconds"]))
-    print("Largest side: %d pixels. Play with: ./dogfighter --hd-textures" % largest)
+    print("Largest side: %d pixels. Play with: ./dogfighter" % largest)
 
 
 def on_squares(pixels, width, height):
