@@ -3,7 +3,8 @@ set -Eeuo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: ./setup.sh [--language=English|French|German|Italian] [--hd-textures [--generative]] [path/to/Dogfighter.bin]
+Usage: ./setup.sh [--language=English|French|German|Italian] [--hd-textures|--no-hd-textures] [--generative]
+                  [path/to/Dogfighter.bin]
 
 Builds everything the game needs from your own Airfix Dogfighter CD image.
 On macOS 26.4 or later it also fetches Mach9, a Wine that needs no Rosetta.
@@ -13,13 +14,16 @@ Run it again after an error: finished steps are skipped.
 --language picks the game's language. Without it, setup keeps the installed
 language, or installs English the first time. Saves are kept when you switch.
 
---hd-textures also makes larger textures for ./dogfighter --hd-textures. It
-downloads two upscalers (about 100 MB) to upscale-tools/ and takes a while.
-Without it nothing of that is downloaded.
+At the end setup makes the larger textures that ./dogfighter uses. It
+downloads two upscalers (about 100 MB) to upscale-tools/ and takes a few
+minutes. If the upscalers cannot be fetched or do not run on this Mac, the
+textures are made with the Mac's own filter. A finished set is not made again.
+--no-hd-textures skips this step. --hd-textures is still accepted; it is the
+default.
 
---generative, with --hd-textures, also sets up the generative way for a
-hand-picked list of surface textures: a Python environment and two models,
-about 6.6 GB in upscale-tools/generative/. It needs Python 3.12 or later.
+--generative also sets up the generative way for a hand-picked list of
+surface textures: a Python environment and two models, about 6.6 GB in
+upscale-tools/generative/. It needs Python 3.12 or later.
 EOF
 }
 
@@ -37,13 +41,14 @@ canonical_language() {
 
 LANGUAGE=
 IMAGE=
-HD_TEXTURES=0
+HD_TEXTURES=1
 GENERATIVE=
 for arg in "$@"; do
   case "$arg" in
     -h|--help) usage; exit 0 ;;
     --language=*) LANGUAGE="$(canonical_language "${arg#--language=}")" || { usage >&2; exit 2; } ;;
     --hd-textures) HD_TEXTURES=1 ;;
+    --no-hd-textures) HD_TEXTURES=0 ;;
     --generative) GENERATIVE=--generative ;;
     -*) usage >&2; exit 2 ;;
     *) [ -z "$IMAGE" ] || { usage >&2; exit 2; }; IMAGE="$arg" ;;
@@ -278,9 +283,17 @@ build_helpers() {
 
 make_hd_textures() {
   [ "$HD_TEXTURES" = 1 ] || return 0
-  step "Larger textures (downloads the upscalers)"
-  python3 -I "$HERE/tools/upscale-textures.py" --fetch-tools $GENERATIVE
-  python3 -I "$HERE/tools/upscale-textures.py" --upscaler ai
+  local tool="$HERE/tools/upscale-textures.py"
+  step "Larger textures (the first time this downloads two upscalers, about 100 MB)"
+  if [ -n "$GENERATIVE" ]; then
+    python3 -I "$tool" --fetch-tools --generative
+  elif ! python3 -I "$tool" --fetch-tools; then
+    echo "The upscalers could not be fetched. The textures are made with the Mac's own filter."
+  fi
+  python3 -I "$tool" && return
+  echo "The upscalers did not work on this Mac. The textures are made with the Mac's own filter instead."
+  python3 -I "$tool" --upscaler vimage && return
+  echo "The larger textures could not be made. The game uses its own; the next ./setup.sh tries again."
 }
 
 path_hint() {

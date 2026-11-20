@@ -8,7 +8,7 @@ The repo contains no game data. `setup.sh` builds everything from a raw image of
 
 ## Parts
 
-- `setup.sh` checks the Mac, downloads the pinned tools, unpacks the game from the disc image, rips the music and builds the helpers and `Dogfighter.app`.
+- `setup.sh` checks the Mac, downloads the pinned tools, unpacks the game from the disc image, rips the music, builds the helpers and `Dogfighter.app`, and makes the larger textures.
 - `dogfighter` is the launcher. It picks a Wine build, sets the game's settings and starts the game through the helper.
 - The helper is `focusfix.exe` and `focushook.dll`. It puts the game in a normal Mac window, scales the picture, holds the mouse and does the picture work below.
 - `tools/upscale-textures.py` makes the larger textures.
@@ -62,7 +62,7 @@ Without `--language`, a later run keeps the installed language.
 ### Dogfighter.app
 
 Setup also builds `Dogfighter.app` in the repo folder.
-It runs `./dogfighter` with no options.
+It runs `./dogfighter` with no options, so it gets the same defaults as a start from Terminal.
 Its icon is made from `cd/Airfix.ico` on the player's Mac, so the app is not part of this repo.
 The app remembers where the folder is. If the folder moves, run `./setup.sh` again and use the new app.
 
@@ -161,16 +161,19 @@ On an M4 Max the frame rate stayed the same, on both Wine builds.
 `--smooth=0` turns the smoothing off, and `--smooth=2` uses 2 samples.
 Other settings and key bindings are not touched.
 
-`--original` puts the four settings back to what they were and turns the sharper textures and the smooth edges off.
+By default the launcher also draws at full resolution and uses the larger textures, both described below.
+
+`--original` puts the four settings back to what they were and turns the anisotropic filtering and the smooth edges off.
+It also turns full resolution and the larger textures off, unless `--full-res` or `--hd-textures` is given too.
 The old values are kept in `game/dogfighter-picture-before.txt` until then.
 A draw distance set in the game's Options menu is raised again at the next start; `--original` keeps it.
 
 `--res=WxH` sets the game resolution in flight, e.g. `--res=1440x900`. The menus are always 640x480. Without it, the largest size that fits the screen is used.
 `--windowed=WxH` starts with the picture at most this big, e.g. `--windowed=1024x768`.
 
-### `--full-res`
+### Full resolution
 
-`--full-res` draws the picture with as many pixels as the window has on a Retina screen.
+Full resolution is on by default. It draws the picture with as many pixels as the window has on a Retina screen.
 The HUD, the menus and all letters keep the size they have without it.
 The game goes on working in its own resolution, 1280x800 in a flight and 640x480 in the menus.
 The helper enlarges the surface the game draws into and moves every corner point the game draws to the larger surface.
@@ -179,15 +182,23 @@ Letters and the pictures in the menus and the HUD have no more detail than befor
 The sharper letters below change that for the letters.
 
 - On an M4 Max a flight ran at 62 to 89 frames a second at 2774x1734, with 4 samples per pixel.
-- It works together with `--hd-textures`.
+- It works together with the larger textures.
 - F12 screenshots keep the game's own size.
 - The picture follows the window when it is resized or zoomed, up to the screen's size.
 - In a test, clicks on Info, Login and Campaign each landed on the button under the game's cursor.
 - Nobody has looked at it on a screen yet.
 
+How the options combine:
+- `--no-full-res` turns it off. The game then draws in its own resolution and the picture is scaled to the window.
+- `--sharp`, `--retina` and `--original` turn it off, because each asks for another picture.
+- `--full-res` given together with one of those keeps it on.
+- `--no-focusfix` turns it off. `--full-res` with `--no-focusfix` is refused: it needs the helper.
+- Each start writes `Full resolution on` or `Full resolution off` to the log.
+- A test run saves pictures of the full-size surface to `logs/shots/` only when `--full-res` is given.
+
 ### `--sharp`
 
-`--sharp` uses Retina pixels: a sharper picture in flight, with a half-size HUD.
+`--sharp` uses Retina pixels: a sharper picture in flight, with a half-size HUD. It turns full resolution off.
 The flight is drawn with four times the pixels, which gives smoother edges on a Retina screen.
 On an M4 Max the frame rate stayed the same, about 30 frames a second.
 
@@ -196,7 +207,8 @@ On an M4 Max the frame rate stayed the same, about 30 frames a second.
 `--retina` opens the window with the Retina screen's own pixels and keeps the game's resolution.
 Wine then scales the picture once to those pixels, and macOS does not scale it a second time.
 The HUD keeps its size.
-Nobody has compared the two on a screen yet.
+It turns full resolution off.
+Nobody has compared it with full resolution off on a screen yet.
 
 ### `--deep-z`
 
@@ -220,20 +232,26 @@ It stays opt-in until a person has judged it.
 ## Larger textures
 
 The game shrinks every texture to at most 256 pixels a side.
-`--hd-textures` raises that limit and loads larger copies of the 3D textures.
+The launcher raises that limit and loads larger copies of the 3D textures.
 The copies are made once, on the player's Mac, from the player's own game files.
-Nothing is uploaded, and nothing is downloaded unless the upscalers below are asked for.
+Nothing is uploaded.
+
+The launcher uses them by default when `hd-textures/` holds a complete set.
+- Complete means: `texture-limit` says 512 or 1024, and every texture that `manifest.json` lists as made is in `cache/`.
+- The tool writes `manifest.json` last, so a run that stopped halfway does not count.
+- Without a complete set the game starts with its own textures, and the launcher says in one line to run `./setup.sh`.
+- `--no-hd-textures` turns them off. So does `--original`, unless `--hd-textures` is given too.
+- `--hd-textures` is still accepted. It is the default.
+
+Without the upscalers below, the tool needs only the Xcode Command Line Tools:
 
 ```
 python3 tools/upscale-textures.py
-./dogfighter --hd-textures
 ```
 
-- The first command needs only the Xcode Command Line Tools.
 - It writes 1,192 textures and the 11 font pictures to `hd-textures/cache/`, twice as large as the originals.
 - That takes under a minute and about 180 MB of disk space.
 - The packs in `game/` are never changed.
-- Without `--hd-textures` the game uses its own textures, as before.
 
 Without the upscalers the resizer is the Lanczos filter that comes with macOS.
 It gives smoother edges up close. It does not add detail.
@@ -245,8 +263,14 @@ python3 tools/upscale-textures.py --fetch-tools
 python3 tools/upscale-textures.py
 ```
 
-`./setup.sh --hd-textures` runs both after the normal setup.
-A plain `./setup.sh` downloads none of this.
+`./setup.sh` runs both after the normal setup. `./setup.sh --no-hd-textures` skips them.
+Setup never fails on this step:
+- When the download fails, the second command uses the macOS filter.
+- When the upscalers do not run, for example without access to the graphics card, setup runs the tool again with `--upscaler vimage`.
+- When that fails too, setup says so and goes on. The game then uses its own textures.
+
+On a Mac without a working graphics card the upscalers stop at the first texture, so each later `./setup.sh` loses only a few seconds there.
+A finished set is not made again: a second run over the full set on an M4 Max took 3 seconds and changed nothing.
 
 `--fetch-tools` downloads three archives, about 100 MB, to `downloads/upscale/`.
 - `upscayl-bin` 20251207-174704, which runs the model.
@@ -311,7 +335,7 @@ python3 tools/upscale-textures.py --fetch-tools --generative
 python3 tools/upscale-textures.py
 ```
 
-`./setup.sh --hd-textures --generative` does the same.
+`./setup.sh --generative` does the same. A failure in this opt-in step stops setup.
 
 - It downloads about 6.6 GB to `upscale-tools/generative/`: a Python environment with the pinned packages of `tools/generative-requirements.txt`, and two models.
 - The models are Stable Diffusion 1.5 (licence CreativeML OpenRAIL-M) and the ControlNet 1.1 tile model (licence OpenRAIL), at pinned revisions with pinned checksums.
@@ -338,7 +362,7 @@ One run on an M4 Max, all 40 textures:
 - Eight textures made a second time came out byte-identical. Another Mac may give slightly different pictures.
 - The 32 textures take 29 MB instead of 7 MB.
 
-In the game, with `--full-res --hd-textures`, the living room of the first Axis mission loaded without errors.
+In the game, with full resolution and the larger textures, the living room of the first Axis mission loaded without errors.
 The floor boards showed finer grain.
 No loss of frame rate was measured: 61 to 118 a second, against 52 to 81 with the usual set in the same scene.
 Longer missions were not tested.
@@ -350,7 +374,7 @@ The tool makes those twice as large and puts an empty file `<name>.gti.2x` next 
 The helper draws a picture with that marker at its old size.
 So letters keep their place and size, and get twice the pixels.
 
-- The gain shows with `--full-res --hd-textures`, where a letter covers more screen pixels than the original has.
+- The gain shows with full resolution, where a letter covers more screen pixels than the original has.
 - waifu2x makes the letter shapes, and the macOS filter when the upscalers are missing.
 - Real-ESRGAN is not used for letters: it left grey smears in them.
 - The enlarged letter shapes, shrunk again, match the originals at 68 dB or better.
@@ -379,7 +403,8 @@ This is meant for textures where an upscaler garbled small lettering.
 ### How the game finds them
 
 - The game opens `cache\<path>` in its folder before it looks in its packs.
-- The launcher links `game/cache` to `hd-textures/cache`, and removes the link without the option.
+- The launcher links `game/cache` to `hd-textures/cache`, and removes the link when the larger textures are off.
+- If `game/cache` is a real folder, the launcher leaves it alone and keeps the larger textures off.
 - The helper changes the 256-pixel limit in the running game's memory. No game file is changed.
 
 `tools/gti.py` turns one texture into a PNG and back, for your own edits.
@@ -455,7 +480,7 @@ An existing `game/user.ini` is never changed.
 
 - **Logs.** Each start writes `logs/run-<date>-<time>.log`. The music player's log is next to it, ending in `-music.log`.
 - **The helper is missing.** If the launcher says `focusfix.exe` or `focushook.dll` is missing, run `./setup.sh` again.
-- **Testing without the helper.** `--no-focusfix` runs the game in a plain Wine desktop window. The picture is not scaled, the window cannot be resized, the game stops when it loses the focus, and you press OK in the setup dialog yourself. The picture settings are the original ones, as with `--original`. A crashed start is started again, a hung one is not: end it with `./dogfighter --stop`.
+- **Testing without the helper.** `--no-focusfix` runs the game in a plain Wine desktop window. The picture is not scaled, the window cannot be resized, the game stops when it loses the focus, and you press OK in the setup dialog yourself. The picture is the original one, as with `--original`: no full resolution, no larger textures. A crashed start is started again, a hung one is not: end it with `./dogfighter --stop`.
 - **No music.** Check that `music/` holds ten `.ogg` files and that `game/winmm.dll` exists. Run `./setup.sh` again if not.
 - **Disc not found.** `cd/.windows-label` must contain `Dogfighter`, with that exact case. Delete `cd/` and run `./setup.sh` again to rebuild it.
 
@@ -463,18 +488,20 @@ An existing `game/user.ini` is never changed.
 
 | Option | What it does |
 | --- | --- |
-| (none) | Play in a window you can resize. The picture is scaled to fill it. |
+| (none) | Play in a window you can resize, at full resolution, with the larger textures when a complete set is there. |
 | `--res=WxH` | Use this game resolution in flight, e.g. `--res=1440x900`. The menus are always 640x480. Without it, the largest size that fits the screen is used. |
-| `--full-res` | Draw the 3D picture with the Retina screen's own pixels and keep the HUD, the menus and the letters at normal size. |
-| `--sharp` | Use Retina pixels: a sharper picture in flight, with a half-size HUD. |
-| `--retina` | Draw the window with the Retina screen's own pixels and keep the game's resolution. |
+| `--full-res` | On by default. Draw the 3D picture with the Retina screen's own pixels and keep the HUD, the menus and the letters at normal size. Keeps it on with `--sharp`, `--retina` or `--original`. |
+| `--no-full-res` | Draw in the game's own resolution and scale the picture to the window. |
+| `--sharp` | Use Retina pixels: a sharper picture in flight, with a half-size HUD. Turns full resolution off. |
+| `--retina` | Draw the window with the Retina screen's own pixels and keep the game's resolution. Turns full resolution off. |
 | `--windowed=WxH` | Start with the picture at most this big, e.g. `--windowed=1024x768`. |
 | `--wide` | Widen the view angle for a 16:10 or 16:9 picture. |
-| `--hd-textures` | Use the larger textures. |
+| `--hd-textures` | On by default. Use the larger textures when a complete set is there. Keeps them on with `--original`. |
+| `--no-hd-textures` | Use the game's own textures. |
 | `--smooth=N` | Smooth jagged edges with N samples per pixel: 0, 2 or 4. Without it the launcher uses 4. |
 | `--deep-z` | Give the game a 24-bit depth buffer where it asks for 16 bits. |
 | `--keep-shape` | Keep the window in the shape of the game's picture when you resize or zoom it. |
-| `--original` | Leave the picture settings as the game made them. |
+| `--original` | Leave the picture as the game made it: its settings, its resolution, its textures. |
 | `--mute` | Start the game without sound. |
 | `--join=ADDRESS` | Put a server in the game's Address book, then start the game. |
 | `--setup` | Show the game's setup dialog and wait for OK. |
@@ -494,6 +521,7 @@ An existing `game/user.ini` is never changed.
 `--diag` has test modes that run with nobody at the screen.
 `./dogfighter --help` describes each one.
 A run with any `--diag` option does not hold the mouse, so the Mac stays usable, and it is muted.
+Test runs follow the same picture defaults as a normal start.
 
 | Option | What it does |
 | --- | --- |
@@ -515,22 +543,24 @@ A run with any `--diag` option does not hold the mouse, so the Mac stays usable,
 | `--diag-end=SECONDS` | Ends the game this long after its first picture, without the game's own quit. |
 | `--diag-zoom=SECONDS` | Zooms the window this long after the first picture. |
 | `--diag-drag=SECONDS` | Asks for seven window sizes as a drag does, and logs what the window became. |
+| `--diag-hd-dir=FOLDER` | Looks for the larger textures in FOLDER, a full path, in place of `hd-textures/`. An empty folder tests a start without them. |
 
 ### Options of setup.sh
 
 | Option | What it does |
 | --- | --- |
 | `--language=NAME` | English, French, German or Italian. |
-| `--hd-textures` | After the normal setup, fetch the upscalers and make the larger textures. |
-| `--generative` | With `--hd-textures`: also set up the generative way. |
+| `--no-hd-textures` | Skip the larger textures: no upscalers are fetched and no set is made. |
+| `--hd-textures` | Still accepted. Making the larger textures is the default. |
+| `--generative` | Also set up the generative way. Not with `--no-hd-textures`. |
 | `path/to/Dogfighter.bin` | The disc image, if it is not `./Dogfighter.bin`. |
 
 ## Not tested yet
 
 Collected from the sections above.
 - Mach9 on an M1. Nobody has played a whole mission on Mach9.
-- `--full-res`: nobody has looked at it on a screen.
-- `--retina`: nobody has compared it with the default on a screen.
+- Full resolution, now the default: nobody has looked at it on a screen.
+- `--retina`: nobody has compared it with full resolution off on a screen.
 - `--keep-shape`: a drag by hand.
 - `--wide`: not judged by a person.
 - `--deep-z`: only the first mission was compared.

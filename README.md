@@ -20,7 +20,7 @@ This is an unofficial project. It is not affiliated with any of them.
 - An internet connection while you install.
 - Free disk space:
   - about 5 GB for the game (about 3 GB on macOS older than 26.4),
-  - about 180 MB more for sharper textures,
+  - about 400 MB more for the sharper textures that setup makes,
   - about 6.6 GB more for the optional extra detail on walls and floors.
 
 ### Which macOS works best
@@ -109,6 +109,7 @@ Paste each command, press Return, and wait until it is finished.
    Setup takes a few minutes.
    It downloads what it needs and checks each download.
    It copies the game from your disc file and copies the music too.
+   Last, it makes sharper textures for the game (see [Best picture](#best-picture)).
    At the end it says: `Setup is done. Start the game with ./dogfighter, or double-click Dogfighter.app.`
 
    If a step fails, setup says what went wrong.
@@ -131,7 +132,7 @@ Your pilots, saves and key settings stay as they are.
 For a game without sound, start it with `./dogfighter --mute`.
 
 **Dogfighter.app.** Setup also makes `Dogfighter.app` in the folder.
-Double-click it to play without Terminal. It starts the game with no options.
+Double-click it to play without Terminal. It starts the game with no options, so with the best picture.
 You can drag it to Applications or the Dock.
 If you move the game folder, run `./setup.sh` again and use the new app.
 
@@ -140,36 +141,38 @@ Run it once. After that, `dogfighter` works in any Terminal folder.
 
 ### Best picture
 
-This is the recommendation:
-
-```
-./setup.sh --hd-textures
-./dogfighter --full-res --hd-textures
-```
-
-The first line makes sharper textures. You do this once.
-The second line starts the game. Use it every time.
-
-What you get:
+The game starts with the best picture by itself:
 - The 3D picture uses every pixel of your Retina screen. The edges of 3D shapes are drawn sharp, not stretched.
 - Text, menus and the gauges in flight keep their normal size.
 - The textures of the 3D world have twice the pixels.
 - Letters have twice the pixels too, so they look crisper.
+- Every start also turns some of the game's own settings up, such as the draw distance and the colour depth.
 
-What it needs:
-- About 100 MB of downloads: two upscalers, programs that enlarge pictures and draw in detail.
-- About 180 MB of disk space for the new textures.
-- Time: one run on an M4 Max took about four and a half minutes.
+Setup makes the sharper textures once.
+- It downloads two upscalers, about 100 MB. These programs enlarge pictures and draw in detail.
+- The textures take about 180 MB of disk space.
+- One run on an M4 Max took about four and a half minutes.
+- If the upscalers do not run on your Mac, setup uses the Mac's own filter. Those textures are smoother, with less detail.
+- Running setup again does not make them again.
 
 The textures are made on your Mac from your own game files. Nothing is uploaded.
-Your game files are never changed. Without `--hd-textures` the game uses its own textures.
+Your game files are never changed.
+If the textures are missing, the game uses its own and says how to make them.
+
+To turn parts off, add one of these after `./dogfighter`:
+
+| Option | What it turns off |
+| --- | --- |
+| `--no-hd-textures` | The sharper textures. |
+| `--no-full-res` | The extra pixels. The picture is scaled to the window instead. |
+| `--original` | All of it: the game looks as it did in 2000. |
+
+To skip the sharper textures in setup, run `./setup.sh --no-hd-textures`.
 
 This is new.
 Test runs on an M4 Max measured the frame rate and checked clicks on menu buttons.
 Nobody has looked at it on a real screen yet.
-
-Every start also turns some of the game's own picture settings up, such as the draw distance and the colour depth.
-`--original` keeps the game's own look.
+It is not tested on an M1.
 
 ## Mouse and keyboard
 
@@ -245,10 +248,10 @@ To get Python 3.12, use one of these:
 Then run:
 
 ```
-./setup.sh --hd-textures --generative
+./setup.sh --generative
 ```
 
-Play with `./dogfighter --full-res --hd-textures`, as above.
+Then start the game as usual.
 
 How long: first the download, which depends on your connection.
 The repainting then took about six and a half minutes on an M4 Max.
@@ -333,24 +336,25 @@ It checks the installation and prints a fix for each problem.
 | No music | Check that the `music` folder holds ten `.ogg` files. If not, run `./setup.sh` again. |
 | The disc is not found | Delete the `cd` folder and run `./setup.sh` again. |
 | It says `focusfix.exe` or `focushook.dll` is missing | Run `./setup.sh` again. |
+| It says there is no complete set of larger textures | Run `./setup.sh` again. It makes them. |
 | Setup says a tool is missing | It names the tool, and in most cases the command that installs it. Install it, then run `./setup.sh` again. |
 
 Each start writes a log file to the `logs` folder. Include it when you ask for help.
 
 ## All options
 
-Add these after `./dogfighter`, for example `./dogfighter --full-res --hd-textures`.
+Add these after `./dogfighter`, for example `./dogfighter --mute`.
 
 | Option | What it does |
 | --- | --- |
-| (none) | Play in a window you can resize. |
-| `--full-res` | Sharp picture with every pixel of a Retina screen; text and gauges stay normal size. |
-| `--hd-textures` | Use the sharper textures you made. |
+| (none) | Play in a window you can resize, with the best picture. |
+| `--no-full-res` | Draw the picture with fewer pixels and scale it to the window. |
+| `--no-hd-textures` | Use the game's own textures. |
 | `--mute` | Play without any sound. The next start without it has sound again. |
 | `--res=WxH` | Picture size in flight, for example `--res=1440x900`. Without it, the largest size that fits is used. |
 | `--windowed=WxH` | Start with the picture at most this big, for example `--windowed=1024x768`. |
 | `--keep-shape` | Keep the window in the shape of the picture when you resize it. Not tried by hand yet. |
-| `--original` | Keep the game's own picture settings. |
+| `--original` | Keep the game's own picture: its settings, resolution and textures. |
 | `--setup` | Show the game's setup window. |
 | `--join=ADDRESS` | Add a server to the game's Address book, then start the game. |
 | `--wine=stable` | Use the Rosetta Wine. `--wine=mach9` uses Mach9. |
@@ -364,8 +368,8 @@ Setup takes these:
 | Option | What it does |
 | --- | --- |
 | `--language=NAME` | English, French, German or Italian. |
-| `--hd-textures` | Also make the sharper textures. |
-| `--generative` | With `--hd-textures`: also add the extra detail for walls and floors. |
+| `--no-hd-textures` | Do not make the sharper textures. |
+| `--generative` | Also add the extra detail for walls and floors. |
 
 More picture options and test options are in [docs/TECHNICAL.md](docs/TECHNICAL.md).
 

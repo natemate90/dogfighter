@@ -3,46 +3,54 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: dogfighter [--res=WxH] [--full-res] [--sharp] [--retina] [--windowed=WxH] [--wide] [--hd-textures] [--original]
+Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [--windowed=WxH] [--wide]
+                  [--hd-textures|--no-hd-textures] [--original]
                   [--smooth=0|2|4] [--deep-z] [--keep-shape] [--mute]
                   [--setup] [--no-focusfix] [--wine=NAME] [--wine-rule=KEY=VALUE]
                   [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|move-test|start-test|stall-test|crash-test|fallback-test|draw-test|press-ok|press-cancel]]
                   [--diag-keys=SECONDS:SCANCODE,...] [--diag-mouse=SECONDS:DX:DY[:c|:o],...]
                   [--diag-console=SECONDS:COMMAND] [--diag-display=right] [--diag-hold] [--diag-sound]
+                  [--diag-hd-dir=FOLDER]
                   [--diag-end=SECONDS] [--diag-zoom=SECONDS] [--diag-drag=SECONDS]
                   [--join=ADDRESS] [--winecfg] [--stop]
        dogfighter [--wine=NAME] --doctor
        dogfighter --backup | --restore[=FILE]
 
-  (no option)       Play in a normal Mac window that you can resize. The picture is
-                    scaled to fill it, so menu text stays readable.
+  (no option)       Play in a normal Mac window that you can resize, with the best
+                    picture: full resolution, the larger textures when they are
+                    made, and smooth edges. Menu text stays readable.
                     Ctrl+Option frees the mouse, and gives it back to the game.
   --res=WxH         Use this game resolution in flight, e.g. --res=1440x900.
                     The menus are always 640x480.
-  --full-res        Draw the 3D picture, in flight and in the menus, with as many
-                    pixels as the window has on a Retina screen, and keep the HUD,
-                    the menus and all letters at their normal size. The game goes
-                    on working in its own resolution; the helper enlarges what it
-                    draws. The picture follows the window when you resize or
-                    zoom it.
+  --full-res        On by default. Draw the 3D picture, in flight and in the
+                    menus, with as many pixels as the window has on a Retina
+                    screen, and keep the HUD, the menus and all letters at their
+                    normal size. The game goes on working in its own resolution;
+                    the helper enlarges what it draws. The picture follows the
+                    window when you resize or zoom it. --sharp, --retina and
+                    --original turn it off unless --full-res is given too.
+  --no-full-res     Draw the picture in the game's own resolution and scale it
+                    to fill the window.
   --sharp           Use Retina pixels: a sharper picture in flight. The HUD and
-                    the letters in a flight are then half size; --full-res
-                    does not have that.
+                    the letters in a flight are then half size; full resolution
+                    does not have that. Turns full resolution off.
   --retina          Draw the window with the Retina screen's own pixels, but keep
                     the game's resolution, so the HUD keeps its size. The picture
                     is then scaled once, by Wine, and not a second time by macOS.
-                    Not judged by eye yet.
+                    Turns full resolution off. Not judged by eye yet.
   --windowed=WxH    Start with the picture at most this big, e.g. --windowed=1024x768.
   --wide            Widen the view angle for a 16:10 or 16:9 picture. It shows more at
                     the sides and the top. The bottom edge of the picture may show a
                     stretched band in some scenes. It stays opt-in until a person has
                     judged it.
-  --hd-textures     Use the larger textures in hd-textures/. Make them once with
-                    python3 tools/upscale-textures.py. Without this option the game
-                    uses its own textures.
+  --hd-textures     On by default. Use the larger textures in hd-textures/, which
+                    ./setup.sh makes. Without a complete set there, the game uses
+                    its own textures and the launcher says how to make them.
+                    --original turns them off unless --hd-textures is given too.
+  --no-hd-textures  Use the game's own textures.
   --original        Leave the picture as the game made it: 16-bit colour, the normal
                     draw distance, no light shafts, blurry ground in the distance,
-                    jagged edges.
+                    jagged edges, its own resolution and its own textures.
                     Without this the launcher turns these up at every start.
   --smooth=N        Smooth the jagged edges of 3D shapes with N samples per pixel
                     (multisampling). The launcher uses 4 by itself. 0 turns it
@@ -60,6 +68,7 @@ Usage: dogfighter [--res=WxH] [--full-res] [--sharp] [--retina] [--windowed=WxH]
                     and wait for OK. Without this the launcher presses OK itself.
   --no-focusfix     Start without the helper. The picture is not scaled, the window
                     has no title bar and the game stops when it loses the focus.
+                    The picture is the game's own, as with --original.
   --wine=NAME       Pick the Wine build. Without it the launcher uses Mach9, a Wine
                     that needs no Rosetta, when wine-mach9/ is there and macOS is
                     26.4 or later, and the Rosetta Wine otherwise. If the game does
@@ -138,6 +147,9 @@ Usage: dogfighter [--res=WxH] [--full-res] [--sharp] [--retina] [--windowed=WxH]
   --diag-sound      Keep the sound in a test run, as a normal start does.
                     With any --diag option the log also says, five times a second,
                     whether macOS shows its pointer and which app is in front.
+  --diag-hd-dir=FOLDER
+                    Look for the larger textures in FOLDER, a full path, in place
+                    of hd-textures/. An empty folder tests a start without them.
   --winecfg         Open Wine's settings for this game's prefix instead of playing.
   --stop            End a running game and all Wine processes of this prefix.
 EOF
@@ -152,7 +164,7 @@ RETINA_WINDOW=0
 SETUP=accept
 ORIGINAL=0
 WIDE=0
-HD_TEXTURES=0
+HD_TEXTURES=auto
 MUTE=0
 DEBUG=
 DIAG=
@@ -162,10 +174,11 @@ DIAG_CONSOLE=()
 DIAG_DISPLAY=
 DIAG_HOLD=0
 DIAG_SOUND=0
+DIAG_HD_DIR=
 DIAG_END=
 DIAG_ZOOM=
 DIAG_DRAG=
-FULL_RES=0
+FULL_RES=auto
 SMOOTH=4
 DEEP_Z=0
 KEEP_SHAPE=0
@@ -187,6 +200,7 @@ for arg in "$@"; do
     --original) ORIGINAL=1 ;;
     --wide) WIDE=1 ;;
     --hd-textures) HD_TEXTURES=1 ;;
+    --no-hd-textures) HD_TEXTURES=0 ;;
     --mute) MUTE=1 ;;
     --setup) SETUP=show ;;
     --no-focusfix) FOCUSFIX=0 ;;
@@ -210,10 +224,12 @@ for arg in "$@"; do
     --diag-display=right) DIAG_DISPLAY=right ;;
     --diag-hold) DIAG_HOLD=1 ;;
     --diag-sound) DIAG_SOUND=1 ;;
+    --diag-hd-dir=*) DIAG_HD_DIR="${arg#--diag-hd-dir=}" ;;
     --diag-end=*) DIAG_END="${arg#--diag-end=}" ;;
     --diag-zoom=*) DIAG_ZOOM="${arg#--diag-zoom=}" ;;
     --diag-drag=*) DIAG_DRAG="${arg#--diag-drag=}" ;;
-    --full-res) FULL_RES=1; RETINA_WINDOW=1 ;;
+    --full-res) FULL_RES=1 ;;
+    --no-full-res) FULL_RES=0 ;;
     --smooth=*) SMOOTH="${arg#--smooth=}" ;;
     --deep-z) DEEP_Z=1 ;;
     --keep-shape) KEEP_SHAPE=1 ;;
@@ -235,6 +251,16 @@ for arg in "$@"; do
   esac
 done
 if [ "$FOCUSFIX" = 0 ]; then ORIGINAL=1; fi
+FULL_RES_GIVEN="$FULL_RES"
+if [ "$FULL_RES" = auto ]; then
+  FULL_RES=1
+  if [ "$ORIGINAL" = 1 ] || [ "$SHARP" = 1 ] || [ "$RETINA_WINDOW" = 1 ]; then FULL_RES=0; fi
+fi
+if [ "$FULL_RES" = 1 ]; then RETINA_WINDOW=1; fi
+if [ "$HD_TEXTURES" = auto ]; then
+  HD_TEXTURES=1
+  if [ "$ORIGINAL" = 1 ]; then HD_TEXTURES=0; fi
+fi
 if [ -n "$END_AFTER_SETUP_FIRST_TRY" ] && [ "$SETUP" = show ]; then DIAG="$DIAG press-ok"; fi
 for size in "$WINDOW_SIZE" "$GAME_RES"; do
   [[ -z "$size" || "$size" =~ ^[0-9]+x[0-9]+$ ]] || { echo "Bad size: $size" >&2; exit 2; }
@@ -243,7 +269,8 @@ if [ -n "$DIAG_KEYS" ]; then
   [[ "$DIAG_KEYS" =~ ^[0-9]+:[0-9a-fA-F]+(,[0-9]+:[0-9a-fA-F]+)*$ ]] || { echo "Bad key list: $DIAG_KEYS" >&2; exit 2; }
   DIAG="${DIAG:-log} keys=$DIAG_KEYS"
 fi
-if [ "$DIAG_HOLD" = 1 ] || [ "$DIAG_SOUND" = 1 ]; then DIAG="${DIAG:-log}"; fi
+if [ "$DIAG_HOLD" = 1 ] || [ "$DIAG_SOUND" = 1 ] || [ -n "$DIAG_HD_DIR" ]; then DIAG="${DIAG:-log}"; fi
+[[ -z "$DIAG_HD_DIR" || "$DIAG_HD_DIR" == /* ]] || { echo "Bad folder: $DIAG_HD_DIR. Give a full path." >&2; exit 2; }
 if [ -n "$DIAG_MOUSE" ]; then
   [[ "$DIAG_MOUSE" =~ ^[0-9]+:-?[0-9]+:-?[0-9]+(:[co])?(,[0-9]+:-?[0-9]+:-?[0-9]+(:[co])?)*$ ]] || { echo "Bad mouse list: $DIAG_MOUSE" >&2; exit 2; }
   DIAG="${DIAG:-log} mouse=$DIAG_MOUSE"
@@ -331,6 +358,14 @@ PICTURE_BEFORE="$HERE/game/dogfighter-picture-before.txt"
 HD_DIR="$HERE/hd-textures"
 CACHE_LINK="$HERE/game/cache"
 CACHE_TARGET=../hd-textures/cache
+HD_SHOWN=hd-textures/
+OWN_TARGETS=("$CACHE_TARGET")
+if [ -n "$DIAG_HD_DIR" ]; then
+  HD_DIR="${DIAG_HD_DIR%/}"
+  CACHE_TARGET="$HD_DIR/cache"
+  HD_SHOWN="$HD_DIR/"
+  OWN_TARGETS+=("$CACHE_TARGET")
+fi
 FOCUSFIX_EXE="$HERE/build/focusfix.exe"
 FOCUSHOOK_DLL="$HERE/build/focushook.dll"
 WINDIAG_EXE="$HERE/build/windiag.exe"
@@ -614,24 +649,37 @@ restore_picture_settings() {
   rm -f "$PICTURE_BEFORE"
 }
 
+hd_set_complete() {
+  [ -d "$HD_DIR/cache" ] && [ -f "$HD_DIR/manifest.json" ] || return 1
+  python3 -I - "$HD_DIR" <<'EOF' 2>/dev/null
+import json, os, sys
+out = sys.argv[1]
+with open(os.path.join(out, "manifest.json")) as f:
+    made = [t["path"] for t in json.load(f)["textures"] if t["way"] != "none"]
+sys.exit(not made or not all(os.path.isfile(os.path.join(out, "cache", *path.split("\\"))) for path in made))
+EOF
+}
+
 link_hd_textures() {
-  local limit
-  if [ "$HD_TEXTURES" = 0 ]; then
-    if [ -L "$CACHE_LINK" ] && [ "$(readlink "$CACHE_LINK")" = "$CACHE_TARGET" ]; then rm -f "$CACHE_LINK"; fi
-    return 0
-  fi
+  local limit target own
   limit="$(cat "$HD_DIR/texture-limit" 2>/dev/null || true)"
-  if [ ! -d "$HD_DIR/cache" ] || { [ "$limit" != 512 ] && [ "$limit" != 1024 ]; }; then
-    say "No larger textures in hd-textures/. Make them first: python3 tools/upscale-textures.py"
-    exit 1
+  if [ "$HD_TEXTURES" = 1 ] && [ -e "$CACHE_LINK" ] && [ ! -L "$CACHE_LINK" ]; then
+    say "game/cache is a folder of your own, so the larger textures stay off. Move it away to use them."
+    HD_TEXTURES=0
+  elif [ "$HD_TEXTURES" = 1 ] && { [ "$limit" != 512 ] && [ "$limit" != 1024 ] || ! hd_set_complete; }; then
+    say "No complete set of larger textures in $HD_SHOWN. Run ./setup.sh to make it."
+    HD_TEXTURES=0
   fi
-  if [ -e "$CACHE_LINK" ] && [ ! -L "$CACHE_LINK" ]; then
-    say "game/cache is a folder of your own. Move it away to use --hd-textures."
-    exit 1
+  if [ "$HD_TEXTURES" = 0 ]; then
+    target="$(readlink "$CACHE_LINK" 2>/dev/null || true)"
+    for own in "${OWN_TARGETS[@]}"; do
+      if [ -L "$CACHE_LINK" ] && [ "$target" = "$own" ]; then rm -f "$CACHE_LINK"; fi
+    done
+    return 0
   fi
   ln -sfn "$CACHE_TARGET" "$CACHE_LINK"
   export DOGFIGHTER_TEXTURE_LIMIT="$limit"
-  say "Larger textures on: up to $limit pixels a side, from hd-textures/cache."
+  say "Larger textures on: up to $limit pixels a side, from ${HD_SHOWN}cache."
 }
 
 game_section() {
@@ -851,8 +899,13 @@ if [ "$FOCUSFIX" = 1 ]; then
   if [ "$ORIGINAL" = 0 ]; then export DOGFIGHTER_ANISOTROPY=16; fi
   if [ "$ORIGINAL" = 0 ] && [ "$SMOOTH" != 0 ]; then export DOGFIGHTER_EDGE_SAMPLES="$SMOOTH"; fi
   if [ "$KEEP_SHAPE" = 1 ]; then export DOGFIGHTER_KEEP_SHAPE=1; fi
-  if [ "$FULL_RES" = 1 ]; then export DOGFIGHTER_FULL_SIZE=1; fi
-  if [ "$FULL_RES" = 1 ] && [ -n "$DIAG" ]; then export DOGFIGHTER_TEST_FULL_SIZE_SHOTS=1; fi
+  if [ "$FULL_RES" = 1 ]; then
+    export DOGFIGHTER_FULL_SIZE=1
+    say "Full resolution on: the 3D picture gets every pixel of the window."
+  else
+    say "Full resolution off: the picture is drawn in the game's own resolution and scaled to the window."
+  fi
+  if [ "$FULL_RES_GIVEN" = 1 ] && [ -n "$DIAG" ]; then export DOGFIGHTER_TEST_FULL_SIZE_SHOTS=1; fi
   if [ "$DEEP_Z" = 1 ]; then export DOGFIGHTER_DEEP_Z=1; fi
   if [ -n "$DIAG" ]; then export DOGFIGHTER_DIAG="$DIAG"; fi
   GAME_CMD=('C:\dogfighter-focusfix.exe' 'C:\dogfighter-focusfix.flag' "$GAME_DOS\\Dogfighter.exe")
