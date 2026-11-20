@@ -1262,31 +1262,127 @@ static void raise_texture_size_limit(void)
 }
 
 /* The game draws a flat picture as large as the size stored in its file, and
-   takes texture coordinates as pixels of that size. A file with twice the
-   pixels would be drawn twice as large. For a file that has a marker next to
-   it, cache\<file>.2x, the stored size is halved after loading, so the picture
-   keeps its place and size and only gains pixels. This holds for letters;
-   the frames of menu windows take their size from somewhere else and come
-   out wrong, so they must not get a marker. The game's loader is
+   takes texture coordinates as pixels of that size. A file with more pixels
+   would be drawn larger. For a file that has a marker next to it,
+   cache\<file>.2x or cache\<file>.4x, the stored size is divided by 2 or 4
+   after loading, so the picture keeps its place and size and only gains
+   pixels. The window and gadget code lays its pieces out with
+   GtImage::GetWidth and GetHeight, which give the real pixel count; for a
+   marked picture the calls from AfEngine.dll and the game itself get the
+   stored size instead. gtDirect3D.dll keeps the real one. The game's loader is
    entered through a jump written over its first five bytes, which are whole
    instructions; only a build with exactly those bytes is touched. */
+enum { TEXTURE_FILE_NAME = 0x88, TEXTURE_STORED_WIDTH = 0x6c, TEXTURE_STORED_HEIGHT = 0x70, MAX_ENLARGED = 4096 };
+static struct enlarged { void *texture; const char *file; int width, height; } enlarged[MAX_ENLARGED];
+static int enlarged_used;
 static unsigned char (__fastcall *game_texture_load)(void *texture, void *unused, void *device);
+static int (__fastcall *game_image_width)(void *image, void *unused, int level);
+static int (__fastcall *game_image_height)(void *image, void *unused, int level);
 
-static unsigned char __fastcall half_size_texture_load(void *texture, void *unused, void *device)
+static BOOL still_enlarged(const struct enlarged *entry)
 {
-    enum { FILE_NAME = 0x88, STORED_WIDTH = 0x6c, STORED_HEIGHT = 0x70 };
+    BYTE *texture = entry->texture;
+
+    return !IsBadReadPtr(texture, TEXTURE_FILE_NAME + sizeof(char *))
+        && *(const char **)(texture + TEXTURE_FILE_NAME) == entry->file
+        && *(int *)(texture + TEXTURE_STORED_WIDTH) == entry->width
+        && *(int *)(texture + TEXTURE_STORED_HEIGHT) == entry->height;
+}
+
+static struct enlarged *enlarged_entry(void *texture)
+{
+    for (int i = 0; i < enlarged_used; i++)
+    {
+        if (enlarged[i].texture != texture) continue;
+        if (still_enlarged(&enlarged[i])) return &enlarged[i];
+        enlarged[i].texture = NULL;
+    }
+    return NULL;
+}
+
+static BOOL note_enlarged(void *texture, const char *file, int width, int height)
+{
+    int slot = -1;
+
+    for (int pass = 0; pass < 2 && slot < 0; pass++)
+    {
+        for (int i = 0; i < enlarged_used && slot < 0; i++)
+        {
+            if (pass && enlarged[i].texture && !still_enlarged(&enlarged[i])) enlarged[i].texture = NULL;
+            if (!enlarged[i].texture) slot = i;
+        }
+        if (slot < 0 && enlarged_used < MAX_ENLARGED) slot = enlarged_used++;
+    }
+    if (slot < 0) return FALSE;
+    enlarged[slot].file = file;
+    enlarged[slot].width = width;
+    enlarged[slot].height = height;
+    enlarged[slot].texture = texture;
+    return TRUE;
+}
+
+static int __fastcall drawn_image_width(void *image, void *unused, int level)
+{
+    int real = game_image_width(image, unused, level);
+    struct enlarged *entry = real ? enlarged_entry(image) : NULL;
+
+    return entry ? entry->width >> level : real;
+}
+
+static int __fastcall drawn_image_height(void *image, void *unused, int level)
+{
+    int real = game_image_height(image, unused, level);
+    struct enlarged *entry = real ? enlarged_entry(image) : NULL;
+
+    return entry ? entry->height >> level : real;
+}
+
+static unsigned char __fastcall marked_texture_load(void *texture, void *unused, void *device)
+{
     unsigned char loaded = game_texture_load(texture, unused, device);
-    const char *file = *(const char **)((BYTE *)texture + FILE_NAME);
-    int *width = (int *)((BYTE *)texture + STORED_WIDTH), *height = (int *)((BYTE *)texture + STORED_HEIGHT);
+    const char *file = *(const char **)((BYTE *)texture + TEXTURE_FILE_NAME);
+    int *width = (int *)((BYTE *)texture + TEXTURE_STORED_WIDTH), *height = (int *)((BYTE *)texture + TEXTURE_STORED_HEIGHT);
+    struct enlarged *entry = enlarged_entry(texture);
     char marker[MAX_PATH];
 
-    if (!loaded || !file || IsBadStringPtrA(file, MAX_PATH) || snprintf(marker, sizeof(marker), "cache\\%s.2x", file) >= (int)sizeof(marker)
-        || GetFileAttributesA(marker) == INVALID_FILE_ATTRIBUTES)
-        return loaded;
-    *width /= 2;
-    *height /= 2;
-    say("picture %s has twice the pixels; it is drawn at %dx%d", file, *width, *height);
+    if (entry) entry->texture = NULL;
+    if (!loaded || !file || IsBadStringPtrA(file, MAX_PATH)) return loaded;
+    for (int times = 4; times >= 2; times -= 2)
+    {
+        if (snprintf(marker, sizeof(marker), "cache\\%s.%dx", file, times) >= (int)sizeof(marker)
+            || GetFileAttributesA(marker) == INVALID_FILE_ATTRIBUTES)
+            continue;
+        if (*width % times || *height % times || !note_enlarged(texture, file, *width / times, *height / times))
+        {
+            say("picture %s has a marker for %d times the pixels that cannot be used; it is drawn as it is", file, times);
+            break;
+        }
+        *width /= times;
+        *height /= times;
+        say("picture %s has %d times the pixels a side; it is drawn at %dx%d", file, times, *width, *height);
+        break;
+    }
     return loaded;
+}
+
+static BOOL give_stored_image_sizes(void)
+{
+    static const char *const width_name = "?GetWidth@GtImage@@QAEHH@Z", *const height_name = "?GetHeight@GtImage@@QAEHH@Z";
+    static const BYTE reads_real_size[] = { 0x8b, 0xc1, 0x8b, 0x4c, 0x24, 0x04, 0x85, 0xc9, 0x7c, 0x0d, 0x3b, 0x48, 0x08, 0x7d, 0x08, 0x8b, 0x40 };
+    HMODULE cc = GetModuleHandleA("Cc.dll"), users[] = { GetModuleHandleA("AfEngine.dll"), GetModuleHandleA(NULL) };
+    BYTE *width = (BYTE *)GetProcAddress(cc, width_name), *height = (BYTE *)GetProcAddress(cc, height_name);
+
+    if (!width || !height || memcmp(width, reads_real_size, sizeof(reads_real_size)) || width[sizeof(reads_real_size)] != 0x14
+        || memcmp(height, reads_real_size, sizeof(reads_real_size)) || height[sizeof(reads_real_size)] != 0x18)
+        return FALSE;
+    game_image_width = (void *)width;
+    game_image_height = (void *)height;
+    if (!patch_import(users[0], "Cc.dll", width_name, drawn_image_width)
+        || !patch_import(users[0], "Cc.dll", height_name, drawn_image_height))
+        return FALSE;
+    if (!patch_import(users[1], "Cc.dll", width_name, drawn_image_width)) say("the game itself does not ask for picture widths");
+    if (!patch_import(users[1], "Cc.dll", height_name, drawn_image_height)) say("the game itself does not ask for picture heights");
+    return TRUE;
 }
 
 static void hook_texture_load(void)
@@ -1297,14 +1393,15 @@ static void hook_texture_load(void)
     BYTE *code = (BYTE *)GetModuleHandleA("Cc.dll"), *trampoline;
     DWORD old;
 
-    if (done || !code) return;
+    if (done || !code || !GetModuleHandleA("AfEngine.dll")) return;
     done = TRUE;
     code += LOAD_FUNCTION;
     if (IsBadReadPtr(code, STOLEN) || memcmp(code, start, STOLEN)
         || !(trampoline = VirtualAlloc(NULL, 16, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE))
+        || !give_stored_image_sizes()
         || !VirtualProtect(code, STOLEN, PAGE_EXECUTE_READWRITE, &old))
     {
-        say("this is not the known game build; pictures with twice the pixels are not used");
+        say("this is not the known game build; pictures with more pixels are drawn too large");
         return;
     }
     memcpy(trampoline, code, STOLEN);
@@ -1312,10 +1409,10 @@ static void hook_texture_load(void)
     *(LONG *)(trampoline + STOLEN + 1) = (code + STOLEN) - (trampoline + STOLEN + 5);
     game_texture_load = (void *)trampoline;
     code[0] = JUMP;
-    *(LONG *)(code + 1) = (BYTE *)half_size_texture_load - (code + 5);
+    *(LONG *)(code + 1) = (BYTE *)marked_texture_load - (code + 5);
     VirtualProtect(code, STOLEN, old, &old);
     FlushInstructionCache(GetCurrentProcess(), code, STOLEN);
-    say("the game's texture loader is watched for pictures with twice the pixels");
+    say("the game's texture loader is watched for pictures with 2 or 4 times the pixels");
 }
 
 static BOOL CALLBACK note_display(HMONITOR monitor, HDC dc, RECT *rect, LPARAM lp)
