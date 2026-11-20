@@ -95,6 +95,7 @@ static struct full_size_surface
 static BOOL full_size;
 static float picture_scale_x = 1.0f, picture_scale_y = 1.0f;
 static void *viewport_stateblock;
+static BOOL edges_clamped;
 static struct wined3d_viewport_copy game_viewport;
 static SIZE swapchain_size;
 static void *swapchain_back_buffer;
@@ -394,6 +395,7 @@ static HRESULT __cdecl kept_set_display_mode(void *output, const struct wined3d_
     mode_set = TRUE;
     picture_scale_x = picture_scale_y = 1.0f;
     viewport_stateblock = NULL;
+    edges_clamped = FALSE;
     InterlockedExchange(&to_announce, 4);
     say("the game asked for display mode %ux%u, format %d; the Mac keeps its mode and the picture is scaled",
         wanted->width, wanted->height, wanted->format_id);
@@ -566,14 +568,19 @@ static ULONG __cdecl noted_texture_decref(void *texture)
    a position in pixels of its own mode, a colour and three texture
    coordinates, 44 bytes. So moving those positions to the larger surface
    scales the 3D scene, the HUD, the menus and the letters alike. A pixel's
-   middle is at a whole number, hence the half pixel. */
+   middle is at a whole number, hence the half pixel.
+   The game never sets how a texture goes on past its edge, so it repeats.
+   An enlarged menu tile then mixes its last row with its first one, which
+   shows as a thin line between tiles. Flat pictures, drawn with a depth
+   factor of 1 and the whole texture, get an edge that does not repeat. */
 static HRESULT __cdecl scaled_upload(void *device, void *buffer, const void *data, unsigned int size,
                                      unsigned int stride, unsigned int *pos)
 {
-    enum { GAME_VERTEX = 44 };
+    enum { GAME_VERTEX = 44, ADDRESS_U = 1, ADDRESS_V = 2, WRAP = 1, CLAMP = 3 };
     static float *moved;
     static unsigned int room;
     static BOOL said;
+    BOOL flat = TRUE;
 
     if (!picture_is_scaled() || !data || stride < 4) return real_upload(device, buffer, data, size, stride, pos);
     if (stride != GAME_VERTEX)
@@ -598,6 +605,13 @@ static HRESULT __cdecl scaled_upload(void *device, void *buffer, const void *dat
         float *vertex = (float *)((BYTE *)moved + at);
         vertex[0] = (vertex[0] + 0.5f) * picture_scale_x - 0.5f;
         vertex[1] = (vertex[1] + 0.5f) * picture_scale_y - 0.5f;
+        if (vertex[3] != 1.0f || vertex[5] < 0.0f || vertex[5] > 1.0f || vertex[6] < 0.0f || vertex[6] > 1.0f) flat = FALSE;
+    }
+    if (flat != edges_clamped && viewport_stateblock && real_sampler_state)
+    {
+        edges_clamped = flat;
+        real_sampler_state(viewport_stateblock, 0, ADDRESS_U, flat ? CLAMP : WRAP);
+        real_sampler_state(viewport_stateblock, 0, ADDRESS_V, flat ? CLAMP : WRAP);
     }
     return real_upload(device, buffer, moved, size, stride, pos);
 }
