@@ -4,10 +4,12 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures] [--original]
+                  [--mute]
                   [--setup] [--no-focusfix] [--wine=NAME] [--wine-rule=KEY=VALUE]
                   [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|move-test|start-test|stall-test|crash-test|fallback-test|draw-test|press-ok|press-cancel]]
                   [--diag-keys=SECONDS:SCANCODE,...] [--diag-mouse=SECONDS:DX:DY[:c|:o],...]
-                  [--diag-console=SECONDS:COMMAND] [--diag-display=right] [--diag-hold]
+                  [--diag-console=SECONDS:COMMAND] [--diag-display=right] [--diag-hold] [--diag-sound]
+                  [--diag-end=SECONDS]
                   [--join=ADDRESS] [--winecfg] [--stop]
        dogfighter [--wine=NAME] --doctor
        dogfighter --backup | --restore[=FILE]
@@ -29,6 +31,9 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
   --original        Leave the picture as the game made it: 16-bit colour, the normal
                     draw distance, no light shafts, blurry ground in the distance.
                     Without this the launcher turns these up at every start.
+  --mute            Start the game without sound: no videos, music or effects are
+                    heard. Other apps keep their sound, and the next start without
+                    this option has sound again. Every --diag run is muted.
   --setup           Show the game's setup dialog (driver, language, advanced settings)
                     and wait for OK. Without this the launcher presses OK itself.
   --no-focusfix     Start without the helper. The picture is not scaled, the window
@@ -100,6 +105,10 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
                     Open the game window on the display furthest to the right, so a
                     test run stays off the screen you work on.
   --diag-hold       Hold the mouse in a test run, as a normal start does.
+  --diag-end=SECONDS
+                    End the game this long after its first picture, without the
+                    game's own quit, so it does not write its settings.
+  --diag-sound      Keep the sound in a test run, as a normal start does.
                     With any --diag option the log also says, five times a second,
                     whether macOS shows its pointer and which app is in front.
   --winecfg         Open Wine's settings for this game's prefix instead of playing.
@@ -116,6 +125,7 @@ SETUP=accept
 ORIGINAL=0
 WIDE=0
 HD_TEXTURES=0
+MUTE=0
 DEBUG=
 DIAG=
 DIAG_KEYS=
@@ -123,6 +133,8 @@ DIAG_MOUSE=
 DIAG_CONSOLE=()
 DIAG_DISPLAY=
 DIAG_HOLD=0
+DIAG_SOUND=0
+DIAG_END=
 WINE_NAME=
 WINE_RULES=
 JOIN=
@@ -140,6 +152,7 @@ for arg in "$@"; do
     --original) ORIGINAL=1 ;;
     --wide) WIDE=1 ;;
     --hd-textures) HD_TEXTURES=1 ;;
+    --mute) MUTE=1 ;;
     --setup) SETUP=show ;;
     --no-focusfix) FOCUSFIX=0 ;;
     --wine=*) WINE_NAME="${arg#--wine=}" ;;
@@ -161,6 +174,8 @@ for arg in "$@"; do
     --diag-console=*) DIAG_CONSOLE+=("${arg#--diag-console=}") ;;
     --diag-display=right) DIAG_DISPLAY=right ;;
     --diag-hold) DIAG_HOLD=1 ;;
+    --diag-sound) DIAG_SOUND=1 ;;
+    --diag-end=*) DIAG_END="${arg#--diag-end=}" ;;
     --winecfg) MODE=winecfg ;;
     --doctor) MODE=doctor ;;
     --backup) MODE=backup ;;
@@ -187,10 +202,14 @@ if [ -n "$DIAG_KEYS" ]; then
   [[ "$DIAG_KEYS" =~ ^[0-9]+:[0-9a-fA-F]+(,[0-9]+:[0-9a-fA-F]+)*$ ]] || { echo "Bad key list: $DIAG_KEYS" >&2; exit 2; }
   DIAG="${DIAG:-log} keys=$DIAG_KEYS"
 fi
-if [ "$DIAG_HOLD" = 1 ]; then DIAG="${DIAG:-log}"; fi
+if [ "$DIAG_HOLD" = 1 ] || [ "$DIAG_SOUND" = 1 ]; then DIAG="${DIAG:-log}"; fi
 if [ -n "$DIAG_MOUSE" ]; then
   [[ "$DIAG_MOUSE" =~ ^[0-9]+:-?[0-9]+:-?[0-9]+(:[co])?(,[0-9]+:-?[0-9]+:-?[0-9]+(:[co])?)*$ ]] || { echo "Bad mouse list: $DIAG_MOUSE" >&2; exit 2; }
   DIAG="${DIAG:-log} mouse=$DIAG_MOUSE"
+fi
+if [ -n "$DIAG_END" ]; then
+  [[ "$DIAG_END" =~ ^[0-9]+$ ]] || { echo "Bad number of seconds: $DIAG_END" >&2; exit 2; }
+  DIAG="${DIAG:-log} end=$DIAG_END"
 fi
 for command in ${DIAG_CONSOLE[@]+"${DIAG_CONSOLE[@]}"}; do
   [[ "$command" =~ ^[0-9]+:[A-Za-z0-9_.+\ ]+$ ]] || { echo "Bad console command: $command" >&2; exit 2; }
@@ -426,6 +445,11 @@ esac
 
 export WINEDEBUG="${DEBUG:-${WINEDEBUG:-fixme-all}}"
 export WINEDLLOVERRIDES="winmm=n,b;mscoree=;mshtml=;ddraw=b"
+# A muted start runs without mmdevapi, the one door from Wine's sound DLLs to
+# the Mac's audio, and with Wine's own winmm in place of the music player. Both
+# are set for this one start only, so the prefix is never changed.
+if [ -n "$DIAG" ] && [ "$DIAG_SOUND" = 0 ]; then MUTE=1; fi
+if [ "$MUTE" = 1 ]; then export WINEDLLOVERRIDES="winmm=b;mmdevapi=;mscoree=;mshtml=;ddraw=b"; fi
 unset WINE_COMPATDB WINE_COMPATDB_FILE WINE_PROF_SERVICE
 if [ -n "$WINE_RULES" ] && [ "$MACH9" = 0 ]; then
   echo "--wine-rule needs Mach9, the Wine that runs without Rosetta: --wine=mach9." >&2
@@ -702,6 +726,7 @@ if [ "$MODE" = winecfg ]; then
 fi
 clean_wrapper_leftovers
 link_hd_textures
+if [ "$MUTE" = 1 ]; then say "Sound is off for this start: Wine runs without its audio layer (mmdevapi) and the music player is not loaded."; fi
 if [ -n "$JOIN" ]; then
   if [ ! -f "$USER_INI" ]; then
     say "game/user.ini is not there yet. Start the game once, quit it, then use --join."
@@ -845,7 +870,7 @@ if [ -n "$WATCH_PID" ]; then
   kill $WATCH_PID 2>/dev/null || true
   wait $WATCH_PID 2>/dev/null || true
 fi
-if [ -f "$HERE/game/winmm.log" ]; then
+if [ "$MUTE" = 0 ] && [ -f "$HERE/game/winmm.log" ]; then
   cp "$HERE/game/winmm.log" "${LOG%.log}-music.log"
 fi
 if [ "$FALLBACK" = 1 ] && [ "$STARTED" = 0 ]; then
