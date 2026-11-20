@@ -148,6 +148,7 @@ The game starts with the best picture by itself:
 - Letters have twice the pixels too, so they look crisper.
 - The main menu, the loading screens, the medals, the pilot photos and the pictures of planes and weapons have four times the pixels.
 - Window frames, buttons and the mouse arrow have twice the pixels.
+- The gauges in flight have four times the pixels. Their labels, such as FUEL and SPEED, are redrawn with a matching font.
 - Labels with small writing, such as on the bombs, the glue tube and the book spines, are redrawn with matching fonts.
 - Every start also turns some of the game's own settings up, such as the draw distance and the colour depth.
 
