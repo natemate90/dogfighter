@@ -61,18 +61,39 @@ Setup prints this command when `/opt/homebrew/bin` or `~/.local/bin` is on your 
 
 Once linked, `dogfighter` works from any folder.
 
+The game opens in a normal Mac window.
+Drag an edge to resize it, or use the green button.
+The picture is scaled to fill the window, so menu text stays readable.
+
+The game holds the mouse while it is in front.
+Press Ctrl+Option to free the mouse, for the title bar or another app.
+Press Ctrl+Option again to give it back.
+The window title shows which of the two it is.
+Cmd+Tab also frees the mouse, and the game takes it back when you return.
+
 | Option | What it does |
 | --- | --- |
-| (none) | Play in a window at the largest resolution that fits the screen. macOS scales it up on a Retina screen, so menu text stays readable. |
-| `--res=WxH` | Use this game resolution instead, e.g. `--res=1440x900`. |
-| `--sharp` | Use Retina pixels: sharper, but the menu text gets half as big. |
-| `--windowed=WxH` | Force another Wine window size, e.g. `--windowed=1280x960`. |
-| `--fullscreen` | Let the game switch the Mac's real display mode. |
-| `--no-focusfix` | Turn off the focus fix (see Troubleshooting). |
+| (none) | Play in a window you can resize. The picture is scaled to fill it. |
+| `--res=WxH` | Use this game resolution in flight, e.g. `--res=1440x900`. The menus are always 640x480. Without it, the largest size that fits the screen is used. |
+| `--sharp` | Use Retina pixels: a sharper picture in flight. |
+| `--windowed=WxH` | Start with the picture at most this big, e.g. `--windowed=1024x768`. |
+| `--setup` | Show the game's setup dialog and wait for OK. |
+| `--no-focusfix` | Start without the helper (see Troubleshooting). |
+| `--stop` | End a running game and all its Wine processes. |
+| `--debug=CHANNELS` | Write Wine debug channels to the log, e.g. `--debug=+seh`. |
+| `--diag` | Write the game's windows, display mode and cursor state to the log. |
 | `--winecfg` | Open Wine's settings for this game instead of playing. |
 
 The first start creates a Wine prefix in `prefix/`, which takes a minute.
 The disc image is not needed while playing: `cd/` acts as the CD in drive D:.
+
+The game has a setup dialog for the driver, the language and advanced settings.
+The launcher presses OK in it for you.
+Use `--setup` to see the dialog.
+The very first start always shows it.
+
+`--diag` has test modes that run with nobody at the screen.
+`./dogfighter --help` lists them.
 
 ## CD music
 
@@ -143,8 +164,13 @@ They are listed in sections 1.1 and 1.2 of `game/readme.txt`.
 ## Troubleshooting
 
 - **Logs.** Each start writes `logs/run-<date>-<time>.log`. The music player's log is next to it, ending in `-music.log`.
-- **Cmd+Tab.** The game was not made for task switching. The focus fix, on by default, keeps it running after Cmd+Tab and brings it back to the front when you return. If it says `focusfix.exe` or `focushook.dll` is missing, run `./setup.sh` again. Use `--no-focusfix` to test without it.
-- **Tiny text.** `--sharp` halves the size of the menu text. Leave it off, or pick a smaller `--res`, for bigger text.
+- **Slow start.** Wine sometimes crashes or hangs while the game starts Direct3D. The launcher sees this and starts the game again, up to eight times. A crashed start costs a few seconds, a hung one 15 seconds.
+- **The mouse is stuck in the window.** Press Ctrl+Option. The game holds the mouse on purpose while you play.
+- **Cmd+Tab.** The game was not made for task switching. The helper keeps it running after Cmd+Tab and brings it back to the front when you return.
+- **The helper is missing.** If the launcher says `focusfix.exe` or `focushook.dll` is missing, run `./setup.sh` again.
+- **Testing without the helper.** `--no-focusfix` runs the game in a plain Wine desktop window. The picture is not scaled, the window cannot be resized, the game stops when it loses the focus, and you press OK in the setup dialog yourself.
+- **Tiny text.** Make the window bigger. The picture grows with it.
+- **Game still running.** `./dogfighter --stop` ends a game that hangs or that you cannot reach.
 - **No music.** Check that `music/` holds ten `.ogg` files and that `game/winmm.dll` exists. Run `./setup.sh` again if not.
 - **Disc not found.** `cd/.windows-label` must contain `Dogfighter`, with that exact case. Delete `cd/` and run `./setup.sh` again to rebuild it.
 

@@ -11,6 +11,12 @@ static void say(const char *msg)
     fflush(logf);
 }
 
+static BOOL env_is(const char *name, const char *value)
+{
+    char text[32];
+    return GetEnvironmentVariableA(name, text, sizeof(text)) && !strcmp(text, value);
+}
+
 static HWND game_window(DWORD pid)
 {
     DWORD owner;
@@ -18,37 +24,40 @@ static HWND game_window(DWORD pid)
     return w && GetWindowThreadProcessId(w, &owner) && owner == pid ? w : NULL;
 }
 
-static BOOL CALLBACK find_setup_dialog(HWND w, LPARAM found)
+struct dialog_search
 {
+    DWORD pid;
+    HWND found;
+};
+
+static BOOL CALLBACK find_setup_dialog(HWND w, LPARAM param)
+{
+    struct dialog_search *search = (struct dialog_search *)param;
     char cls[16] = "";
     DWORD owner = 0;
-    DWORD *pid_then_result = (DWORD *)found;
 
     GetClassNameA(w, cls, sizeof(cls));
     if (IsWindowVisible(w) && !strcmp(cls, "#32770") && GetWindowTextLengthA(w)
-        && GetWindowThreadProcessId(w, &owner) && owner == pid_then_result[0])
+        && GetWindowThreadProcessId(w, &owner) && owner == search->pid)
     {
-        pid_then_result[1] = TRUE;
+        search->found = w;
         return FALSE;
     }
     return TRUE;
 }
 
-/**
- * Starting a thread in the game while it sets up Direct3D seemed to make
- * Wine's start-up crash under Rosetta more likely. The game is idle once its
- * setup dialog is open, or once its window has a size.
- */
-static BOOL safe_to_load_hook(DWORD pid)
+static HWND setup_dialog(DWORD pid)
 {
-    DWORD pid_then_result[2] = { pid, FALSE };
+    struct dialog_search search = { pid, NULL };
+    EnumWindows(find_setup_dialog, (LPARAM)&search);
+    return search.found;
+}
+
+static BOOL is_drawing(DWORD pid)
+{
     RECT client;
     HWND game = game_window(pid);
-
-    if (!game) return FALSE;
-    if (GetClientRect(game, &client) && client.right) return TRUE;
-    EnumWindows(find_setup_dialog, (LPARAM)pid_then_result);
-    return pid_then_result[1];
+    return game && GetClientRect(game, &client) && client.right;
 }
 
 static BOOL load_hook(HANDLE process)
@@ -62,17 +71,17 @@ static BOOL load_hook(HANDLE process)
         GetProcAddress(GetModuleHandleA("kernel32.dll"), "LoadLibraryA");
     HANDLE thread = CreateRemoteThread(process, NULL, 0, load, remote, 0, NULL);
     if (!thread) return FALSE;
-    WaitForSingleObject(thread, 5000);
+    WaitForSingleObject(thread, 20000);
     GetExitCodeThread(thread, &loaded);
     CloseHandle(thread);
-    return loaded != 0;
+    return loaded != 0 && loaded != STILL_ACTIVE;
 }
 
 static void start_diagnostics(void)
 {
     STARTUPINFOA si = { sizeof(si) };
     PROCESS_INFORMATION pi;
-    char mode[32], cmd[96];
+    char mode[1024], cmd[1100];
 
     if (!GetEnvironmentVariableA("DOGFIGHTER_DIAG", mode, sizeof(mode))) return;
     snprintf(cmd, sizeof(cmd), "C:\\dogfighter-windiag.exe %s", mode);
@@ -101,29 +110,37 @@ int main(int argc, char **argv)
     snprintf(dir, sizeof(dir), "%s", argv[2]);
     char *slash = strrchr(dir, '\\');
     if (slash) slash[0] = 0;
-    if (!CreateProcessA(NULL, cmd, NULL, NULL, FALSE, 0, NULL, slash ? dir : NULL, &si, &pi))
+    if (!CreateProcessA(NULL, cmd, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, slash ? dir : NULL, &si, &pi))
     {
         say("could not start the game");
         return 1;
     }
-    say("game started");
+    say(load_hook(pi.hProcess) ? "game started with the focus hook loaded"
+                               : "game started, but the focus hook could not be loaded");
+    ResumeThread(pi.hThread);
     start_diagnostics();
-    BOOL hook_tried = FALSE;
-    DWORD started = GetTickCount();
+
+    BOOL accept_setup = env_is("DOGFIGHTER_SETUP", "accept"), started = FALSE;
+    DWORD began = GetTickCount();
 
     while (WaitForSingleObject(pi.hProcess, 100) == WAIT_TIMEOUT)
     {
-        if (!hook_tried && safe_to_load_hook(pi.dwProcessId))
+        if (!started)
         {
-            hook_tried = TRUE;
-            say(load_hook(pi.hProcess) ? "loaded the focus hook into the game"
-                                       : "could not load the focus hook");
-        }
-        if (!hook_tried && GetTickCount() - started > 30000)
-        {
-            say("the game got stuck while starting Direct3D; ending it");
-            TerminateProcess(pi.hProcess, 3);
-            break;
+            HWND dialog = setup_dialog(pi.dwProcessId);
+            if (dialog && accept_setup)
+            {
+                Sleep(500);
+                PostMessageA(dialog, WM_COMMAND, IDOK, 0);
+                say("pressed OK in the game's setup dialog");
+            }
+            started = dialog || is_drawing(pi.dwProcessId);
+            if (!started && GetTickCount() - began > 15000)
+            {
+                say("the game got stuck while starting; ending it");
+                TerminateProcess(pi.hProcess, 3);
+                break;
+            }
         }
 
         if (GetFileAttributesA(flag) == INVALID_FILE_ATTRIBUTES) continue;
@@ -139,7 +156,8 @@ int main(int argc, char **argv)
         say(iconic ? "restored the minimized game window" : "reactivated the game window");
     }
 
+    WaitForSingleObject(pi.hProcess, 5000);
     GetExitCodeProcess(pi.hProcess, &code);
-    say("game exited");
+    say(started ? "game exited" : "the game ended before its setup dialog appeared");
     return (int)code;
 }

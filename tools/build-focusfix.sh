@@ -7,9 +7,9 @@ mkdir -p "$ROOT/build"
 "$CC" -std=gnu99 -O2 -s -Wall -mwindows \
   -o "$ROOT/build/focusfix.exe" "$ROOT/src/focusfix/focusfix.c"
 "$CC" -std=gnu99 -O2 -s -Wall -shared \
-  -o "$ROOT/build/focushook.dll" "$ROOT/src/focusfix/focushook.c"
+  -o "$ROOT/build/focushook.dll" "$ROOT/src/focusfix/focushook.c" -lgdi32
 "$CC" -std=gnu99 -O2 -s -Wall -mwindows \
-  -o "$ROOT/build/windiag.exe" "$ROOT/src/focusfix/windiag.c"
+  -o "$ROOT/build/windiag.exe" "$ROOT/src/focusfix/windiag.c" -lddraw -ldxguid
 "$CC" -std=gnu99 -O2 -s -Wall -shared \
   -o "$ROOT/build/crashlog.dll" "$ROOT/src/focusfix/crashlog.c"
 file "$ROOT/build/crashlog.dll" "$ROOT/build/focusfix.exe" "$ROOT/build/focushook.dll" "$ROOT/build/windiag.exe"

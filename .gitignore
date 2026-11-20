@@ -3,7 +3,9 @@
 *.toc
 *.iso
 /wine/
+/wine-*/
 /prefix/
+/prefix-*/
 /game/
 /cd/
 /extracted/
