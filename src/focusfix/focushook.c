@@ -1261,6 +1261,63 @@ static void raise_texture_size_limit(void)
     say("texture size limit raised from %d to %u pixels", ORIGINAL_LIMIT, texture_limit);
 }
 
+/* The game draws a flat picture as large as the size stored in its file, and
+   takes texture coordinates as pixels of that size. A file with twice the
+   pixels would be drawn twice as large. For a file that has a marker next to
+   it, cache\<file>.2x, the stored size is halved after loading, so the picture
+   keeps its place and size and only gains pixels. This holds for letters;
+   the frames of menu windows take their size from somewhere else and come
+   out wrong, so they must not get a marker. The game's loader is
+   entered through a jump written over its first five bytes, which are whole
+   instructions; only a build with exactly those bytes is touched. */
+static unsigned char (__fastcall *game_texture_load)(void *texture, void *unused, void *device);
+
+static unsigned char __fastcall half_size_texture_load(void *texture, void *unused, void *device)
+{
+    enum { FILE_NAME = 0x88, STORED_WIDTH = 0x6c, STORED_HEIGHT = 0x70 };
+    unsigned char loaded = game_texture_load(texture, unused, device);
+    const char *file = *(const char **)((BYTE *)texture + FILE_NAME);
+    int *width = (int *)((BYTE *)texture + STORED_WIDTH), *height = (int *)((BYTE *)texture + STORED_HEIGHT);
+    char marker[MAX_PATH];
+
+    if (!loaded || !file || IsBadStringPtrA(file, MAX_PATH) || snprintf(marker, sizeof(marker), "cache\\%s.2x", file) >= (int)sizeof(marker)
+        || GetFileAttributesA(marker) == INVALID_FILE_ATTRIBUTES)
+        return loaded;
+    *width /= 2;
+    *height /= 2;
+    say("picture %s has twice the pixels; it is drawn at %dx%d", file, *width, *height);
+    return loaded;
+}
+
+static void hook_texture_load(void)
+{
+    enum { LOAD_FUNCTION = 0x46350, JUMP = 0xe9, STOLEN = 5 };
+    static const BYTE start[STOLEN] = { 0x83, 0xec, 0x48, 0x53, 0x55 };
+    static BOOL done;
+    BYTE *code = (BYTE *)GetModuleHandleA("Cc.dll"), *trampoline;
+    DWORD old;
+
+    if (done || !code) return;
+    done = TRUE;
+    code += LOAD_FUNCTION;
+    if (IsBadReadPtr(code, STOLEN) || memcmp(code, start, STOLEN)
+        || !(trampoline = VirtualAlloc(NULL, 16, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE))
+        || !VirtualProtect(code, STOLEN, PAGE_EXECUTE_READWRITE, &old))
+    {
+        say("this is not the known game build; pictures with twice the pixels are not used");
+        return;
+    }
+    memcpy(trampoline, code, STOLEN);
+    trampoline[STOLEN] = JUMP;
+    *(LONG *)(trampoline + STOLEN + 1) = (code + STOLEN) - (trampoline + STOLEN + 5);
+    game_texture_load = (void *)trampoline;
+    code[0] = JUMP;
+    *(LONG *)(code + 1) = (BYTE *)half_size_texture_load - (code + 5);
+    VirtualProtect(code, STOLEN, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), code, STOLEN);
+    say("the game's texture loader is watched for pictures with twice the pixels");
+}
+
 static BOOL CALLBACK note_display(HMONITOR monitor, HDC dc, RECT *rect, LPARAM lp)
 {
     MONITORINFO info = { sizeof(info) };
@@ -1448,6 +1505,7 @@ static DWORD WINAPI watch(void *arg)
         }
         let_screenshots_work_in_32_bit();
         raise_texture_size_limit();
+        if (texture_limit) hook_texture_load();
         if (max_client.cx) keep_mouse_inside();
         if (max_client.cx && ++ticks % 100 == 0 && flips + direct_draws + gdi_draws + unscaled_draws != reported)
         {
