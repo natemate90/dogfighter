@@ -184,7 +184,8 @@ This path is not tested yet.
 
 `--scale 4` makes textures four times as large, up to 1024 pixels.
 That needs about 730 MB of disk space.
-It is not tested yet: the game is a 32-bit program and may run out of memory.
+It loaded in the first mission at the same frame rate, and looked much like 2x.
+Longer missions are not tested: the game is a 32-bit program and may run out of memory.
 
 Only textures on 3D shapes are resized: walls, floors, models, sky and effects.
 Menus, loading screens, fonts, the HUD and the maps keep their size.
