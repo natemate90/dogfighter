@@ -23,6 +23,15 @@ import struct
 import sys
 
 
+def safe_parts(path):
+    """Splits a pack path into folder and file names. Refuses one that would leave the folder it is unpacked into."""
+    parts = path.split("\\")
+    for part in parts:
+        if part in ("", ".", "..") or "/" in part or ":" in part or "\0" in part:
+            raise ValueError("unsafe path in the pack: %r (empty, '.' or '..' part, '/', or a drive letter)" % path)
+    return parts
+
+
 class Entry:
     __slots__ = ("folder", "name", "flags", "size", "stored", "offset")
 
@@ -99,7 +108,10 @@ def main(argv):
         if argv[1] == "list":
             print("%9d  %s" % (entry.size, entry.path))
             continue
-        target = os.path.join(argv[3], *entry.path.split("\\"))
+        try:
+            target = os.path.join(argv[3], *safe_parts(entry.path))
+        except ValueError as problem:
+            sys.exit("%s: %s. Stopped after %d files." % (argv[2], problem, count - 1))
         os.makedirs(os.path.dirname(target), exist_ok=True)
         with open(target, "wb") as f:
             f.write(pack.read(entry))
