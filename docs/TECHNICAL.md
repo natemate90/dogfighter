@@ -275,7 +275,8 @@ python3 tools/upscale-textures.py
 `./setup.sh` runs both after the normal setup, but only when `hd-textures/` holds no complete set.
 `python3 tools/upscale-textures.py --check` gives that answer; the launcher asks the same question.
 A complete set stays as it is, whatever settings made it, for example `--scale 4`, `--upscaler vimage` or `--allow-other-tools`.
-Setup then fetches nothing either, so upscalers of your own in `upscale-tools/` stay too.
+Setup then fetches no upscalers either, so upscalers of your own in `upscale-tools/` stay too.
+It only redraws the set's labels (see [Redrawn labels](#redrawn-labels)).
 To make the set again, run the tool yourself, or move `hd-textures/` away and run `./setup.sh`.
 `./setup.sh --no-hd-textures` skips the step.
 
@@ -432,11 +433,10 @@ The small bottom line of `humbrol1`, the two blueprints and about 90 other textu
 
 Fonts:
 - Stardos Stencil, Alfa Slab One and Bebas Neue are under the SIL Open Font License 1.1. They come from the Google Fonts repository at commit `06bfe0d62a98375cb09c942fa18e68bd32cff057`.
-- `--fetch-tools` downloads them to `upscale-tools/fonts/`, each checked against a pinned SHA-256 checksum, with its licence `OFL.txt` beside it.
+- `--fetch-tools` or `--fetch-fonts` downloads them to `upscale-tools/fonts/`, each checked against a pinned SHA-256 checksum, with its licence `OFL.txt` beside it.
 - Arial Bold, Arial Black, Helvetica and Menlo come with macOS. They are only read to draw pixels on your Mac and are not part of the repository.
 - A missing font leaves its textures as made, and the run says so in one line.
 - A macOS font with another checksum than listed is drawn anyway. The checks below catch letters that moved.
-- For COOLMAN, Arial Black and Archivo Expanded Black looked alike at 4x. Arial Black matched the pixels a little better and needs no download.
 
 Checks, after drawing:
 - No pixel outside the boxes changes, alpha included.
@@ -449,8 +449,9 @@ The made texture's record is under `generated`, and the fonts' checksums and the
 The made texture waits in `hd-textures/replaced/`.
 - `--no-lettering` puts the made textures back. The next run without it draws them again.
 - A file in `texture-overrides/` wins over the lettering.
-- A set made before the lettering existed gets it from `python3 tools/upscale-textures.py --fetch-tools`, then `python3 tools/upscale-textures.py`. `./setup.sh` prints that line.
-- It works at 2x and at 4x. 4x was tested only on enlarged copies, not on a `--scale 4` set.
+- `--lettering-only` redraws just the labels of a complete set, with the settings stored in its manifest. Nothing else is made again, and the set keeps its key, so a set made with `--scale 4` or `--upscaler vimage` stays that set.
+- `./setup.sh` runs `--fetch-fonts` and `--lettering-only` on a complete set. A font that cannot be fetched leaves only its labels as made.
+- It works at 2x and at 4x. On scratch sets made with `--scale 4`, with `--upscaler vimage` and with the defaults, `--lettering-only` drew all 26 and changed no other file; a later run with each set's own settings found it complete.
 
 ### Your own textures
 

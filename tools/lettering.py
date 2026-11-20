@@ -9,9 +9,9 @@ original pixels and are kept in that file, so every run draws the same.
 
 tools/lettering.json
   fonts     each font by file name, with its SHA-256. A downloaded font has
-            its pinned url and its licence beside it; --fetch-tools puts it
-            in upscale-tools/fonts/<folder>/. A system font has its path on
-            macOS and is only read to draw pixels.
+            its pinned url and its licence beside it; --fetch-tools and
+            --fetch-fonts put it in upscale-tools/fonts/<folder>/. A system
+            font has its path on macOS and is only read to draw pixels.
   textures  each with a name, the words it sets, the paths it is drawn
             for with the SHA-256 of the game's own texture there, and a list
             of regions:
@@ -76,61 +76,9 @@ THRESHOLD = 0.12
 SIDES = ("left", "top", "right", "bottom")
 
 
-def sha256_of(path):
-    digest = hashlib.sha256()
-    with open(path, "rb") as f:
-        for block in iter(lambda: f.read(1 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
 def load_spec():
     with open(SPEC) as f:
         return json.load(f)
-
-
-def font_file(tools, name, font):
-    return font["system"] if "system" in font else os.path.join(tools, "fonts", font["folder"], name)
-
-
-def fetch_fonts(tools):
-    """Downloads the pinned fonts and their licences. A font that cannot be fetched only costs its textures their lettering."""
-    good = True
-    for name, font in sorted(load_spec()["fonts"].items()):
-        if "url" not in font:
-            continue
-        folder = os.path.join(tools, "fonts", font["folder"])
-        for target, url, digest in ((os.path.join(folder, name), font["url"], font["sha256"]),
-                                    (os.path.join(folder, font["licence"]["file"]), font["licence"]["url"], font["licence"]["sha256"])):
-            if os.path.isfile(target) and sha256_of(target) == digest:
-                continue
-            os.makedirs(folder, exist_ok=True)
-            part = target + ".part"
-            done = subprocess.run(["/usr/bin/curl", "-fsSL", "--retry", "3", "-o", part, url])
-            if done.returncode or sha256_of(part) != digest:
-                if os.path.exists(part):
-                    os.remove(part)
-                print("Could not fetch %s with its pinned checksum. Its lettering is left as made." % url)
-                good = False
-                continue
-            os.replace(part, target)
-    if good:
-        print("The lettering fonts are in %s. Their checksums match." % os.path.join(tools, "fonts"))
-
-
-def fonts_found(tools, spec):
-    """{name: (path, None)} for each usable font, or (None, why)."""
-    found = {}
-    for name, font in spec["fonts"].items():
-        path = font_file(tools, name, font)
-        if not os.path.isfile(path):
-            found[name] = (None, "font %s is not on this Mac" % name if "system" in font else
-                           "font %s is missing; --fetch-tools fetches it" % name)
-        elif "system" not in font and sha256_of(path) != font["sha256"]:
-            found[name] = (None, "font %s does not match its pinned checksum" % name)
-        else:
-            found[name] = (path, None)
-    return found
 
 
 def build_helper(work):
@@ -216,18 +164,18 @@ def checked(entry, drawn, made, original, width, height, scale, tiles):
     return scores, None
 
 
-def draw(items, tools, work, plain):
+def draw(items, fonts, work, plain):
     """Draws the listed textures. items: [(path, entry, original data, made file, tiles)].
 
-    Returns {path: (file, checksum, bytes, note)} for those that passed;
-    prints a line for each that did not. plain(data, scale, tiles) gives the
-    plain filter's RGBA for a copy region.
+    fonts is {name: (file, checksum, None)}, or (None, None, why) for a font
+    that cannot be used. Returns {path: (file, checksum, bytes, note)} for the
+    textures that passed; prints a line for each that did not.
+    plain(data, scale, tiles) gives the plain filter's RGBA for a copy region.
     """
     done = {}
     if not items:
         return done
     spec = load_spec()
-    fonts = fonts_found(tools, spec)
     folder = os.path.join(work, WAY)
     os.makedirs(folder, exist_ok=True)
     helper = build_helper(folder)
@@ -237,7 +185,7 @@ def draw(items, tools, work, plain):
     for number, (path, entry, data, made_file, tiles) in enumerate(items):
         name = path.split("\\")[-1]
         names = sorted({line["font"] for region in entry["regions"] for line in region.get("lines", [])})
-        missing = [fonts[n][1] for n in names if fonts[n][0] is None]
+        missing = [fonts[n][2] for n in names if fonts[n][0] is None]
         if missing:
             print("  lettering left as made: %s (%s)" % (path, ", ".join(missing)))
             continue
@@ -274,7 +222,7 @@ def draw(items, tools, work, plain):
         os.makedirs(os.path.dirname(target), exist_ok=True)
         with open(target, "wb") as f:
             f.write(result)
-        note = {"fonts": {n: sha256_of(fonts[n][0]) for n in names}, "words": entry.get("words", ""),
+        note = {"fonts": {n: fonts[n][1] for n in names}, "words": entry.get("words", ""),
                 "spec_sha256": hashlib.sha256(json.dumps(entry, sort_keys=True).encode()).hexdigest(), "scores": scores}
         differ = [n for n in names if note["fonts"][n] != spec["fonts"][n]["sha256"]]
         if differ:

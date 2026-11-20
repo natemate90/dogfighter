@@ -95,7 +95,10 @@ again with real fonts, over the made texture, by tools/lettering.py. The
 manifest lists such a texture with way "lettering", its scores and the fonts'
 checksums. An override in texture-overrides/ wins over it, and --no-lettering
 leaves every texture as made. The fonts that are not on every Mac come with
---fetch-tools; without them those textures stay as made.
+--fetch-tools or --fetch-fonts; without them those textures stay as made.
+--lettering-only redraws just the lettering of a complete set, with the
+settings stored in its manifest, so a set made with --scale 4 or the plain
+filter alone is not made again.
 
 A run makes only what is missing or changed. With --only the rest of the set
 stays as it is. Files reach the set one by one, each by a rename, and the
@@ -273,6 +276,42 @@ def fetch_tools(root, tools):
     if wrong:
         sys.exit("These unpacked files do not match their pinned checksums: " + ", ".join(wrong))
     print("The upscalers are in %s. Their checksums match." % tools)
+
+
+def fetch_fonts(tools):
+    """Downloads the pinned lettering fonts and their licences. One that fails costs only its textures their lettering."""
+    good = True
+    for name, font in sorted(lettering.load_spec()["fonts"].items()):
+        if "url" not in font:
+            continue
+        folder = os.path.join(tools, "fonts", font["folder"])
+        for target, url, digest in ((os.path.join(folder, name), font["url"], font["sha256"]),
+                                    (os.path.join(folder, font["licence"]["file"]), font["licence"]["url"], font["licence"]["sha256"])):
+            try:
+                download(url, target, digest)
+            except SystemExit as problem:
+                print(problem)
+                good = False
+    if good:
+        print("The lettering fonts are in %s. Their checksums match." % os.path.join(tools, "fonts"))
+    else:
+        print("The labels that need a missing font stay as made.")
+
+
+def lettering_fonts(tools):
+    """{name: (file, checksum, None)} for each font of tools/lettering.json that can be used, else (None, None, why)."""
+    found = {}
+    for name, font in lettering.load_spec()["fonts"].items():
+        path = font["system"] if "system" in font else os.path.join(tools, "fonts", font["folder"], name)
+        digest = sha256_of(path) if os.path.isfile(path) else None
+        if digest is None:
+            why = "font %s is not on this Mac" % name if "system" in font else "font %s is missing; --fetch-fonts fetches it" % name
+            found[name] = (None, None, why)
+        elif "system" not in font and digest != font["sha256"]:
+            found[name] = (None, None, "font %s does not match its pinned checksum" % name)
+        else:
+            found[name] = (path, digest, None)
+    return found
 
 
 def generative_stack(tools, log):
@@ -795,6 +834,9 @@ def main():
                         help="folder with your own textures, which take the place of the made ones (default: texture-overrides/)")
     parser.add_argument("--only", default="", help="only textures whose path contains this text; the rest of the set stays as it is")
     parser.add_argument("--no-lettering", action="store_true", help="leave the textures of tools/lettering.json as made")
+    parser.add_argument("--fetch-fonts", action="store_true", help="download the pinned lettering fonts to upscale-tools/fonts/, then stop")
+    parser.add_argument("--lettering-only", action="store_true",
+                        help="redraw only the lettering of the complete set in the output folder, keeping the settings that made it")
     parser.add_argument("--font-way", choices=WAYS, default="",
                         help="the way the font pictures try first (default: %s)" % FONT_WAY)
     parser.add_argument("--jobs", type=int, default=os.cpu_count() or 4, help="worker processes")
@@ -811,14 +853,19 @@ def main():
     if args.check:
         sys.exit(0 if set_complete(args.out) else 1)
 
+    if args.fetch_fonts or args.fetch_tools:
+        fetch_fonts(tools)
+    if args.fetch_fonts:
+        return
     if args.fetch_tools:
-        lettering.fetch_fonts(tools)
         fetch_tools(root, tools)
         if args.generative:
             fetch_generative(tools)
         return
     if args.generative:
         sys.exit("--generative goes with --fetch-tools. A normal run uses the generative way when it is set up.")
+    if args.lettering_only:
+        sys.exit(relabel(args))
     packs = sorted(os.path.join(args.game, name) for name in os.listdir(args.game) if name.lower().endswith(".up"))
     if not packs:
         sys.exit("No .up packs in %s. Run ./setup.sh first." % args.game)
@@ -910,6 +957,37 @@ def main():
     shutil.rmtree(work, ignore_errors=True)
     if args.sheets:
         sheets(args, setup["scale"], sources, cache)
+
+
+def relabel(args):
+    """Redraws the lettering of a complete set with the settings in its manifest, and makes nothing else.
+
+    The set keeps its key, so a later run with the settings that made it
+    still finds it complete. Returns None, or why nothing was done.
+    """
+    if not set_complete(args.out):
+        return "%s holds no complete set. Make one first: python3 tools/upscale-textures.py" % args.out
+    with open(os.path.join(args.out, MANIFEST)) as f:
+        old = json.load(f)
+    records = {record["path"]: generated(record) for record in old["textures"]}
+    found = {}
+    for path in sorted(os.path.join(args.game, name) for name in os.listdir(args.game) if name.lower().endswith(".up")):
+        pack = up.Pack(path)
+        for entry in pack.entries:
+            if entry.path in records and entry.path not in found:
+                found[entry.path] = (pack, entry, pack.read(entry))
+    if set(found) != set(records):
+        return "The game's packs do not hold every texture of the set. Make the set again: python3 tools/upscale-textures.py"
+    if any(hashlib.sha256(data).hexdigest() != records[path]["source_sha256"] for path, (_, _, data) in found.items()):
+        return "The game's textures differ from the ones the set was made from. Make the set again: python3 tools/upscale-textures.py"
+    work = os.path.join(args.out, WORK + "-" + lettering.WAY)
+    shutil.rmtree(work, ignore_errors=True)
+    os.makedirs(work)
+    setup = {"scale": old["settings"]["scale"], "work": work, "out": args.out}
+    sources = [found[record["path"]] for record in old["textures"]]
+    settle(args, setup, old["settings"], old["key"], sources, records, {"made": 0, "repeat": None, "seconds": 0}, old)
+    shutil.rmtree(work, ignore_errors=True)
+    return None
 
 
 def set_complete(out):
@@ -1054,7 +1132,7 @@ def letter(args, setup, sources, records, skip):
             print("  lettering left as made: %s (%s)" % (path, why))
         elif source:
             items.append((path, entry, by_path[path], source, records[path]["tiles"]))
-    return lettering.draw(items, args.tools, setup["work"], lambda data, scale, tiles: plain_picture(setup, data, scale, tiles))
+    return lettering.draw(items, lettering_fonts(args.tools), setup["work"], lambda data, scale, tiles: plain_picture(setup, data, scale, tiles))
 
 
 def plain_picture(setup, data, scale, tiles):
