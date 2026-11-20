@@ -259,7 +259,8 @@ python3 tools/upscale-textures.py
 ```
 
 - It writes 1,192 textures and the 11 font pictures to `hd-textures/cache/`, twice as large as the originals.
-- That takes under a minute and about 180 MB of disk space.
+- It also writes 463 menu pictures, two or four times as large (see [Menus and loading screens](#menus-and-loading-screens)).
+- That takes about 800 MB of disk space: about 180 MB for the textures, the rest for the menu pictures.
 - The packs in `game/` are never changed.
 
 Without the upscalers the resizer is the Lanczos filter that comes with macOS.
@@ -336,9 +337,9 @@ That needs about 730 MB of disk space.
 With the macOS filter it loaded in the first mission at the same frame rate, and looked much like 2x.
 Longer missions are not tested: the game is a 32-bit program and may run out of memory.
 
-Only textures on 3D shapes and the font pictures are resized.
-Menus, loading screens, the HUD and the maps keep their size.
-The game draws those at the size stored in the file, so larger files would break the layout.
+The game draws a flat picture at the size stored in its file.
+So the font pictures and the menu pictures get a marker file, and the helper keeps their size (see [Markers](#markers-for-flat-pictures-with-more-pixels)).
+The HUD, the briefing and the other screens not listed in `tools/menu-pictures.json` keep the game's own files.
 
 ### Generative detail for some surfaces
 
@@ -402,6 +403,45 @@ So letters keep their place and size, and get twice the pixels.
 One test run opened the Pilot Roster with `--full-res --hd-textures`.
 The text stood in the same place and its strokes were crisper.
 Other screens were not compared.
+### Menus and loading screens
+
+`tools/menu-pictures.json` lists the flat pictures the tool enlarges. `tools/menus.py` reads it.
+
+| Pictures | Size | Way |
+| --- | --- | --- |
+| Main menu (12 tiles) and its 13 highlights | 4x | Real-ESRGAN, on the whole screen |
+| 25 loading screens (12 tiles each) | 4x | Real-ESRGAN, on the whole screen |
+| Window frames, buttons, sliders, the mouse arrow | 2x | waifu2x |
+| Medals, plane and weapon pictures, in-flight map tiles, pilot photos | 4x | Real-ESRGAN |
+
+A screen is put together from its tiles into one 640x480 picture first.
+That picture is enlarged, pulled back to the original and checked like a texture, then cut into the tiles again.
+So no edge shows where two tiles meet.
+
+A highlight is the piece the game draws over the main menu under the mouse.
+For each one the whole menu is enlarged once more with the highlight laid in, and only the highlight is cut out.
+Its edges then continue into the menu around it.
+The places of the highlights were found by laying each one over the menu; they are in the JSON file.
+
+- Each picture gets its marker, `.2x` or `.4x`.
+- The manifest lists each with its way, its scores, `marked` (2 or 4) and, for a piece of a screen, `screen`.
+- Without the upscalers the macOS filter makes them. They then have the pixels and no new detail.
+- Pilot photos are `.tga` files. The tool reads and writes them itself.
+- `--no-menus` leaves all of them out and removes them from a set.
+- `--menus-only` adds them to a complete set and keeps that set's settings and key, as `--lettering-only` does. `./setup.sh` runs it on a complete set.
+- An override in `texture-overrides/` works for these too. It must have the enlarged size.
+- A change in the JSON file makes the pictures it touches again on the next run.
+
+Left out, because the game reads their pixels one by one: the Paint Room's pieces, the stickers and `Graphics\Misc`.
+The House Editor is left out too. Nobody has checked how it draws.
+
+One run on an M4 Max made the 463 pictures in two minutes. Two runs gave the same bytes.
+The set grows from about 200 MB to about 800 MB. The 25 loading screens take most of that.
+
+In the game, with full resolution: the login window, the Pilot Roster, the main menu with two highlights, the mission selection, a loading screen and a flight.
+Every screen matched the one with the game's own files in layout. Info, Close, Login and Campaign opened on a click.
+The upscaler repaints faces on the pilot photos a little. That is a matter of taste.
+
 ### Markers for flat pictures with more pixels
 
 An empty file `<name>.2x` or `<name>.4x` next to a picture in `hd-textures/cache/` says it has 2 or 4 times the pixels a side.
@@ -624,6 +664,8 @@ Test runs follow the same picture defaults as a normal start.
 | `--diag-end=SECONDS` | Ends the game this long after its first picture, without the game's own quit. |
 | `--diag-zoom=SECONDS` | Zooms the window this long after the first picture. |
 | `--diag-drag=SECONDS` | Asks for seven window sizes as a drag does, and logs what the window became. |
+| `--diag-draws` | Writes to the log where the game first draws each flat picture: its place on the game's screen and its size. |
+| `--diag-shot-on=TEXT` | With `--full-res`: saves the full-size picture a few frames after the game loads a picture whose path holds TEXT. |
 | `--diag-hd-dir=FOLDER` | Looks for the larger textures in FOLDER, a full path, in place of `hd-textures/`. An empty folder tests a start without them. The link to FOLDER is removed when the run ends. |
 
 ### Options of setup.sh

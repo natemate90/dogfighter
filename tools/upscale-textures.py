@@ -6,13 +6,18 @@ writes them as loose files to hd-textures/cache/<path in the pack>. The game
 looks in a folder named cache before it looks in its packs, and the launcher
 links game/cache to that folder. The packs are never changed.
 
-Left out, because the game draws these at the size stored in the file. A
-larger file would come out larger on the screen, or cut wrong:
-  Graphics\\Frontend   menus, loading screens, windows, mouse cursor
-  Graphics\\Ingame     the HUD and the maps
-  User\\Save           pilot photos
 Kept: Graphics\\Textures, Graphics\\Models, Graphics\\Backdrops and
 Graphics\\Effects, which are only ever stretched over 3D shapes.
+
+The game draws the pictures of the menus, the loading screens and the HUD at
+the size stored in the file. Those listed in tools/menu-pictures.json are made
+2x or 4x, whatever --scale says, each with an empty file <name>.2x or
+<name>.4x next to it; the launcher's helper draws a picture with that marker
+at its old size. tools/menus.py says how the list is read. A screen made of
+tiles is put together, resized as one picture and cut again. --no-menus
+leaves them all out. --menus-only adds them to a complete set and keeps that
+set's settings. The rest of Graphics\\Frontend and Graphics\\Ingame is left
+out.
 
 The font pictures in Graphics\\Fonts are made 2x as well, never 4x. Next to
 each goes an empty file <name>.gti.2x. The launcher's helper draws a picture
@@ -136,6 +141,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import gti  # noqa: E402
 import lettering  # noqa: E402
+import menus  # noqa: E402
 import up  # noqa: E402
 
 KEPT = ("graphics\\textures\\", "graphics\\models\\", "graphics\\backdrops\\", "graphics\\effects\\")
@@ -156,6 +162,7 @@ WAYS = ("ai", "waifu2x", "plain")
 ASIDE = "replaced"
 FONTS = "graphics\\fonts\\"
 TWICE = ".2x"
+SCREEN_NUMBERS = 100000
 FONT_WAY = "waifu2x"
 OWN = ("way", "why", "scores", "failed", "bytes", "file_sha256")
 GENERATIVE = "generative"
@@ -461,7 +468,7 @@ def without_border(pixels, width, height, edge):
 
 
 def finish(job):
-    """Runs in a worker: cut the border off, tidy alpha, write the .gti."""
+    """Runs in a worker: cut the border off, tidy alpha, write the .gti, or one for each piece of a screen."""
     scale, edge = job["scale"], job.get("edge", BORDER * job["scale"])
     width, height = job["width"] * scale, job["height"] * scale
     with open(job["scaled"], "rb") as f:
@@ -479,11 +486,25 @@ def finish(job):
     pixels = without_border(bytes(pixels), width, height, edge)
     if job["kind"] == "font":
         pixels, extra = fenced(job, pixels)
-    data = gti.encode(width, height, pixels, job["alpha"], None if job["mipmaps"] else 1)
-    os.makedirs(os.path.dirname(job["target"]), exist_ok=True)
-    with open(job["target"], "wb") as f:
-        f.write(data)
-    return job["path"], len(data), hashlib.sha256(data).hexdigest(), extra
+    parts = [] if "cut" in job else [(job["path"], job["target"], width, height, job["alpha"], pixels)]
+    if "cut" in job:
+        for path, target, x, y, w, h, alpha, cutout in job["cut"]:
+            part = menus.cut(pixels, width, x * scale, y * scale, w * scale, h * scale)
+            if cutout:
+                part = bytearray(part)
+                part[3::4] = part[3::4].translate(bytes(255 if i >= 128 else 0 for i in range(256)))
+            parts.append((path, target, w * scale, h * scale, alpha, bytes(part)))
+    written = []
+    for path, target, width, height, alpha, pixels in parts:
+        if target.lower().endswith(".tga"):
+            data = menus.write_tga(width, height, pixels, alpha)
+        else:
+            data = gti.encode(width, height, pixels, alpha, None if job["mipmaps"] else 1)
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        with open(target, "wb") as f:
+            f.write(data)
+        written.append((path, len(data), hashlib.sha256(data).hexdigest(), extra))
+    return written
 
 
 def fenced(job, pixels):
@@ -565,33 +586,53 @@ def verdict(way, scores, wrap_x, wrap_y):
     return None
 
 
-def prepare(number, pack, entry, data, setup, folder, fresh):
-    scale = setup["scale"]
+def picture_of(name, data):
+    """(width, height, RGBA, has alpha, has mipmaps) of a .gti or a .tga."""
+    if name.lower().endswith(".tga"):
+        return menus.read_tga(data) + (False,)
     best = gti.parse(data).best()
-    width, height, pixels = gti.to_rgba(best)
+    return gti.to_rgba(best) + (best.alpha, len(best.levels) > 1)
+
+
+def kind_of(pixels, has_alpha):
+    alphas = set(pixels[3::4]) if has_alpha else {255}
+    return "opaque" if not has_alpha else "cutout" if alphas <= {0, 255} else "alpha", alphas
+
+
+def menu_ways(setup, plan):
+    return tuple(way for way in plan["ways"] if way in setup["ways"]) or ("plain",)
+
+
+def prepare(number, pack, entry, data, setup, folder, fresh):
+    plan = setup["menu"].get(entry.path)
+    scale = plan["times"] if plan else setup["scale"]
+    width, height, pixels, has_alpha, mipmaps = picture_of(entry.name, data)
     record = {"path": entry.path, "pack": os.path.basename(pack.path), "source_sha256": hashlib.sha256(data).hexdigest(),
               "size": [width, height]}
     font = entry.path.lower().startswith(FONTS)
     if font:
         record.update(asked=font_way(setup))
+    if plan:
+        record.update(asked=menus.asked(plan), marked=scale)
     if width * scale > 1024 or height * scale > 1024:
         record.update(way="none", why="would pass 1024 pixels")
         return None, record
-    alphas = set(pixels[3::4]) if best.alpha else {255}
+    kind, alphas = kind_of(pixels, has_alpha)
     wrap_x = tiles_across(pixels, width)
     wrap_y = tiles_across(turned(pixels, width, height), height)
-    kind = "opaque" if not best.alpha else "cutout" if alphas <= {0, 255} else "alpha"
     if font:
         kind, wrap_x, wrap_y = "font", False, False
     record.update(kind=kind, tiles=[wrap_x, wrap_y])
     stem = os.path.join(folder, "%05d" % number)
     job = {
         "path": entry.path, "number": number, "scale": scale, "width": width, "height": height,
-        "alpha": best.alpha, "mipmaps": len(best.levels) > 1, "kind": kind,
+        "alpha": has_alpha, "mipmaps": mipmaps, "kind": kind,
         "wrap_x": wrap_x, "wrap_y": wrap_y, "bleed": 0 in alphas and len(alphas) > 1,
         "source": stem + ".in", "plain": stem + ".plain", "stem": stem,
         "target": os.path.join(fresh, *up.safe_parts(entry.path)),
     }
+    if plan:
+        job["ways"] = menu_ways(setup, plan)
     if font:
         boxes = setup["glyphs"].get(os.path.splitext(entry.name)[0].lower(), [])
         record.update(glyphs=len(boxes))
@@ -605,6 +646,47 @@ def prepare(number, pack, entry, data, setup, folder, fresh):
     with open(job["source"], "wb") as f:
         f.write(with_border(pixels, width, height, wrap_x, wrap_y))
     return job, record
+
+
+def prepare_screen(number, name, members, setup, folder, fresh):
+    """One job for a screen and one for each of its states. Returns the jobs and a record for every piece."""
+    screen = setup["screens"][name]
+    scale = screen["times"]
+    full_w, full_h = screen["size"]
+    pieces, records = {}, []
+    for pack, entry, data in members:
+        plan = setup["menu"][entry.path]
+        width, height, pixels, has_alpha, _ = picture_of(entry.name, data)
+        kind, _ = kind_of(pixels, has_alpha)
+        pieces.setdefault(plan["state"], []).append((entry.path, plan["at"], width, height, pixels, has_alpha, kind))
+        records.append({"path": entry.path, "pack": os.path.basename(pack.path), "source_sha256": hashlib.sha256(data).hexdigest(),
+                        "size": [width, height], "kind": kind, "tiles": [False, False], "asked": menus.asked(plan), "marked": scale,
+                        "screen": name})
+    jobs = []
+    base = [(x, y, width, height, pixels) for _, (x, y), width, height, pixels, _, _ in pieces[None]]
+    for count, state in enumerate(sorted(pieces, key=lambda state: state or "")):
+        laid = pieces[state]
+        canvas = menus.composed((full_w, full_h), base + [(x, y, width, height, pixels) for _, (x, y), width, height, pixels, _, _ in laid if state])
+        kind, alphas = kind_of(canvas, any(has_alpha for _, _, _, _, _, has_alpha, _ in pieces[None] + laid))
+        stem = os.path.join(folder, "%06d" % (SCREEN_NUMBERS + number * 32 + count))
+        job = {
+            "path": "screen %s%s" % (name, " with " + state if state else ""), "paths": [path for path, _, _, _, _, _, _ in laid],
+            "number": SCREEN_NUMBERS + number * 32 + count, "scale": scale, "width": full_w, "height": full_h,
+            "alpha": kind != "opaque", "mipmaps": False, "kind": "opaque" if kind == "opaque" else "alpha",
+            "wrap_x": False, "wrap_y": False, "bleed": 0 in alphas and len(alphas) > 1,
+            "source": stem + ".in", "plain": stem + ".plain", "stem": stem, "ways": menu_ways(setup, screen),
+            "cut": [(path, os.path.join(fresh, *up.safe_parts(path)), x, y, width, height, has_alpha, piece_kind == "cutout")
+                    for path, (x, y), width, height, _, has_alpha, piece_kind in laid],
+        }
+        with open(job["source"], "wb") as f:
+            f.write(with_border(bytes(canvas), full_w, full_h, False, False))
+        jobs.append(job)
+    return jobs, records
+
+
+def touched(job, records):
+    """The records of the files a job writes: one, or every piece of a screen."""
+    return [records[path] for path in job.get("paths", (job["path"],))]
 
 
 def font_way(setup):
@@ -628,16 +710,19 @@ def glyph_boxes(packs):
 
 def run_batch(setup, items, fresh, pool):
     """Takes a list of (number, pack, entry, data) all the way to .gti files. Returns one record per texture."""
-    scale, helpers = setup["scale"], setup["helpers"]
+    helpers = setup["helpers"]
     folder = os.path.join(setup["work"], "batch")
     shutil.rmtree(folder, ignore_errors=True)
     os.makedirs(folder)
     jobs, records = [], {}
-    for number, pack, entry, data in items:
-        job, record = prepare(number, pack, entry, data, setup, folder, fresh)
-        records[entry.path] = record
-        if job:
-            jobs.append(job)
+    for item in items:
+        if len(item) == 3:
+            made, listed = prepare_screen(*item, setup, folder, fresh)
+        else:
+            job, record = prepare(*item, setup, folder, fresh)
+            made, listed = [job] if job else [], [record]
+        jobs += made
+        records.update((record["path"], record) for record in listed)
 
     fields = []
     for job in jobs:
@@ -649,9 +734,9 @@ def run_batch(setup, items, fresh, pool):
     fields = []
     for job in jobs:
         full_w, full_h = job["width"] + 2 * BORDER, job["height"] + 2 * BORDER
-        fields += [job["source"], job["plain"], full_w, full_h, full_w * scale, full_h * scale]
+        fields += [job["source"], job["plain"], full_w, full_h, full_w * job["scale"], full_h * job["scale"]]
         if "colour" in job:
-            fields += [job["colour"], job["colour"] + ".plain", full_w, full_h, full_w * scale, full_h * scale]
+            fields += [job["colour"], job["colour"] + ".plain", full_w, full_h, full_w * job["scale"], full_h * job["scale"]]
     run_jobs(helpers["vimage-scale"], fields)
 
     left = jobs
@@ -660,27 +745,28 @@ def run_batch(setup, items, fresh, pool):
         left = [job for job in left if job not in waiting]
         if not waiting:
             continue
-        if way != "plain":
-            source, target = os.path.join(folder, way + "-in"), os.path.join(folder, way + "-out")
+        for times in sorted({job["scale"] for job in waiting} if way == "waifu2x" else {0} if way == "ai" else ()):
+            source, target = os.path.join(folder, "%s-in-%d" % (way, times)), os.path.join(folder, "%s-out-%d" % (way, times))
             os.makedirs(source)
             os.makedirs(target)
             for job in waiting:
+                if times not in (0, job["scale"]):
+                    continue
                 with open(job["source"], "rb") as f:
                     bordered = f.read()
                 with open(os.path.join(source, "%05d.png" % job["number"]), "wb") as f:
                     f.write(gti.write_png(job["width"] + 2 * BORDER, job["height"] + 2 * BORDER, bordered, False))
-            run_upscaler(way, setup["tools"], source, target, scale, setup["work"])
+            run_upscaler(way, setup["tools"], source, target, times, setup["work"])
         fields = []
         for job in waiting:
-            detail = os.path.join(folder, way + "-out", "%05d.png" % job["number"]) if way != "plain" else ""
+            detail = os.path.join(folder, "%s-out-%d" % (way, job["scale"] if way == "waifu2x" else 0), "%05d.png" % job["number"]) if way != "plain" else ""
             fields += ["glyphs" if job["kind"] == "font" else "refine", job["source"], job["plain"], detail, "%s.%s" % (job["stem"], way),
-                       job["width"] + 2 * BORDER, job["height"] + 2 * BORDER, scale, BORDER,
+                       job["width"] + 2 * BORDER, job["height"] + 2 * BORDER, job["scale"], BORDER,
                        PASSES if way != "plain" or job["kind"] == "font" else 0]
         lines = run_jobs(helpers["texture-refine"], fields, True)
         if len(lines) != len(waiting):
             sys.exit("tools/texture-refine.c answered %d of %d jobs. Nothing was replaced." % (len(lines), len(waiting)))
         for job, line in zip(waiting, lines):
-            record = records[job["path"]]
             if line.startswith("ok "):
                 names = ("drift", "match", "worst", "seam_x", "inside_x", "seam_y", "inside_y", "original_seam_x", "original_seam_y")
                 scores = dict(zip(names, (float(value) for value in line.split()[1:])))
@@ -689,23 +775,28 @@ def run_batch(setup, items, fresh, pool):
                 scores, why = None, line[5:]
             if why is None:
                 job["scaled"] = "%s.%s" % (job["stem"], way)
-                record.update(way=way, scores=scores)
             else:
-                record.setdefault("failed", []).append({"way": way, "why": why, "scores": scores})
                 left.append(job)
+            for record in touched(job, records):
+                if why is None:
+                    record.update(way=way, scores=dict(scores))
+                else:
+                    record.setdefault("failed", []).append({"way": way, "why": why, "scores": scores})
     for job in left:
-        records[job["path"]].update(way="none", why="failed every check")
+        for record in touched(job, records):
+            record.update(way="none", why="failed every check")
     listed = [job for job in jobs if "scaled" in job and job["path"] in setup["generative"]]
     if listed:
         redraw(setup, listed, records, folder)
 
     written = [job for job in jobs if "scaled" in job]
-    scales = {job["path"]: job["scale"] for job in written}
-    for path, size, digest, extra in pool.imap_unordered(finish, written, 8):
-        records[path].update(out=[side * scales[path] for side in records[path]["size"]], bytes=size, file_sha256=digest)
-        records[path]["scores"].update(extra)
+    scales = {path: job["scale"] for job in written for path in job.get("paths", (job["path"],))}
+    for files in pool.imap_unordered(finish, written, 8):
+        for path, size, digest, extra in files:
+            records[path].update(out=[side * scales[path] for side in records[path]["size"]], bytes=size, file_sha256=digest)
+            records[path]["scores"].update(extra)
     shutil.rmtree(folder, ignore_errors=True)
-    return [records[entry.path] for _, _, entry, _ in items]
+    return list(records.values())
 
 
 def generative_asked(setup, path):
@@ -805,6 +896,9 @@ def summary(records):
                 print("  %-8s drift dB: %s" % (way, spread([s["drift"] for s in scored])))
             if way in ("ai", "waifu2x"):
                 print("  %-8s worst dB: %s" % (way, spread([s["worst"] for s in scored])))
+    marked = [record.get("marked") for record in records if record["way"] != "none"]
+    if marked.count(2) + marked.count(4):
+        print("  menu, loading screen and HUD pictures: %d with 2 times the pixels a side, %d with 4 times" % (marked.count(2), marked.count(4)))
     fonts = [generated(record) for record in records if record.get("kind") == "font"]
     if fonts:
         print("  font pictures: " + ", ".join("%s %s" % (os.path.splitext(record["path"].split("\\")[-1])[0], record["way"])
@@ -837,6 +931,10 @@ def main():
     parser.add_argument("--fetch-fonts", action="store_true", help="download the pinned lettering fonts to upscale-tools/fonts/, then stop")
     parser.add_argument("--lettering-only", action="store_true",
                         help="redraw only the lettering of the complete set in the output folder, keeping the settings that made it")
+    parser.add_argument("--no-menus", action="store_true",
+                        help="leave the menus, the loading screens and the HUD as the game has them")
+    parser.add_argument("--menus-only", action="store_true",
+                        help="make only the menu, loading screen and HUD pictures for the complete set in the output folder; the rest stays")
     parser.add_argument("--font-way", choices=WAYS, default="",
                         help="the way the font pictures try first (default: %s)" % FONT_WAY)
     parser.add_argument("--jobs", type=int, default=os.cpu_count() or 4, help="worker processes")
@@ -866,6 +964,14 @@ def main():
         sys.exit("--generative goes with --fetch-tools. A normal run uses the generative way when it is set up.")
     if args.lettering_only:
         sys.exit(relabel(args))
+    args.rest_stays = bool(args.only) or args.menus_only
+    stored = None
+    if args.menus_only:
+        if args.no_menus or not set_complete(args.out):
+            sys.exit("--menus-only adds to a complete set, and %s holds none. Make one first: python3 tools/upscale-textures.py" % args.out)
+        with open(os.path.join(args.out, MANIFEST)) as f:
+            stored = json.load(f)
+        args.scale = stored["settings"]["scale"]
     packs = sorted(os.path.join(args.game, name) for name in os.listdir(args.game) if name.lower().endswith(".up"))
     if not packs:
         sys.exit("No .up packs in %s. Run ./setup.sh first." % args.game)
@@ -891,25 +997,37 @@ def main():
         pack = up.Pack(path)
         pack.path = path
         opened.append(pack)
+    menu, screens = ({}, {}) if args.no_menus else menus.plans(opened)
+    picked = set()
+    for pack in opened:
         for entry in pack.entries:
-            if not entry.name.lower().endswith(".gti"):
+            if not (entry.name.lower().endswith(".gti") or entry.path in menu):
                 continue
             try:
                 up.safe_parts(entry.path)
             except ValueError as problem:
-                sys.exit("%s: %s. Nothing was written." % (path, problem))
-            if not entry.path.lower().startswith(kept):
+                sys.exit("%s: %s. Nothing was written." % (pack.path, problem))
+            if entry.path in menu:
+                if args.only.lower() in entry.path.lower():
+                    picked.add(menu[entry.path]["screen"] or entry.path)
+            elif not entry.path.lower().startswith(kept):
                 folder = "\\".join(entry.folder.split("\\")[:2])
                 left_out[folder] = left_out.get(folder, 0) + 1
-            elif args.only.lower() in entry.path.lower():
+            elif args.only.lower() in entry.path.lower() and not args.menus_only:
                 chosen.append((pack, entry))
+    textures = len(chosen)
+    chosen += [(pack, entry) for pack in opened for entry in pack.entries
+               if entry.path in menu and (menu[entry.path]["screen"] or entry.path) in picked]
     stack = generative_stack(tools, args.generative_log or os.path.join(args.out, "generative.log"))
     listed = {}
     if stack and ways == WAYS and not args.no_generative:
         paths = {entry.path for _, entry in chosen}
         with open(GENERATIVE_LIST) as f:
             listed = {entry["path"]: entry for entry in json.load(f) if entry["path"] in paths}
-    print("%d textures to resize %dx. Ways: %s." % (len(chosen), args.scale, ", then ".join(ways)))
+    print("%d textures to resize %dx. Ways: %s." % (textures, args.scale, ", then ".join(ways)))
+    if len(chosen) > textures:
+        print("  %d menu, loading screen and HUD pictures to resize 2x or 4x, as %s lists them." % (
+            len(chosen) - textures, os.path.relpath(menus.SPEC, root)))
     if listed:
         print("  %d listed in %s try the %s way first, at %dx." % (len(listed), os.path.relpath(GENERATIVE_LIST, root), GENERATIVE, GENERATIVE_SCALE))
     for folder in sorted(left_out):
@@ -926,6 +1044,8 @@ def main():
         settings.update(passes=PASSES, model=MODEL, model_scale=MODEL_SCALE, tile=TILE,
                         waifu2x_model=WAIFU2X_MODEL, waifu2x_tile=WAIFU2X_TILE, tools=checksums)
     key = hashlib.sha256(json.dumps(settings, sort_keys=True).encode()).hexdigest()
+    if stored:
+        settings, key = stored["settings"], stored["key"]
 
     cache = os.path.join(args.out, "cache")
     if os.path.exists(cache) and not os.path.exists(os.path.join(args.out, MARKER)):
@@ -938,7 +1058,7 @@ def main():
     if old.get("key") != key:
         old = {}
         targets = {os.path.join(cache, *up.safe_parts(entry.path)).lower() for _, entry in chosen}
-        targets |= {target + TWICE for target in targets}
+        targets |= {target + ending for target in targets for ending in menus.MARKERS}
         if args.only and set(files_under(cache)) - targets:
             sys.exit("The set in %s was made with other settings, and --only would leave part of it as it is.\n"
                      "Run once without --only. Nothing was replaced." % args.out)
@@ -950,6 +1070,7 @@ def main():
     os.makedirs(work, exist_ok=True)
     setup = {"scale": args.scale, "ways": ways, "tools": tools, "work": work, "out": args.out,
              "font_way": args.font_way, "glyphs": glyph_boxes(opened), "generative": listed, "generative_stack": stack,
+             "menu": menu, "screens": screens,
              "allow_other_tools": args.allow_other_tools}
     sources = [(pack, entry, pack.read(entry)) for pack, entry in chosen]
     records, run = build(args, setup, sources, old)
@@ -984,6 +1105,7 @@ def relabel(args):
     shutil.rmtree(work, ignore_errors=True)
     os.makedirs(work)
     setup = {"scale": old["settings"]["scale"], "work": work, "out": args.out}
+    args.rest_stays = False
     sources = [found[record["path"]] for record in old["textures"]]
     settle(args, setup, old["settings"], old["key"], sources, records, {"made": 0, "repeat": None, "seconds": 0}, old)
     shutil.rmtree(work, ignore_errors=True)
@@ -1052,11 +1174,14 @@ def build(args, setup, sources, old):
         asked = font_way(setup) if entry.path.lower().startswith(FONTS) else None
         if entry.path in setup["generative"]:
             asked = generative_asked(setup, entry.path)
+        if entry.path in setup["menu"]:
+            asked = menus.asked(setup["menu"][entry.path])
         if record and record["source_sha256"] == hashlib.sha256(data).hexdigest() and record.get("asked") == asked and (
                 record["way"] == "none" or where(setup, record)):
             records[entry.path] = record
         else:
             todo.append((number, pack, entry, data))
+    todo = whole_screens(setup, sources, todo, records)
     if stopped & set(records):
         print("%d textures were already done in an earlier run that stopped." % len(stopped & set(records)))
     run = {"made": len(todo), "repeat": None, "seconds": 0}
@@ -1064,7 +1189,7 @@ def build(args, setup, sources, old):
         return records, run
 
     setup["helpers"] = build_helpers(work)
-    if any(entry.path in setup["generative"] for _, _, entry, _ in todo):
+    if any(len(item) == 4 and item[2].path in setup["generative"] for item in todo):
         check_generative_models(setup)
     with multiprocessing.Pool(max(1, args.jobs)) as pool:
         for at in range(0, len(todo), BATCH):
@@ -1075,7 +1200,7 @@ def build(args, setup, sources, old):
                     f.write(json.dumps(record, sort_keys=True) + "\n")
             print("  %d of %d, %.0f seconds" % (min(at + BATCH, len(todo)), len(todo), time.time() - started), flush=True)
 
-        again = [item for item in todo if records[item[2].path]["way"] != "none"]
+        again = [item for item in todo if len(item) == 4 and records[item[2].path]["way"] != "none"]
         again = again[::max(1, len(again) // max(1, args.repeat))][:args.repeat] if args.repeat > 0 else []
         if again:
             second = run_batch(setup, again, os.path.join(work, "repeat"), pool)
@@ -1088,6 +1213,29 @@ def build(args, setup, sources, old):
     return records, run
 
 
+def whole_screens(setup, sources, todo, records):
+    """A screen is enlarged as one picture, so when one of its pieces is to be made, all of them are."""
+    def screen_of(path):
+        return setup["menu"].get(path, {}).get("screen")
+    names = {screen_of(item[2].path) for item in todo} - {None}
+    todo = [item for item in todo if screen_of(item[2].path) is None]
+    grouped = {}
+    for number, (pack, entry, data) in enumerate(sources):
+        if screen_of(entry.path) in names:
+            records.pop(entry.path, None)
+            grouped.setdefault(screen_of(entry.path), (number, screen_of(entry.path), []))[2].append((pack, entry, data))
+    return todo + list(grouped.values())
+
+
+def marker_of(record):
+    """The ending of the empty file that tells the launcher's helper how many times the pixels a flat picture has."""
+    if record["way"] == "none":
+        return None
+    if record.get("kind") == "font":
+        return TWICE
+    return ".%dx" % record["marked"] if record.get("marked") else None
+
+
 def fitting_overrides(args, sources, records):
     """{path: (file, checksum, bytes)} for each .gti under --overrides that may take the place of a texture of this run."""
     by_name = {entry.path.lower(): (entry.path, data) for _, entry, data in sources}
@@ -1097,12 +1245,13 @@ def fitting_overrides(args, sources, records):
         if not name.lower().endswith(".gti"):
             continue
         if name.lower() not in by_name:
-            if not args.only:
+            if not args.rest_stays:
                 print("  override refused: %s is not a texture of the set" % name)
             continue
         path, data = by_name[name.lower()]
         best = gti.parse(data).best()
-        width, height = records[path].get("out") or (best.width * args.scale, best.height * args.scale)
+        times = records[path].get("marked", args.scale)
+        width, height = records[path].get("out") or (best.width * times, best.height * times)
         wanted = [(8 if best.alpha else 7, width, height, gti.level_count(width, height) if len(best.levels) > 1 else 1)]
         with open(file, "rb") as f:
             content = f.read()
@@ -1181,7 +1330,7 @@ def settle(args, setup, settings, key, sources, records, run, old):
             _, digest, size = replacing[record["path"]]
             taken = {name: value for name, value in record.items() if name not in OWN}
             taken.update(way="override" if record["path"] in overrides else lettering.WAY, bytes=size, file_sha256=digest,
-                         out=record.get("out") or [side * scale for side in record["size"]],
+                         out=record.get("out") or [side * record.get("marked", scale) for side in record["size"]],
                          generated={name: record[name] for name in OWN if name in record})
             if record["path"] in lettered:
                 taken[lettering.WAY] = lettered[record["path"]][3]
@@ -1212,18 +1361,19 @@ def settle(args, setup, settings, key, sources, records, run, old):
                 changed += 1
             if os.path.exists(kept):
                 os.remove(kept)
-        if record.get("kind") == "font" and record["way"] != "none" and not os.path.exists(target + TWICE):
-            open(target + TWICE, "w").close()
-        elif record["way"] == "none" and os.path.exists(target + TWICE):
-            os.remove(target + TWICE)
+        for ending in menus.MARKERS:
+            if ending == marker_of(record) and not os.path.exists(target + ending):
+                open(target + ending, "w").close()
+            elif ending != marker_of(record) and os.path.exists(target + ending):
+                os.remove(target + ending)
 
-    if args.only:
+    if args.rest_stays:
         now = {record["path"]: record for record in final}
         final = [now.pop(record["path"], record) for record in old.get("textures", [])] + list(now.values())
     else:
         wanted = {os.path.join(cache, *up.safe_parts(record["path"])).lower() for record in final if record["way"] != "none"}
-        wanted |= {os.path.join(cache, *up.safe_parts(record["path"])).lower() + TWICE for record in final
-                   if record.get("kind") == "font" and record["way"] != "none"}
+        wanted |= {os.path.join(cache, *up.safe_parts(record["path"])).lower() + marker_of(record) for record in final
+                   if marker_of(record)}
         wanted |= {os.path.join(aside, *up.safe_parts(record["path"])).lower() for record in final
                    if record["way"] in REPLACING and record["generated"]["way"] != "none"}
         for folder in (cache, aside):
@@ -1271,7 +1421,7 @@ def on_squares(pixels, width, height):
 def sheets(args, scale, sources, cache):
     """One PNG per texture: the plain filter on the left, the set on the right. A tiling texture is laid out 2x2."""
     with open(os.path.join(args.out, MANIFEST)) as f:
-        records = [record for record in json.load(f)["textures"] if record["way"] in WAYS]
+        records = [record for record in json.load(f)["textures"] if record["way"] in WAYS and "marked" not in record]
     groups = (
         ("tiling", 3, lambda r: all(r["tiles"]) and r["kind"] == "opaque" and r["path"].lower().startswith(KEPT[0])),
         ("cutout", 2, lambda r: r["kind"] == "cutout"),

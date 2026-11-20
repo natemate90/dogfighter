@@ -1,0 +1,36 @@
+{
+ "screens": [
+  {
+   "name": "mainmenu", "times": 4, "ways": ["ai", "plain"],
+   "grid": "Graphics\\Frontend\\MainMenu\\mainmenu%d.gti",
+   "states": {
+    "campaign": [["Graphics\\Frontend\\MainMenu\\hi_campaign.gti", 159, 255]],
+    "credits": [["Graphics\\Frontend\\MainMenu\\hi_credits.gti", 19, 266]],
+    "houseedit": [["Graphics\\Frontend\\MainMenu\\hi_houseedit_1.gti", 264, 124],
+                  ["Graphics\\Frontend\\MainMenu\\hi_houseedit_2.gti", 392, 124]],
+    "logout": [["Graphics\\Frontend\\MainMenu\\hi_logout_1.gti", 608, 43],
+               ["Graphics\\Frontend\\MainMenu\\hi_logout_2.gti", 576, 171],
+               ["Graphics\\Frontend\\MainMenu\\hi_logout_3.gti", 576, 299]],
+    "multi": [["Graphics\\Frontend\\MainMenu\\hi_multi.gti", 352, 194]],
+    "options": [["Graphics\\Frontend\\MainMenu\\hi_options.gti", 418, 199]],
+    "paint": [["Graphics\\Frontend\\MainMenu\\hi_paint_1.gti", 305, 274],
+              ["Graphics\\Frontend\\MainMenu\\hi_paint_2.gti", 433, 274],
+              ["Graphics\\Frontend\\MainMenu\\hi_paint_3.gti", 305, 402]],
+    "pilot": [["Graphics\\Frontend\\MainMenu\\hi_pilot.gti", 136, 124]]
+   }
+  },
+  {
+   "name": "load{n}", "range": [1, 25], "times": 4, "ways": ["ai", "plain"],
+   "grid": "Graphics\\Frontend\\LoadingScreen\\load{n}_%d.gti"
+  }
+ ],
+ "pictures": [
+  {"under": "Graphics\\Frontend\\Window\\", "times": 2, "ways": ["waifu2x", "plain"]},
+  {"under": "Graphics\\Frontend\\Cursors\\", "times": 2, "ways": ["waifu2x", "plain"]},
+  {"under": "Graphics\\Frontend\\PilotRoster\\", "times": 4, "ways": ["ai", "waifu2x", "plain"]},
+  {"under": "Graphics\\Frontend\\ModelInfo\\Aeroplanes\\", "times": 4, "ways": ["ai", "waifu2x", "plain"]},
+  {"under": "Graphics\\Frontend\\ModelInfo\\Weapons\\", "times": 4, "ways": ["ai", "waifu2x", "plain"]},
+  {"under": "Graphics\\Ingame\\Maps\\", "times": 4, "ways": ["ai", "waifu2x", "plain"]},
+  {"under": "User\\Save\\Photos\\", "times": 4, "ways": ["ai", "waifu2x", "plain"]}
+ ]
+}
