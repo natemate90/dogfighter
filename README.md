@@ -104,6 +104,7 @@ Cmd+Tab also frees the mouse, and the game takes it back when you return.
 | `--hd-textures` | Use the larger textures you made (see Larger textures). |
 | `--smooth=N` | Smooth jagged edges with N samples per pixel: 0, 2 or 4. Without it the launcher uses 4 (see Picture quality). |
 | `--deep-z` | Give the game a 24-bit depth buffer where it asks for 16 bits (see Picture quality). |
+| `--keep-shape` | Keep the window in the shape of the game's picture when you resize or zoom it. |
 | `--original` | Leave the picture settings as the game made them (see Picture quality). |
 | `--mute` | Start the game without sound: no videos, music or effects. Other apps keep their sound, and the next start without it has sound again. |
 | `--join=ADDRESS` | Put a server in the game's Address book, then start the game (see Online multiplayer). |
@@ -217,6 +218,10 @@ Nobody has compared the two on a screen yet.
 `--deep-z` gives the game a 24-bit depth buffer where it asks for a 16-bit one.
 That can stop far-away surfaces from flickering through each other.
 In the first mission the picture was the same with and without it.
+
+`--keep-shape` keeps the window in the shape of the game's picture.
+Without it, a window dragged to another shape stretches the picture.
+A zoomed window kept the 4:3 shape of the menus in a test; a drag by hand is not tried yet.
 
 `--wide` widens the view angle for a 16:10 or 16:9 picture.
 It shows more at the sides and the top.

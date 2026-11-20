@@ -70,7 +70,7 @@ static WNDPROC game_proc, next_proc;
 static SIZE max_client, mac_screen, fitted_for, modes[32];
 static unsigned int mode_count;
 static struct wined3d_display_mode_copy game_mode;
-static BOOL mode_set, dinput_wants_mouse, mouse_free, widen_view, test_on_right_display, test_leaves_mouse, pointer_hidden, deep_z;
+static BOOL mode_set, dinput_wants_mouse, mouse_free, widen_view, test_on_right_display, test_leaves_mouse, pointer_hidden, deep_z, keep_shape;
 static RECT test_display;
 static void *front_swapchain, *front_texture;
 static DWORD front_thread;
@@ -561,6 +561,67 @@ static void widen_view_for(UINT width, UINT height)
     run_console_command(command);
 }
 
+enum { FIT_INSIDE, WIDTH_LEADS, HEIGHT_LEADS };
+
+static SIZE picture_shaped(HWND hwnd, LONG width, LONG height, int rule)
+{
+    RECT frame = { 0, 0, 0, 0 };
+    SIZE client, fitted;
+
+    AdjustWindowRectEx(&frame, GetWindowLongA(hwnd, GWL_STYLE), FALSE, GetWindowLongA(hwnd, GWL_EXSTYLE));
+    client.cx = width - (frame.right - frame.left);
+    client.cy = height - (frame.bottom - frame.top);
+    if (client.cx > 0 && client.cy > 0)
+    {
+        fitted.cx = (client.cy * (LONG)game_mode.width + (LONG)game_mode.height / 2) / (LONG)game_mode.height;
+        fitted.cy = (client.cx * (LONG)game_mode.height + (LONG)game_mode.width / 2) / (LONG)game_mode.width;
+        if (rule == WIDTH_LEADS || (rule == FIT_INSIDE && client.cy > fitted.cy + 1)) client.cy = fitted.cy;
+        else if (rule == HEIGHT_LEADS || client.cx > fitted.cx + 1) client.cx = fitted.cx;
+    }
+    client.cx += frame.right - frame.left;
+    client.cy += frame.bottom - frame.top;
+    return client;
+}
+
+/* Wine's Mac driver asks with WM_SIZING during a drag and only ever names a
+   corner, also for a drag of one edge. So the side that moved further since
+   the last size is taken as the one the user drags, and the other follows. */
+static BOOL keep_picture_shape(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+{
+    static int said;
+    SIZE size;
+
+    if (!keep_shape || !game_mode.width || !game_mode.height || IsIconic(hwnd)) return FALSE;
+    if (msg == WM_WINDOWPOSCHANGING)
+    {
+        WINDOWPOS *pos = (WINDOWPOS *)lp;
+
+        if (pos->flags & SWP_NOSIZE) return FALSE;
+        size = picture_shaped(hwnd, pos->cx, pos->cy, FIT_INSIDE);
+        if ((size.cx != pos->cx || size.cy != pos->cy) && said++ < 20)
+            say("window asked to be %dx%d; made %ldx%ld to keep the picture's shape", pos->cx, pos->cy, size.cx, size.cy);
+        pos->cx = size.cx;
+        pos->cy = size.cy;
+        return FALSE;
+    }
+    else
+    {
+        RECT *rect = (RECT *)lp, now = { 0 };
+        LONG wider, higher;
+
+        GetWindowRect(hwnd, &now);
+        wider = labs((rect->right - rect->left) - (now.right - now.left));
+        higher = labs((rect->bottom - rect->top) - (now.bottom - now.top));
+        size = picture_shaped(hwnd, rect->right - rect->left, rect->bottom - rect->top,
+                              higher * (LONG)game_mode.width > wider * (LONG)game_mode.height ? HEIGHT_LEADS : WIDTH_LEADS);
+        if (wp == WMSZ_TOPLEFT || wp == WMSZ_BOTTOMLEFT || wp == WMSZ_LEFT) rect->left = rect->right - size.cx;
+        else rect->right = rect->left + size.cx;
+        if (wp == WMSZ_TOPLEFT || wp == WMSZ_TOPRIGHT || wp == WMSZ_TOP) rect->top = rect->bottom - size.cy;
+        else rect->bottom = rect->top + size.cy;
+        return TRUE;
+    }
+}
+
 static LRESULT CALLBACK hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     if (msg == WIDEN_VIEW)
@@ -583,6 +644,7 @@ static LRESULT CALLBACK hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         mouse_free = FALSE;
         say("a click in the picture: the mouse belongs to the game again");
     }
+    if ((msg == WM_WINDOWPOSCHANGING || msg == WM_SIZING) && keep_picture_shape(hwnd, msg, wp, lp)) return TRUE;
     if (msg == WM_COPYDATA && ((COPYDATASTRUCT *)lp)->dwData == CONSOLE_COMMAND)
     {
         COPYDATASTRUCT *data = (COPYDATASTRUCT *)lp;
@@ -725,7 +787,21 @@ static void make_normal_window(HWND w)
     SIZE size;
 
     if (!game_mode.width || !game_mode.height || (normal && same_shape)) return;
-    if (IsIconic(w) || IsZoomed(w)) return;
+    if (IsIconic(w)) return;
+    if (IsZoomed(w))
+    {
+        MONITORINFO display = { sizeof(display) };
+
+        if (!keep_shape || same_shape || !GetMonitorInfoA(MonitorFromWindow(w, MONITOR_DEFAULTTONEAREST), &display)) return;
+        fitted_for.cx = game_mode.width;
+        fitted_for.cy = game_mode.height;
+        SetWindowPos(w, NULL, display.rcWork.left, display.rcWork.top, display.rcWork.right - display.rcWork.left,
+                     display.rcWork.bottom - display.rcWork.top, SWP_NOZORDER | SWP_NOACTIVATE);
+        GetClientRect(w, &client);
+        say("picture %ux%u, zoomed window given its shape: client area now %ldx%ld",
+            game_mode.width, game_mode.height, client.right, client.bottom);
+        return;
+    }
 
     style = (style & ~WS_POPUP) | WS_OVERLAPPEDWINDOW;
     ex &= ~WS_EX_TOPMOST;
@@ -895,6 +971,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
         edge_samples = env_size("DOGFIGHTER_EDGE_SAMPLES").cx;
         if (edge_samples > 16) edge_samples = 0;
         deep_z = GetEnvironmentVariableA("DOGFIGHTER_DEEP_Z", NULL, 0) != 0;
+        keep_shape = GetEnvironmentVariableA("DOGFIGHTER_KEEP_SHAPE", NULL, 0) != 0;
         if (texture_limit != 512 && texture_limit != 1024) texture_limit = 0;
         if (max_client.cx && max_client.cy)
         {

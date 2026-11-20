@@ -4,12 +4,12 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage: dogfighter [--res=WxH] [--sharp] [--retina] [--windowed=WxH] [--wide] [--hd-textures] [--original]
-                  [--smooth=0|2|4] [--deep-z] [--mute]
+                  [--smooth=0|2|4] [--deep-z] [--keep-shape] [--mute]
                   [--setup] [--no-focusfix] [--wine=NAME] [--wine-rule=KEY=VALUE]
                   [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|move-test|start-test|stall-test|crash-test|fallback-test|draw-test|press-ok|press-cancel]]
                   [--diag-keys=SECONDS:SCANCODE,...] [--diag-mouse=SECONDS:DX:DY[:c|:o],...]
                   [--diag-console=SECONDS:COMMAND] [--diag-display=right] [--diag-hold] [--diag-sound]
-                  [--diag-end=SECONDS]
+                  [--diag-end=SECONDS] [--diag-zoom=SECONDS] [--diag-drag=SECONDS]
                   [--join=ADDRESS] [--winecfg] [--stop]
        dogfighter [--wine=NAME] --doctor
        dogfighter --backup | --restore[=FILE]
@@ -42,6 +42,9 @@ Usage: dogfighter [--res=WxH] [--sharp] [--retina] [--windowed=WxH] [--wide] [--
   --deep-z          Give the game a 24-bit depth buffer where it asks for 16 bits.
                     No difference was seen in the first mission; not tested
                     elsewhere.
+  --keep-shape      Keep the window in the shape of the game's picture when you
+                    resize or zoom it. A resize and a zoom done by the test tool
+                    kept the shape. A drag by hand is not tried yet.
   --mute            Start the game without sound: no videos, music or effects are
                     heard. Other apps keep their sound, and the next start without
                     this option has sound again. Every --diag run is muted.
@@ -119,6 +122,11 @@ Usage: dogfighter [--res=WxH] [--sharp] [--retina] [--windowed=WxH] [--wide] [--
   --diag-end=SECONDS
                     End the game this long after its first picture, without the
                     game's own quit, so it does not write its settings.
+  --diag-zoom=SECONDS
+                    Zoom the window this long after the first picture.
+  --diag-drag=SECONDS
+                    Ask for seven window sizes as a drag of an edge or a corner
+                    does, and log what the window became. The pointer is not moved.
   --diag-sound      Keep the sound in a test run, as a normal start does.
                     With any --diag option the log also says, five times a second,
                     whether macOS shows its pointer and which app is in front.
@@ -147,8 +155,11 @@ DIAG_DISPLAY=
 DIAG_HOLD=0
 DIAG_SOUND=0
 DIAG_END=
+DIAG_ZOOM=
+DIAG_DRAG=
 SMOOTH=4
 DEEP_Z=0
+KEEP_SHAPE=0
 WINE_NAME=
 WINE_RULES=
 JOIN=
@@ -191,8 +202,11 @@ for arg in "$@"; do
     --diag-hold) DIAG_HOLD=1 ;;
     --diag-sound) DIAG_SOUND=1 ;;
     --diag-end=*) DIAG_END="${arg#--diag-end=}" ;;
+    --diag-zoom=*) DIAG_ZOOM="${arg#--diag-zoom=}" ;;
+    --diag-drag=*) DIAG_DRAG="${arg#--diag-drag=}" ;;
     --smooth=*) SMOOTH="${arg#--smooth=}" ;;
     --deep-z) DEEP_Z=1 ;;
+    --keep-shape) KEEP_SHAPE=1 ;;
     --winecfg) MODE=winecfg ;;
     --doctor) MODE=doctor ;;
     --backup) MODE=backup ;;
@@ -224,10 +238,11 @@ if [ -n "$DIAG_MOUSE" ]; then
   [[ "$DIAG_MOUSE" =~ ^[0-9]+:-?[0-9]+:-?[0-9]+(:[co])?(,[0-9]+:-?[0-9]+:-?[0-9]+(:[co])?)*$ ]] || { echo "Bad mouse list: $DIAG_MOUSE" >&2; exit 2; }
   DIAG="${DIAG:-log} mouse=$DIAG_MOUSE"
 fi
-if [ -n "$DIAG_END" ]; then
-  [[ "$DIAG_END" =~ ^[0-9]+$ ]] || { echo "Bad number of seconds: $DIAG_END" >&2; exit 2; }
-  DIAG="${DIAG:-log} end=$DIAG_END"
-fi
+for timed in "end=$DIAG_END" "zoom=$DIAG_ZOOM" "drag=$DIAG_DRAG"; do
+  [ -n "${timed#*=}" ] || continue
+  [[ "${timed#*=}" =~ ^[0-9]+$ ]] || { echo "Bad number of seconds: ${timed#*=}" >&2; exit 2; }
+  DIAG="${DIAG:-log} $timed"
+done
 [[ "$SMOOTH" =~ ^(0|2|4)$ ]] || { echo "Bad --smooth value: $SMOOTH. Use 0, 2 or 4." >&2; exit 2; }
 for command in ${DIAG_CONSOLE[@]+"${DIAG_CONSOLE[@]}"}; do
   [[ "$command" =~ ^[0-9]+:[A-Za-z0-9_.+\ ]+$ ]] || { echo "Bad console command: $command" >&2; exit 2; }
@@ -244,8 +259,8 @@ if [ "$FOCUSFIX" = 0 ] && [ "$HD_TEXTURES" = 1 ]; then
   echo "--hd-textures needs the helper; leave out --no-focusfix." >&2
   exit 2
 fi
-if [ "$FOCUSFIX" = 0 ] && [ "$RETINA_WINDOW" = 1 ]; then
-  echo "--retina needs the helper; leave out --no-focusfix." >&2
+if [ "$FOCUSFIX" = 0 ] && { [ "$RETINA_WINDOW" = 1 ] || [ "$KEEP_SHAPE" = 1 ]; }; then
+  echo "--retina and --keep-shape need the helper; leave out --no-focusfix." >&2
   exit 2
 fi
 if [ "$FOCUSFIX" = 0 ] && [[ "$DIAG" == *-test* || "$DIAG" == *=* ]]; then
@@ -825,6 +840,7 @@ if [ "$FOCUSFIX" = 1 ]; then
   if [ -n "$DIAG" ] && [ "$DIAG_HOLD" = 0 ]; then export DOGFIGHTER_TEST_LEAVES_MOUSE=1; fi
   if [ "$ORIGINAL" = 0 ]; then export DOGFIGHTER_ANISOTROPY=16; fi
   if [ "$ORIGINAL" = 0 ] && [ "$SMOOTH" != 0 ]; then export DOGFIGHTER_EDGE_SAMPLES="$SMOOTH"; fi
+  if [ "$KEEP_SHAPE" = 1 ]; then export DOGFIGHTER_KEEP_SHAPE=1; fi
   if [ "$DEEP_Z" = 1 ]; then export DOGFIGHTER_DEEP_Z=1; fi
   if [ -n "$DIAG" ]; then export DOGFIGHTER_DIAG="$DIAG"; fi
   GAME_CMD=('C:\dogfighter-focusfix.exe' 'C:\dogfighter-focusfix.flag' "$GAME_DOS\\Dogfighter.exe")

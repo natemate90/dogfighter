@@ -313,6 +313,39 @@ static BOOL window_test_step(int step)
     return TRUE;
 }
 
+static void drag_test(void)
+{
+    static const struct { const char *what; WPARAM corner; int left, top, right, bottom; } drags[] =
+    {
+        { "bottom edge 120 down", WMSZ_BOTTOMRIGHT, 0, 0, 0, 120 },
+        { "bottom edge 120 up", WMSZ_BOTTOMRIGHT, 0, 0, 0, -120 },
+        { "right edge 160 out", WMSZ_BOTTOMRIGHT, 0, 0, 160, 0 },
+        { "left edge 160 out", WMSZ_BOTTOMLEFT, -160, 0, 0, 0 },
+        { "top edge 120 up", WMSZ_TOPRIGHT, 0, -120, 0, 0 },
+        { "bottom right corner 200,40 out", WMSZ_BOTTOMRIGHT, 0, 0, 200, 40 },
+        { "top left corner 40,150 out", WMSZ_TOPLEFT, -40, -150, 0, 0 },
+    };
+
+    for (unsigned int i = 0; i < ARRAYSIZE(drags); i++)
+    {
+        RECT window = { 0 }, asked, client = { 0 };
+        LRESULT answered;
+
+        GetWindowRect(game_hwnd, &window);
+        SetRect(&asked, window.left + drags[i].left, window.top + drags[i].top,
+                window.right + drags[i].right, window.bottom + drags[i].bottom);
+        window = asked;
+        answered = SendMessageA(game_hwnd, WM_SIZING, drags[i].corner, (LPARAM)&window);
+        SetWindowPos(game_hwnd, NULL, window.left, window.top, window.right - window.left, window.bottom - window.top,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+        Sleep(300);
+        GetClientRect(game_hwnd, &client);
+        note("drag test, %s: asked for a window of %ldx%ld, answer %ld with %ldx%ld, client area now %ldx%ld",
+             drags[i].what, asked.right - asked.left, asked.bottom - asked.top, (long)answered,
+             window.right - window.left, window.bottom - window.top, client.right, client.bottom);
+    }
+}
+
 static struct { DWORD second, scan; } keys[32];
 static int key_count, keys_pressed;
 
@@ -466,7 +499,7 @@ static void draw_test(void)
 int main(int argc, char **argv)
 {
     BOOL seen = FALSE, window_test = FALSE, move_test = FALSE, start_test = FALSE, press_ok = FALSE, press_cancel = FALSE;
-    DWORD start = GetTickCount(), wait = 10, end_after = 0;
+    DWORD start = GetTickCount(), wait = 10, end_after = 0, zoom_at = 0, drag_at = 0;
     int next_step = 0;
 
     logf = fopen("C:\\dogfighter-windiag.log", "w");
@@ -486,6 +519,8 @@ int main(int argc, char **argv)
         if (!strcmp(argv[i], "press-cancel")) press_cancel = TRUE;
         if (!strncmp(argv[i], "wait=", 5)) wait = atoi(argv[i] + 5);
         if (!strncmp(argv[i], "end=", 4)) end_after = atoi(argv[i] + 4);
+        if (!strncmp(argv[i], "zoom=", 5)) zoom_at = atoi(argv[i] + 5);
+        if (!strncmp(argv[i], "drag=", 5)) drag_at = atoi(argv[i] + 5);
         if (!strncmp(argv[i], "keys=", 5)) read_keys(argv[i] + 5);
         if (!strncmp(argv[i], "mouse=", 6)) read_moves(argv[i] + 6);
         if (!strncmp(argv[i], "console=", 8)) read_command(argv[i] + 8);
@@ -515,6 +550,17 @@ int main(int argc, char **argv)
         {
             end_game("the test run's time is up");
             end_after = 0;
+        }
+        if (zoom_at && shown >= zoom_at)
+        {
+            note("zooming the window");
+            ShowWindowAsync(game_hwnd, SW_MAXIMIZE);
+            zoom_at = 0;
+        }
+        if (drag_at && shown >= drag_at)
+        {
+            drag_test();
+            drag_at = 0;
         }
         while (keys_pressed < key_count && shown >= keys[keys_pressed].second)
             press_key(keys[keys_pressed++].scan);
