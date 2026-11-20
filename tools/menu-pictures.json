@@ -31,6 +31,7 @@
   {"under": "Graphics\\Frontend\\ModelInfo\\Aeroplanes\\", "times": 4, "ways": ["ai", "waifu2x", "plain"]},
   {"under": "Graphics\\Frontend\\ModelInfo\\Weapons\\", "times": 4, "ways": ["ai", "waifu2x", "plain"]},
   {"under": "Graphics\\Ingame\\Maps\\", "times": 4, "ways": ["ai", "waifu2x", "plain"]},
-  {"under": "User\\Save\\Photos\\", "times": 4, "ways": ["ai", "waifu2x", "plain"]}
+  {"under": "User\\Save\\Photos\\", "times": 4, "ways": ["ai", "waifu2x", "plain"]},
+  {"under": "Graphics\\Ingame\\HUD\\", "times": 4, "ways": ["ai", "waifu2x", "plain"]}
  ]
 }

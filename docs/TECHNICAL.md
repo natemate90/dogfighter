@@ -259,7 +259,7 @@ python3 tools/upscale-textures.py
 ```
 
 - It writes 1,192 textures and the 11 font pictures to `hd-textures/cache/`, twice as large as the originals.
-- It also writes 463 menu pictures, two or four times as large (see [Menus and loading screens](#menus-and-loading-screens)).
+- It also writes 511 menu and HUD pictures, two or four times as large (see [Menus and loading screens](#menus-and-loading-screens)).
 - That takes about 800 MB of disk space: about 180 MB for the textures, the rest for the menu pictures.
 - The packs in `game/` are never changed.
 
@@ -339,7 +339,7 @@ Longer missions are not tested: the game is a 32-bit program and may run out of 
 
 The game draws a flat picture at the size stored in its file.
 So the font pictures and the menu pictures get a marker file, and the helper keeps their size (see [Markers](#markers-for-flat-pictures-with-more-pixels)).
-The HUD, the briefing and the other screens not listed in `tools/menu-pictures.json` keep the game's own files.
+The briefing and the other screens not listed in `tools/menu-pictures.json` keep the game's own files.
 
 ### Generative detail for some surfaces
 
@@ -413,6 +413,7 @@ Other screens were not compared.
 | 25 loading screens (12 tiles each) | 4x | Real-ESRGAN, on the whole screen |
 | Window frames, buttons, sliders, the mouse arrow | 2x | waifu2x |
 | Medals, plane and weapon pictures, in-flight map tiles, pilot photos | 4x | Real-ESRGAN |
+| The HUD: gauges, plane shapes, weapon signs, digits, sights, radar frame (48 pictures) | 4x | Real-ESRGAN, then the labels are redrawn |
 
 A screen is put together from its tiles into one 640x480 picture first.
 That picture is enlarged, pulled back to the original and checked like a texture, then cut into the tiles again.
@@ -435,10 +436,11 @@ The places of the highlights were found by laying each one over the menu; they a
 Left out, because the game reads their pixels one by one: the Paint Room's pieces, the stickers and `Graphics\Misc`.
 The House Editor is left out too. Nobody has checked how it draws.
 
-One run on an M4 Max made the 463 pictures in two minutes. Two runs gave the same bytes.
+One run on an M4 Max made the 511 pictures in about two minutes. Two runs gave the same bytes.
 The set grows from about 200 MB to about 800 MB. The 25 loading screens take most of that.
 
 In the game, with full resolution: the login window, the Pilot Roster, the main menu with two highlights, the mission selection, a loading screen and a flight.
+In the flight the gauges, the digits, the armour ring and the radar stood where they stand with the game's own files.
 Every screen matched the one with the game's own files in layout. Info, Close, Login and Campaign opened on a click.
 The upscaler repaints faces on the pilot photos a little. That is a matter of taste.
 
@@ -460,7 +462,7 @@ Info, Login and Campaign opened on a click.
 ### Redrawn labels
 
 An upscaler cannot read. On a label a few pixels high it draws shapes that are almost letters.
-So for 26 textures the tool sets the words again with a font, after the set is made.
+So for 26 textures and 7 HUD pictures the tool sets the words again with a font, after the set is made.
 
 - `tools/lettering.json` lists each texture, its words, the boxes and the fitted numbers.
 - `tools/lettering.py` draws them with the helper `tools/lettering-draw.c`, which uses CoreText. No Python packages are needed.
@@ -480,6 +482,7 @@ So for 26 textures the tool sets the words again with a font, after the set is m
 | `MEDAL` | CHAMPIONS 1942 | Menlo Bold |
 | `particleobj` (2 files) | LASER POINT | Arial Bold |
 | `AirConTower1` (4 files), `AirConTowerD` (2 files) | 23 | Helvetica Bold |
+| HUD: `clock1`, `clock2`, `weapon1`, `weapon2`, `techstar`, `techcross`, `armour` | FUEL, SPEED, PRIMARY, SECONDARY, TECH, ARMOR | Arial Black |
 | `Mailbox` | U.S. MAIL | none: that box comes from the macOS filter, because the upscaler turned MAIL into other shapes |
 
 The small bottom line of `humbrol1`, the two blueprints and about 90 other textures with writing are left as made. Their words are not certain, or the made texture already reads well.
@@ -487,6 +490,7 @@ The small bottom line of `humbrol1`, the two blueprints and about 90 other textu
 Fonts:
 - Stardos Stencil, Alfa Slab One and Bebas Neue are under the SIL Open Font License 1.1. They come from the Google Fonts repository at commit `06bfe0d62a98375cb09c942fa18e68bd32cff057`.
 - `--fetch-tools` or `--fetch-fonts` downloads them to `upscale-tools/fonts/`, each checked against a pinned SHA-256 checksum, with its licence `OFL.txt` beside it.
+- The HUD labels are five pixels high in the game's files. All six are set at one size, 6.6 pixels, which the fits of the single labels agreed on.
 - Arial Bold, Arial Black, Helvetica and Menlo come with macOS. They are only read to draw pixels on your Mac and are not part of the repository.
 - A missing font leaves its textures as made, and the run says so in one line.
 - A macOS font with another checksum than listed is drawn anyway. The checks below catch letters that moved.
