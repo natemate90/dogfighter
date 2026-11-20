@@ -3,7 +3,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: dogfighter [--res=WxH] [--sharp] [--retina] [--windowed=WxH] [--wide] [--hd-textures] [--original]
+Usage: dogfighter [--res=WxH] [--full-res] [--sharp] [--retina] [--windowed=WxH] [--wide] [--hd-textures] [--original]
                   [--smooth=0|2|4] [--deep-z] [--keep-shape] [--mute]
                   [--setup] [--no-focusfix] [--wine=NAME] [--wine-rule=KEY=VALUE]
                   [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|move-test|start-test|stall-test|crash-test|fallback-test|draw-test|press-ok|press-cancel]]
@@ -19,7 +19,15 @@ Usage: dogfighter [--res=WxH] [--sharp] [--retina] [--windowed=WxH] [--wide] [--
                     Ctrl+Option frees the mouse, and gives it back to the game.
   --res=WxH         Use this game resolution in flight, e.g. --res=1440x900.
                     The menus are always 640x480.
-  --sharp           Use Retina pixels: a sharper picture in flight.
+  --full-res        Draw the 3D picture, in flight and in the menus, with as many
+                    pixels as the window has on a Retina screen, and keep the HUD,
+                    the menus and all letters at their normal size. The game goes
+                    on working in its own resolution; the helper enlarges what it
+                    draws. A window resized later is scaled from the size it had
+                    at the start.
+  --sharp           Use Retina pixels: a sharper picture in flight. The HUD and
+                    the letters in a flight are then half size; --full-res
+                    does not have that.
   --retina          Draw the window with the Retina screen's own pixels, but keep
                     the game's resolution, so the HUD keeps its size. The picture
                     is then scaled once, by Wine, and not a second time by macOS.
@@ -157,6 +165,7 @@ DIAG_SOUND=0
 DIAG_END=
 DIAG_ZOOM=
 DIAG_DRAG=
+FULL_RES=0
 SMOOTH=4
 DEEP_Z=0
 KEEP_SHAPE=0
@@ -204,6 +213,7 @@ for arg in "$@"; do
     --diag-end=*) DIAG_END="${arg#--diag-end=}" ;;
     --diag-zoom=*) DIAG_ZOOM="${arg#--diag-zoom=}" ;;
     --diag-drag=*) DIAG_DRAG="${arg#--diag-drag=}" ;;
+    --full-res) FULL_RES=1; RETINA_WINDOW=1 ;;
     --smooth=*) SMOOTH="${arg#--smooth=}" ;;
     --deep-z) DEEP_Z=1 ;;
     --keep-shape) KEEP_SHAPE=1 ;;
@@ -260,7 +270,7 @@ if [ "$FOCUSFIX" = 0 ] && [ "$HD_TEXTURES" = 1 ]; then
   exit 2
 fi
 if [ "$FOCUSFIX" = 0 ] && { [ "$RETINA_WINDOW" = 1 ] || [ "$KEEP_SHAPE" = 1 ]; }; then
-  echo "--retina and --keep-shape need the helper; leave out --no-focusfix." >&2
+  echo "--retina, --full-res and --keep-shape need the helper; leave out --no-focusfix." >&2
   exit 2
 fi
 if [ "$FOCUSFIX" = 0 ] && [[ "$DIAG" == *-test* || "$DIAG" == *=* ]]; then
@@ -841,6 +851,8 @@ if [ "$FOCUSFIX" = 1 ]; then
   if [ "$ORIGINAL" = 0 ]; then export DOGFIGHTER_ANISOTROPY=16; fi
   if [ "$ORIGINAL" = 0 ] && [ "$SMOOTH" != 0 ]; then export DOGFIGHTER_EDGE_SAMPLES="$SMOOTH"; fi
   if [ "$KEEP_SHAPE" = 1 ]; then export DOGFIGHTER_KEEP_SHAPE=1; fi
+  if [ "$FULL_RES" = 1 ]; then export DOGFIGHTER_FULL_SIZE=1; fi
+  if [ "$FULL_RES" = 1 ] && [ -n "$DIAG" ]; then export DOGFIGHTER_TEST_FULL_SIZE_SHOTS=1; fi
   if [ "$DEEP_Z" = 1 ]; then export DOGFIGHTER_DEEP_Z=1; fi
   if [ -n "$DIAG" ]; then export DOGFIGHTER_DIAG="$DIAG"; fi
   GAME_CMD=('C:\dogfighter-focusfix.exe' 'C:\dogfighter-focusfix.flag' "$GAME_DOS\\Dogfighter.exe")
@@ -874,6 +886,11 @@ run_wine() {
     "$WINEPREFIX/drive_c/dogfighter-windiag.log" "$WINEPREFIX/drive_c/dogfighter-crash.log" \
     >>"$LOG" 2>/dev/null || true
   rm -f "$WINEPREFIX"/drive_c/dogfighter-{focusfix,focushook,windiag,crash}.log
+  for shot in "$WINEPREFIX"/drive_c/dogfighter-full-size-*.tga; do
+    [ -f "$shot" ] || continue
+    mkdir -p "$HERE/logs/shots"
+    mv "$shot" "$HERE/logs/shots/$(basename "${LOG%.log}")-${shot##*dogfighter-}"
+  done
 }
 
 # Under Rosetta, Wine sometimes runs its 32-to-64-bit switch as 32-bit code

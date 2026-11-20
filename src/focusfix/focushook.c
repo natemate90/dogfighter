@@ -64,13 +64,44 @@ static HRESULT (__cdecl *real_texture_create)(void *device, const struct wined3d
                                               unsigned int layers, unsigned int levels, uint32_t flags,
                                               const void *data, void *parent, const void *parent_ops, void **texture);
 
+static void (__cdecl *real_stateblock_viewport)(void *stateblock, const struct wined3d_viewport_copy *viewport);
+static HRESULT (__cdecl *real_upload)(void *device, void *buffer, const void *data, unsigned int size,
+                                      unsigned int stride, unsigned int *pos);
+static HRESULT (__cdecl *real_clear)(void *device, unsigned int count, const RECT *rects, uint32_t flags,
+                                     const void *color, float z, unsigned int stencil);
+static HRESULT (__cdecl *real_map)(void *resource, unsigned int index, void *map_desc, const void *box, uint32_t flags);
+static HRESULT (__cdecl *real_unmap)(void *resource, unsigned int index);
+static ULONG (__cdecl *real_texture_decref)(void *texture);
+static void *(__cdecl *real_texture_resource)(void *texture);
+static HRESULT (__cdecl *real_update_desc)(void *texture, unsigned int index, void *memory, unsigned int pitch);
+static HRESULT (__cdecl *real_device_reset)(void *device, struct wined3d_swapchain_desc_start *desc, const void *mode,
+                                            void *callback, BOOL reset_state);
+static void (__cdecl *real_texture_pitch)(const void *texture, unsigned int level, unsigned int *row_pitch,
+                                          unsigned int *slice_pitch);
+
+/* With DOGFIGHTER_FULL_SIZE the game goes on believing in its own mode, and
+   the surfaces it draws its picture into are made as large as the window.
+   One entry per such surface. The shadow is a copy in the game's size, made
+   when the game locks the surface, which is how it reads a screenshot. */
+static struct full_size_surface
+{
+    void *texture, *resource, *shadow, *device;
+    struct wined3d_resource_desc_copy as_asked;
+    UINT width, height;
+    uint32_t map_flags;
+} full_size_surfaces[8];
+static BOOL full_size;
+static float picture_scale_x = 1.0f, picture_scale_y = 1.0f;
+static SIZE swapchain_size;
+static void *swapchain_back_buffer;
+
 static FILE *log_file;
 static HWND game_window;
 static WNDPROC game_proc, next_proc;
 static SIZE max_client, mac_screen, fitted_for, modes[32];
 static unsigned int mode_count;
 static struct wined3d_display_mode_copy game_mode;
-static BOOL mode_set, dinput_wants_mouse, mouse_free, widen_view, test_on_right_display, test_leaves_mouse, pointer_hidden, deep_z, keep_shape;
+static BOOL mode_set, dinput_wants_mouse, mouse_free, widen_view, test_on_right_display, test_leaves_mouse, pointer_hidden, deep_z, keep_shape, test_saves_full_size;
 static RECT test_display;
 static void *front_swapchain, *front_texture;
 static DWORD front_thread;
@@ -131,6 +162,37 @@ static SIZE fitted_client(void)
     return size;
 }
 
+static BOOL full_size_of_picture(UINT width, UINT height, SIZE *full)
+{
+    *full = fitted_client();
+    if (swapchain_size.cx && full->cx > swapchain_size.cx) full->cx = swapchain_size.cx;
+    if (swapchain_size.cy && full->cy > swapchain_size.cy) full->cy = swapchain_size.cy;
+    return full_size && mode_set && width == game_mode.width && height == game_mode.height
+           && full->cx > (LONG)width && full->cy > (LONG)height;
+}
+
+static struct full_size_surface *full_size_surface(const void *texture_or_resource)
+{
+    if (!texture_or_resource) return NULL;
+    for (unsigned int i = 0; i < ARRAYSIZE(full_size_surfaces); i++)
+        if (full_size_surfaces[i].texture == texture_or_resource || full_size_surfaces[i].resource == texture_or_resource)
+            return &full_size_surfaces[i];
+    return NULL;
+}
+
+static BOOL picture_is_scaled(void)
+{
+    return picture_scale_x != 1.0f || picture_scale_y != 1.0f;
+}
+
+static const RECT *scaled_rect(const RECT *rect, RECT *scaled)
+{
+    if (!rect) return NULL;
+    SetRect(scaled, lroundf(rect->left * picture_scale_x), lroundf(rect->top * picture_scale_y),
+            lroundf(rect->right * picture_scale_x), lroundf(rect->bottom * picture_scale_y));
+    return scaled;
+}
+
 static void tell_helper_about_picture(void)
 {
     static LONG told;
@@ -170,7 +232,7 @@ static void set_viewport_again(void *swapchain)
 static HRESULT __cdecl scaled_present(void *swapchain, const RECT *src, const RECT *dst,
                                       HWND override, unsigned int interval, uint32_t flags)
 {
-    RECT client;
+    RECT client, full;
     HRESULT hr;
 
     if (picture_target(&client))
@@ -178,6 +240,7 @@ static HRESULT __cdecl scaled_present(void *swapchain, const RECT *src, const RE
         count_scaled(&flips, "flip", &client);
         dst = &client;
     }
+    if (picture_is_scaled()) src = scaled_rect(src, &full);
     hr = real_present(swapchain, src, dst, override, interval, flags);
     set_viewport_again(swapchain);
     tell_helper_about_picture();
@@ -192,14 +255,30 @@ static void *__cdecl noted_front_buffer(void *swapchain)
     return front_texture;
 }
 
+static void *__cdecl noted_back_buffer(void *swapchain, UINT index)
+{
+    void *texture = real_back_buffer(swapchain, index);
+
+    if (!index) swapchain_back_buffer = texture;
+    return texture;
+}
+
 static HRESULT __cdecl scaled_blt(void *context, void *dst, unsigned int dst_index, const RECT *dst_rect,
                                   void *src, unsigned int src_index, const RECT *src_rect,
                                   unsigned int flags, const void *fx, int filter)
 {
     void *back;
-    RECT client;
+    RECT client, full_src, full_dst;
     HRESULT hr;
 
+    if (picture_is_scaled())
+    {
+        BOOL from_picture = full_size_surface(src) != NULL;
+
+        if (full_size_surface(dst) || (from_picture && (dst == swapchain_back_buffer || dst == front_texture)))
+            dst_rect = scaled_rect(dst_rect, &full_dst);
+        if (from_picture) src_rect = scaled_rect(src_rect, &full_src);
+    }
     if (!dst || dst != front_texture || front_thread != GetCurrentThreadId())
         return real_blt(context, dst, dst_index, dst_rect, src, src_index, src_rect, flags, fx, filter);
 
@@ -240,7 +319,25 @@ static HRESULT __cdecl windowed_swapchain_create(void *device, struct wined3d_sw
     say("ddraw asked for a %s swapchain of %ux%u; wined3d gets a windowed one",
         desc->windowed ? "windowed" : "fullscreen", desc->backbuffer_width, desc->backbuffer_height);
     desc->windowed = TRUE;
+    swapchain_size.cx = desc->backbuffer_width;
+    swapchain_size.cy = desc->backbuffer_height;
     return real_swapchain_create(device, desc, state_parent, parent, parent_ops, swapchain);
+}
+
+/* ddraw makes the swapchain's back buffer the size of the game's mode when
+   the game makes its screen surface. The full-size picture is copied there
+   before it is shown, so the back buffer has to hold it. */
+static HRESULT __cdecl full_size_device_reset(void *device, struct wined3d_swapchain_desc_start *desc, const void *mode,
+                                              void *callback, BOOL reset_state)
+{
+    SIZE full;
+
+    if (desc && full_size_of_picture(desc->backbuffer_width, desc->backbuffer_height, &full))
+    {
+        desc->backbuffer_width = full.cx;
+        desc->backbuffer_height = full.cy;
+    }
+    return real_device_reset(device, desc, mode, callback, reset_state);
 }
 
 static HRESULT __cdecl kept_set_display_mode(void *output, const struct wined3d_display_mode_copy *wanted)
@@ -252,6 +349,7 @@ static HRESULT __cdecl kept_set_display_mode(void *output, const struct wined3d_
     }
     game_mode = *wanted;
     mode_set = TRUE;
+    picture_scale_x = picture_scale_y = 1.0f;
     InterlockedExchange(&to_announce, 4);
     say("the game asked for display mode %ux%u, format %d; the Mac keeps its mode and the picture is scaled",
         wanted->width, wanted->height, wanted->format_id);
@@ -309,6 +407,10 @@ static void __cdecl sharper_sampler_state(void *stateblock, UINT sampler, int st
     real_sampler_state(stateblock, sampler, state, value);
 }
 
+static void __stdcall shadow_destroyed(void *parent)
+{
+}
+
 /* ddraw has no multisampling, so wined3d's SampleCount setting only reaches
    the swapchain, which the game never draws its 3D picture into. The picture
    is drawn into ddraw's own surfaces. Those that can be drawn into, and the
@@ -321,29 +423,246 @@ static HRESULT __cdecl better_texture_create(void *device, const struct wined3d_
                                              const void *data, void *parent, const void *parent_ops, void **texture)
 {
     enum { TEXTURE_2D = 3, RENDER_TARGET = 0x20, DEPTH_STENCIL = 0x40, D16 = 85, X8D24 = 24 };
+    static void (__stdcall *const shadow_ops)(void *) = shadow_destroyed;
     static LONG said;
     struct wined3d_resource_desc_copy better;
+    struct full_size_surface *entry;
     BOOL depth = (desc->bind_flags & DEPTH_STENCIL) != 0;
+    BOOL the_picture = mode_set && desc->width == game_mode.width && desc->height == game_mode.height;
+    SIZE full;
     HRESULT hr;
 
     if (desc->resource_type != TEXTURE_2D || desc->multisample_type || layers != 1 || levels != 1 || data
         || !(desc->bind_flags & (RENDER_TARGET | DEPTH_STENCIL)))
+    {
+        if (full_size && the_picture && desc->resource_type == TEXTURE_2D && InterlockedIncrement(&said) <= 24)
+            say("a surface of the picture's size that cannot be drawn into, format %d, is left at %ux%u",
+                desc->format, desc->width, desc->height);
         return real_texture_create(device, desc, layers, levels, flags, data, parent, parent_ops, texture);
+    }
 
+    the_picture = full_size_of_picture(desc->width, desc->height, &full);
     for (;;)
     {
         better = *desc;
         if (edge_samples > 1) better.multisample_type = edge_samples;
         if (deep_z && depth && desc->format == D16) better.format = X8D24;
+        if (the_picture)
+        {
+            better.width = full.cx;
+            better.height = full.cy;
+        }
         hr = real_texture_create(device, &better, layers, levels, flags, data, parent, parent_ops, texture);
         if (InterlockedIncrement(&said) <= 24 || FAILED(hr))
-            say("%s surface %ux%u, format %d made as format %d with %d samples: %s", depth ? "depth" : "picture",
-                desc->width, desc->height, desc->format, better.format, better.multisample_type,
-                SUCCEEDED(hr) ? "done" : "refused");
-        if (SUCCEEDED(hr) || !memcmp(&better, desc, sizeof(better))) return hr;
+            say("%s surface %ux%u, format %d made as %ux%u, format %d with %d samples: %s", depth ? "depth" : "picture",
+                desc->width, desc->height, desc->format, better.width, better.height, better.format,
+                better.multisample_type, SUCCEEDED(hr) ? "done" : "refused");
+        if (SUCCEEDED(hr) || !memcmp(&better, desc, sizeof(better))) break;
         if (edge_samples > 1) edge_samples /= 2;
-        else deep_z = FALSE;
+        else if (deep_z) deep_z = FALSE;
+        else the_picture = full_size = FALSE;
     }
+    if (FAILED(hr) || !the_picture) return hr;
+
+    if (!(entry = full_size_surface(*texture))) entry = full_size_surface(NULL);
+    for (unsigned int i = 0; !entry && i < ARRAYSIZE(full_size_surfaces); i++)
+        if (!full_size_surfaces[i].texture) entry = &full_size_surfaces[i];
+    if (!entry)
+    {
+        say("more than %u surfaces of the picture's size; this one cannot be locked or copied right",
+            (unsigned int)ARRAYSIZE(full_size_surfaces));
+        return hr;
+    }
+    memset(entry, 0, sizeof(*entry));
+    entry->texture = *texture;
+    entry->resource = real_texture_resource(*texture);
+    entry->device = device;
+    entry->as_asked = *desc;
+    entry->width = better.width;
+    entry->height = better.height;
+    picture_scale_x = (float)better.width / desc->width;
+    picture_scale_y = (float)better.height / desc->height;
+    if (!depth && FAILED(real_texture_create(device, desc, 1, 1, 0, NULL, NULL, &shadow_ops, &entry->shadow)))
+    {
+        entry->shadow = NULL;
+        say("no copy of the picture in the game's size could be made; a screenshot will be wrong");
+    }
+    return hr;
+}
+
+/* ddraw tells the game the row length of a locked surface from this. The game
+   must get that of the copy in its own size, which is what it is handed. */
+static void __cdecl shadow_pitch(const void *texture, unsigned int level, unsigned int *row_pitch, unsigned int *slice_pitch)
+{
+    struct full_size_surface *entry = full_size_surface(texture);
+
+    real_texture_pitch(entry && entry->shadow ? entry->shadow : texture, level, row_pitch, slice_pitch);
+}
+
+static ULONG __cdecl noted_texture_decref(void *texture)
+{
+    struct full_size_surface *entry = full_size_surface(texture);
+    ULONG left = real_texture_decref(texture);
+
+    if (!left && entry && entry->texture == texture)
+    {
+        if (entry->shadow) real_texture_decref(entry->shadow);
+        memset(entry, 0, sizeof(*entry));
+    }
+    return left;
+}
+
+/* The game transforms every vertex itself and draws with one vertex layout:
+   a position in pixels of its own mode, a colour and three texture
+   coordinates, 44 bytes. So moving those positions to the larger surface
+   scales the 3D scene, the HUD, the menus and the letters alike. A pixel's
+   middle is at a whole number, hence the half pixel. */
+static HRESULT __cdecl scaled_upload(void *device, void *buffer, const void *data, unsigned int size,
+                                     unsigned int stride, unsigned int *pos)
+{
+    enum { GAME_VERTEX = 44 };
+    static float *moved;
+    static unsigned int room;
+    static BOOL said;
+
+    if (!picture_is_scaled() || !data || stride < 4) return real_upload(device, buffer, data, size, stride, pos);
+    if (stride != GAME_VERTEX)
+    {
+        if (!said) say("vertices of %u bytes are not the game's known layout; they are not scaled", stride);
+        said = TRUE;
+        return real_upload(device, buffer, data, size, stride, pos);
+    }
+    if (size > room)
+    {
+        free(moved);
+        room = size * 2;
+        if (!(moved = malloc(room)))
+        {
+            room = 0;
+            return real_upload(device, buffer, data, size, stride, pos);
+        }
+    }
+    memcpy(moved, data, size);
+    for (unsigned int at = 0; at + GAME_VERTEX <= size; at += GAME_VERTEX)
+    {
+        float *vertex = (float *)((BYTE *)moved + at);
+        vertex[0] = (vertex[0] + 0.5f) * picture_scale_x - 0.5f;
+        vertex[1] = (vertex[1] + 0.5f) * picture_scale_y - 0.5f;
+    }
+    return real_upload(device, buffer, moved, size, stride, pos);
+}
+
+/* ddraw also hands wined3d's own viewport back, which is already full size. */
+static void __cdecl scaled_stateblock_viewport(void *stateblock, const struct wined3d_viewport_copy *viewport)
+{
+    struct wined3d_viewport_copy full;
+
+    if (!picture_is_scaled() || !viewport || viewport->x + viewport->width > game_mode.width
+        || viewport->y + viewport->height > game_mode.height)
+    {
+        real_stateblock_viewport(stateblock, viewport);
+        return;
+    }
+    full = *viewport;
+    full.x *= picture_scale_x;
+    full.width *= picture_scale_x;
+    full.y *= picture_scale_y;
+    full.height *= picture_scale_y;
+    real_stateblock_viewport(stateblock, &full);
+}
+
+static HRESULT __cdecl scaled_clear(void *device, unsigned int count, const RECT *rects, uint32_t flags,
+                                    const void *color, float z, unsigned int stencil)
+{
+    RECT full[16];
+
+    if (!picture_is_scaled() || !count || !rects || count > ARRAYSIZE(full))
+        return real_clear(device, count, rects, flags, color, z, stencil);
+    for (unsigned int i = 0; i < count; i++) scaled_rect(&rects[i], &full[i]);
+    return real_clear(device, count, full, flags, color, z, stencil);
+}
+
+static void save_full_size_picture(struct full_size_surface *entry, unsigned int index)
+{
+    enum { MAP_READ = 0x80000000u, B5G6R5 = 116, B8G8R8X8 = 119 };
+    static int saved;
+    struct { UINT row_pitch, slice_pitch; void *data; } map = { 0 };
+    BYTE header[18] = { 0, 0, 2, [12] = entry->width & 0xff, entry->width >> 8, entry->height & 0xff, entry->height >> 8, 24, 0x20 };
+    char name[64];
+    BYTE *row;
+    FILE *file;
+
+    if (entry->as_asked.format != B5G6R5 && entry->as_asked.format != B8G8R8X8) return;
+    if (FAILED(real_map(entry->resource, index, &map, NULL, MAP_READ)) || !map.data) return;
+    snprintf(name, sizeof(name), "C:\\dogfighter-full-size-%d.tga", saved++);
+    if ((file = fopen(name, "wb")) && (row = malloc(entry->width * 3)))
+    {
+        fwrite(header, 1, sizeof(header), file);
+        for (UINT y = 0; y < entry->height; y++)
+        {
+            const BYTE *from = (const BYTE *)map.data + y * map.row_pitch;
+
+            for (UINT x = 0; x < entry->width; x++)
+            {
+                if (entry->as_asked.format == B8G8R8X8) memcpy(row + x * 3, from + x * 4, 3);
+                else
+                {
+                    WORD pixel = from[x * 2] | from[x * 2 + 1] << 8;
+                    row[x * 3] = (pixel & 0x1f) << 3;
+                    row[x * 3 + 1] = (pixel >> 5 & 0x3f) << 2;
+                    row[x * 3 + 2] = (pixel >> 11) << 3;
+                }
+            }
+            fwrite(row, 1, entry->width * 3, file);
+        }
+        free(row);
+        say("test run: the full-size picture, %ux%u, saved as %s", entry->width, entry->height, name);
+    }
+    if (file) fclose(file);
+    real_unmap(entry->resource, index);
+}
+
+/* ddraw also takes that row length when it gives a surface memory of its
+   own. There the full-size surface needs its real one. */
+static HRESULT __cdecl full_size_update_desc(void *texture, unsigned int index, void *memory, unsigned int pitch)
+{
+    struct full_size_surface *entry = full_size_surface(texture);
+    unsigned int slice_pitch;
+
+    if (entry && entry->shadow) real_texture_pitch(texture, index, &pitch, &slice_pitch);
+    return real_update_desc(texture, index, memory, pitch);
+}
+
+static HRESULT __cdecl shadow_map(void *resource, unsigned int index, void *map_desc, const void *box, uint32_t flags)
+{
+    enum { LINEAR = 2 };
+    struct full_size_surface *entry = full_size_surface(resource);
+    RECT asked, full;
+
+    if (!entry || entry->resource != resource || !entry->shadow) return real_map(resource, index, map_desc, box, flags);
+    SetRect(&asked, 0, 0, entry->as_asked.width, entry->as_asked.height);
+    SetRect(&full, 0, 0, entry->width, entry->height);
+    real_blt(real_immediate_context(entry->device), entry->shadow, index, &asked, entry->texture, index, &full, 0, NULL, LINEAR);
+    entry->map_flags = flags;
+    if (test_saves_full_size) save_full_size_picture(entry, index);
+    return real_map(real_texture_resource(entry->shadow), index, map_desc, box, flags);
+}
+
+static HRESULT __cdecl shadow_unmap(void *resource, unsigned int index)
+{
+    enum { MAP_WRITE = 0x40000000, LINEAR = 2 };
+    struct full_size_surface *entry = full_size_surface(resource);
+    HRESULT hr;
+
+    if (!entry || entry->resource != resource || !entry->shadow) return real_unmap(resource, index);
+    hr = real_unmap(real_texture_resource(entry->shadow), index);
+    if (entry->map_flags & MAP_WRITE)
+    {
+        RECT asked = { 0, 0, entry->as_asked.width, entry->as_asked.height }, full = { 0, 0, entry->width, entry->height };
+
+        real_blt(real_immediate_context(entry->device), entry->texture, index, &full, entry->shadow, index, &asked, 0, NULL, LINEAR);
+    }
+    return hr;
 }
 
 static BOOL WINAPI ddraw_clip_cursor(const RECT *rect)
@@ -525,6 +844,31 @@ static BOOL install_hooks(void)
         && !patch_import(ddraw, "wined3d.dll", "wined3d_stateblock_set_sampler_state", sharper_sampler_state))
         say("ddraw.dll does not import wined3d_stateblock_set_sampler_state; textures keep the game's filtering");
     real_texture_create = (void *)GetProcAddress(wined3d, "wined3d_texture_create");
+    real_stateblock_viewport = (void *)GetProcAddress(wined3d, "wined3d_stateblock_set_viewport");
+    real_upload = (void *)GetProcAddress(wined3d, "wined3d_streaming_buffer_upload");
+    real_clear = (void *)GetProcAddress(wined3d, "wined3d_device_clear");
+    real_map = (void *)GetProcAddress(wined3d, "wined3d_resource_map");
+    real_unmap = (void *)GetProcAddress(wined3d, "wined3d_resource_unmap");
+    real_texture_decref = (void *)GetProcAddress(wined3d, "wined3d_texture_decref");
+    real_texture_resource = (void *)GetProcAddress(wined3d, "wined3d_texture_get_resource");
+    real_texture_pitch = (void *)GetProcAddress(wined3d, "wined3d_texture_get_pitch");
+    real_device_reset = (void *)GetProcAddress(wined3d, "wined3d_device_reset");
+    real_update_desc = (void *)GetProcAddress(wined3d, "wined3d_texture_update_desc");
+    if (full_size && (!real_set_viewports || !real_texture_create || !real_texture_resource || !real_texture_pitch
+        || !real_update_desc || !patch_import(ddraw, "wined3d.dll", "wined3d_texture_update_desc", full_size_update_desc)
+        || !real_device_reset || !patch_import(ddraw, "wined3d.dll", "wined3d_device_reset", full_size_device_reset)
+        || !patch_import(ddraw, "wined3d.dll", "wined3d_texture_get_pitch", shadow_pitch)
+        || !patch_import(ddraw, "wined3d.dll", "wined3d_stateblock_set_viewport", scaled_stateblock_viewport)
+        || !patch_import(ddraw, "wined3d.dll", "wined3d_streaming_buffer_upload", scaled_upload)
+        || !patch_import(ddraw, "wined3d.dll", "wined3d_device_clear", scaled_clear)
+        || !patch_import(ddraw, "wined3d.dll", "wined3d_resource_map", shadow_map)
+        || !patch_import(ddraw, "wined3d.dll", "wined3d_resource_unmap", shadow_unmap)
+        || !patch_import(ddraw, "wined3d.dll", "wined3d_texture_decref", noted_texture_decref)
+        || !patch_import(ddraw, "wined3d.dll", "wined3d_swapchain_get_back_buffer", noted_back_buffer)))
+    {
+        say("this Wine's ddraw.dll lacks a call the full-size picture needs; the picture keeps the game's size");
+        full_size = FALSE;
+    }
     if (!real_texture_create || !patch_import(ddraw, "wined3d.dll", "wined3d_texture_create", better_texture_create))
         say("ddraw.dll does not import wined3d_texture_create; edges and depth stay as the game makes them");
     if (!patch_import(dinput, "user32.dll", "ClipCursor", dinput_clip_cursor))
@@ -972,6 +1316,8 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
         if (edge_samples > 16) edge_samples = 0;
         deep_z = GetEnvironmentVariableA("DOGFIGHTER_DEEP_Z", NULL, 0) != 0;
         keep_shape = GetEnvironmentVariableA("DOGFIGHTER_KEEP_SHAPE", NULL, 0) != 0;
+        full_size = GetEnvironmentVariableA("DOGFIGHTER_FULL_SIZE", NULL, 0) != 0;
+        test_saves_full_size = GetEnvironmentVariableA("DOGFIGHTER_TEST_FULL_SIZE_SHOTS", NULL, 0) != 0;
         if (texture_limit != 512 && texture_limit != 1024) texture_limit = 0;
         if (max_client.cx && max_client.cy)
         {
