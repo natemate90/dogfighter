@@ -278,6 +278,12 @@ static void press_key(DWORD scan)
 {
     INPUT key = { .type = INPUT_KEYBOARD, .ki.wScan = scan, .ki.dwFlags = KEYEVENTF_SCANCODE };
 
+    if (scan == 0x1d38)
+    {
+        press_ctrl_option();
+        note("pressed Ctrl+Option");
+        return;
+    }
     SendInput(1, &key, sizeof(INPUT));
     Sleep(150);
     key.ki.dwFlags |= KEYEVENTF_KEYUP;

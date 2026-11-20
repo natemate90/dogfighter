@@ -7,7 +7,7 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
                   [--setup] [--no-focusfix] [--wine=NAME] [--wine-rule=KEY=VALUE]
                   [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|start-test|stall-test|crash-test|draw-test|press-ok|press-cancel]]
                   [--diag-keys=SECONDS:SCANCODE,...] [--diag-mouse=SECONDS:DX:DY[:c],...]
-                  [--diag-console=SECONDS:COMMAND]
+                  [--diag-console=SECONDS:COMMAND] [--diag-display=right] [--diag-activate]
                   [--join=ADDRESS] [--winecfg] [--stop]
        dogfighter [--wine=NAME] --doctor
        dogfighter --backup | --restore[=FILE]
@@ -54,6 +54,8 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
                     are backed up first.
   --debug=CHANNELS  Write Wine debug channels to the log, e.g. --debug=+seh,+ddraw.
   --diag            Write the game's windows, display mode and cursor state to the log.
+                    A run with any --diag option does not hold the mouse, so the
+                    Mac stays usable. --diag-activate turns the hold back on.
                     --diag=focus-test also runs a test with nobody at the screen: it
                     takes the focus away and gives it back, frees and takes the mouse,
                     resizes and zooms the window, then ends the game. It starts 10
@@ -72,7 +74,7 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
                     --diag=press-cancel is for --setup: it presses Cancel there.
   --diag-keys=LIST  Press keys in a test run, e.g. --diag-keys=30:1c,45:3b presses
                     Enter 30 seconds after the first picture and F1 at 45 seconds.
-                    The codes are keyboard scan codes in hex.
+                    The codes are keyboard scan codes in hex. 1d38 presses Ctrl+Option.
   --diag-mouse=LIST Move the mouse in a test run, e.g. --diag-mouse=20:300:150:c moves
                     it 300 right and 150 down at 20 seconds and then clicks. Without
                     :c it only moves. The menus take the mouse, not the keyboard.
@@ -80,6 +82,13 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
                     Run a game console command in a test run, e.g.
                     --diag-console=30:mode+Singleplayer, with + for each space.
                     Can be given more than once.
+  --diag-display=right
+                    Open the game window on the display furthest to the right, so a
+                    test run stays off the screen you work on.
+  --diag-activate   With --diag the log also says, five times a second, whether macOS
+                    shows its pointer and which app is in front. This option also
+                    brings the game to the front once it holds the mouse, as a click
+                    on its window would. It takes the keyboard and the mouse.
   --winecfg         Open Wine's settings for this game's prefix instead of playing.
   --stop            End a running game and all Wine processes of this prefix.
 EOF
@@ -99,6 +108,8 @@ DIAG=
 DIAG_KEYS=
 DIAG_MOUSE=
 DIAG_CONSOLE=()
+DIAG_DISPLAY=
+DIAG_ACTIVATE=0
 WINE_NAME=
 WINE_RULES=
 JOIN=
@@ -131,6 +142,8 @@ for arg in "$@"; do
     --diag-keys=*) DIAG_KEYS="${arg#--diag-keys=}" ;;
     --diag-mouse=*) DIAG_MOUSE="${arg#--diag-mouse=}" ;;
     --diag-console=*) DIAG_CONSOLE+=("${arg#--diag-console=}") ;;
+    --diag-display=right) DIAG_DISPLAY=right ;;
+    --diag-activate) DIAG_ACTIVATE=1 ;;
     --winecfg) MODE=winecfg ;;
     --doctor) MODE=doctor ;;
     --backup) MODE=backup ;;
@@ -157,6 +170,7 @@ if [ -n "$DIAG_KEYS" ]; then
   [[ "$DIAG_KEYS" =~ ^[0-9]+:[0-9a-fA-F]+(,[0-9]+:[0-9a-fA-F]+)*$ ]] || { echo "Bad key list: $DIAG_KEYS" >&2; exit 2; }
   DIAG="${DIAG:-log} keys=$DIAG_KEYS"
 fi
+if [ "$DIAG_ACTIVATE" = 1 ]; then DIAG="${DIAG:-log}"; fi
 if [ -n "$DIAG_MOUSE" ]; then
   [[ "$DIAG_MOUSE" =~ ^[0-9]+:-?[0-9]+:-?[0-9]+(:c)?(,[0-9]+:-?[0-9]+:-?[0-9]+(:c)?)*$ ]] || { echo "Bad mouse list: $DIAG_MOUSE" >&2; exit 2; }
   DIAG="${DIAG:-log} mouse=$DIAG_MOUSE"
@@ -573,6 +587,41 @@ watch_front() {
   done
 }
 
+# macOS does not let a program started from a terminal come to the front on its
+# own. With a hook log as second argument, this brings the game to the front once
+# the hook holds the mouse, as a click on the game window would.
+watch_mac_pointer() {
+  exec /usr/bin/osascript -l JavaScript -e '
+    function run(argv) {
+      ObjC.import("AppKit");
+      ObjC.import("CoreGraphics");
+      ObjC.bindFunction("CGCursorIsVisible", ["bool", []]);
+      var me = Application.currentApplication(), last = "", n = 0, hookLog = argv[0];
+      var top = $.NSScreen.screens.objectAtIndex(0).frame.size.height;
+      me.includeStandardAdditions = true;
+      function say(text) { console.log("mac pointer: " + new Date().toTimeString().slice(0, 8) + " " + text); }
+      for (;;) {
+        if (hookLog && me.doShellScript("grep -c \"mouse kept inside\" \"" + hookLog + "\" || true") !== "0") {
+          hookLog = "";
+          me.doShellScript("pgrep -f \"Dogfighter[.]exe\" || true").split(/[\r\n]+/).forEach(function (pid) {
+            if (!pid) return;
+            var app = $.NSRunningApplication.runningApplicationWithProcessIdentifier(parseInt(pid, 10));
+            if (!app.isNil() && app.activationPolicy == 0)
+              say("asked macOS to bring process " + pid + " to the front: " + app.activateWithOptions(2));
+          });
+        }
+        var front = me.doShellScript("lsappinfo info -only name $(lsappinfo front)").replace(/.*=/, "");
+        var now = ($.CGCursorIsVisible() ? "shown" : "hidden") + ", in front: " + front;
+        if (now !== last || ++n % 20 === 0) {
+          var at = $.NSEvent.mouseLocation;
+          say("at " + Math.round(at.x) + "," + Math.round(top - at.y) + " " + now);
+          last = now;
+        }
+        delay(0.2);
+      }
+    }' "$@" >>"$LOG" 2>&1
+}
+
 if [ "$NATIVE" = 0 ] && ! rosetta_ok; then
   echo "Rosetta 2 is missing. Install it with:" >&2
   echo "  softwareupdate --install-rosetta --agree-to-license" >&2
@@ -680,6 +729,8 @@ if [ "$FOCUSFIX" = 1 ]; then
   export DOGFIGHTER_MODES="${SIZES//$'\n'/ } $GAME_RES"
   export DOGFIGHTER_SETUP="$SETUP"
   if [ "$WIDE" = 1 ]; then export DOGFIGHTER_WIDEN_VIEW=1; fi
+  if [ -n "$DIAG_DISPLAY" ]; then export DOGFIGHTER_TEST_DISPLAY="$DIAG_DISPLAY"; fi
+  if [ -n "$DIAG" ] && [ "$DIAG_ACTIVATE" = 0 ]; then export DOGFIGHTER_TEST_LEAVES_MOUSE=1; fi
   if [ "$ORIGINAL" = 0 ]; then export DOGFIGHTER_ANISOTROPY=16; fi
   if [ -n "$DIAG" ]; then export DOGFIGHTER_DIAG="$DIAG"; fi
   GAME_CMD=('C:\dogfighter-focusfix.exe' 'C:\dogfighter-focusfix.flag' "$GAME_DOS\\Dogfighter.exe")
@@ -690,7 +741,15 @@ if [ "$FOCUSFIX" = 1 ]; then
   fi
   watch_front "$FLAG" &
   WATCH_PID=$!
-  trap 'kill "$WATCH_PID" 2>/dev/null || true' EXIT
+  if [ -n "$DIAG" ]; then
+    if [ "$DIAG_ACTIVATE" = 1 ]; then
+      watch_mac_pointer "$WINEPREFIX/drive_c/dogfighter-focushook.log" &
+    else
+      watch_mac_pointer &
+    fi
+    WATCH_PID="$WATCH_PID $!"
+  fi
+  trap 'kill $WATCH_PID 2>/dev/null || true' EXIT
 else
   GAME_CMD=(explorer "/desktop=Dogfighter,$GAME_RES" start /wait /d "$GAME_DOS" "$GAME_DOS\\Dogfighter.exe")
 fi
@@ -735,8 +794,8 @@ while :; do
 done
 
 if [ -n "$WATCH_PID" ]; then
-  kill "$WATCH_PID" 2>/dev/null || true
-  wait "$WATCH_PID" 2>/dev/null || true
+  kill $WATCH_PID 2>/dev/null || true
+  wait $WATCH_PID 2>/dev/null || true
 fi
 if [ -f "$HERE/game/winmm.log" ]; then
   cp "$HERE/game/winmm.log" "${LOG%.log}-music.log"

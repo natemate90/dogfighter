@@ -33,6 +33,7 @@ struct wined3d_viewport_copy
 #define WINED3DERR_INVALIDCALL ((HRESULT)0x8876086c)
 #define CONSOLE_COMMAND 0x41664463
 #define WIDEN_VIEW (WM_APP + 0x4466)
+#define HIDE_POINTER (WM_APP + 0x4467)
 
 static HRESULT (__cdecl *real_present)(void *swapchain, const RECT *src, const RECT *dst,
                                        HWND override, unsigned int interval, uint32_t flags);
@@ -59,7 +60,8 @@ static WNDPROC game_proc, next_proc;
 static SIZE max_client, mac_screen, fitted_for, modes[32];
 static unsigned int mode_count;
 static struct wined3d_display_mode_copy game_mode;
-static BOOL mode_set, dinput_wants_mouse, mouse_free, widen_view;
+static BOOL mode_set, dinput_wants_mouse, mouse_free, widen_view, test_on_right_display, test_leaves_mouse, pointer_hidden;
+static RECT test_display;
 static void *front_swapchain, *front_texture;
 static DWORD front_thread;
 static unsigned int anisotropy, texture_limit;
@@ -295,6 +297,91 @@ static BOOL WINAPI dinput_clip_cursor(const RECT *rect)
     return TRUE;
 }
 
+/* DirectInput hides the pointer when the game takes the mouse. Wine's Mac
+   driver passes that on to macOS as one [NSCursor hide], and on this setup the
+   pointer stays on the screen all the same. So DirectInput's call is dropped,
+   the Windows cursor stays "shown", and the hook gives it an empty picture.
+   The picture is an animated cursor of two empty frames on purpose: the Mac
+   driver sets a cursor picture only once, but for an animated one it sets the
+   next frame again every 100 ms, so macOS cannot keep its arrow. */
+static int WINAPI dinput_show_cursor(BOOL show)
+{
+    return show ? 0 : -1;
+}
+
+static HCURSOR empty_cursor(void)
+{
+    enum { SIDE = 32, FRAMES = 2, PIXELS = SIDE * SIDE * 4, MASK = SIDE * SIDE / 8,
+           FRAME = 22 + sizeof(BITMAPINFOHEADER) + PIXELS + MASK, LIST = 4 + FRAMES * (8 + FRAME) };
+    static const BYTE and_mask[MASK * 2] = { [0 ... MASK - 1] = 0xff };
+    static const BYTE xor_mask[MASK] = { 0 };
+    static HCURSOR cursor;
+    DWORD anih[] = { 36, FRAMES, FRAMES, 0, 0, 0, 0, 6, 1 };
+    BITMAPINFOHEADER bitmap = { sizeof(bitmap), SIDE, SIDE * 2, 1, 32 };
+    WORD dir[] = { 0, 2, 1 };
+    DWORD entry[] = { SIDE | SIDE << 8, 0, sizeof(bitmap) + PIXELS + MASK, 22 };
+    DWORD riff[] = { 0x46464952, 4 + 8 + sizeof(anih) + 8 + LIST, 0x4e4f4341, 0x68696e61, sizeof(anih) };
+    DWORD list[] = { 0x5453494c, LIST, 0x6d617266 }, icon[] = { 0x6e6f6369, FRAME };
+    BYTE *file, *at;
+
+    if (cursor) return cursor;
+    if ((file = at = calloc(1, sizeof(riff) + sizeof(anih) + sizeof(list) + FRAMES * (8 + FRAME))))
+    {
+        memcpy(at, riff, sizeof(riff)); at += sizeof(riff);
+        memcpy(at, anih, sizeof(anih)); at += sizeof(anih);
+        memcpy(at, list, sizeof(list)); at += sizeof(list);
+        for (int i = 0; i < FRAMES; i++)
+        {
+            memcpy(at, icon, sizeof(icon)); at += sizeof(icon);
+            memcpy(at, dir, sizeof(dir)); at += sizeof(dir);
+            memcpy(at, entry, sizeof(entry)); at += sizeof(entry);
+            memcpy(at, &bitmap, sizeof(bitmap)); at += sizeof(bitmap) + PIXELS;
+            memset(at, 0xff, MASK); at += MASK;
+        }
+        cursor = (HCURSOR)CreateIconFromResourceEx(file, at - file, FALSE, 0x00030000, 0, 0, 0);
+        free(file);
+    }
+    if (!cursor)
+    {
+        say("no animated empty cursor; using a plain one, which the Mac driver sets only once");
+        cursor = CreateCursor(GetModuleHandleA(NULL), 0, 0, SIDE, SIDE, and_mask, xor_mask);
+    }
+    else
+    {
+        HCURSOR (WINAPI *frame_info)(HCURSOR, DWORD, DWORD, DWORD *, DWORD *) =
+            (void *)GetProcAddress(GetModuleHandleA("user32.dll"), "GetCursorFrameInfo");
+        DWORD rate = 0, steps = 0;
+
+        if (frame_info) frame_info(cursor, 0, 0, &rate, &steps);
+        say("empty cursor %p made: %lu frames, a new one every %lu/60 of a second", (void *)cursor, steps, rate);
+    }
+    return cursor;
+}
+
+static void hide_pointer(BOOL hide)
+{
+    CURSORINFO info = { sizeof(info) };
+    SYSTEMTIME at;
+
+    if (hide == pointer_hidden) return;
+    pointer_hidden = hide;
+    SetCursor(hide ? empty_cursor() : LoadCursorA(NULL, (const char *)IDC_ARROW));
+    GetCursorInfo(&info);
+    GetLocalTime(&at);
+    say("%02u:%02u:%02u the system pointer is %s; Windows reports its cursor %s with handle %p, the empty cursor is %p",
+        at.wHour, at.wMinute, at.wSecond, hide ? "given an empty picture, the mouse belongs to the game" : "the arrow again",
+        info.flags & CURSOR_SHOWING ? "shown" : "hidden", (void *)info.hCursor, (void *)empty_cursor());
+}
+
+static void hide_pointer_while_held(BOOL held)
+{
+    static BOOL asked;
+
+    if (held == asked || !next_proc) return;
+    asked = held;
+    PostMessageA(game_window, HIDE_POINTER, held, 0);
+}
+
 static BOOL WINAPI dinput_set_cursor_pos(int x, int y)
 {
     InterlockedIncrement(&dinput_moves);
@@ -380,6 +467,8 @@ static BOOL install_hooks(void)
         say("dinput.dll does not import ClipCursor; the mouse is not kept inside the picture");
     if (!patch_import(dinput, "user32.dll", "SetCursorPos", dinput_set_cursor_pos))
         say("dinput.dll does not import SetCursorPos; its pointer moves are not counted");
+    if (!patch_import(dinput, "user32.dll", "ShowCursor", dinput_show_cursor))
+        say("dinput.dll does not import ShowCursor; the system pointer cannot be given an empty picture");
     return TRUE;
 }
 
@@ -415,6 +504,16 @@ static LRESULT CALLBACK hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         widen_view_for(wp, lp);
         return 0;
     }
+    if (msg == HIDE_POINTER)
+    {
+        hide_pointer(wp);
+        return 0;
+    }
+    if (msg == WM_SETCURSOR && pointer_hidden && LOWORD(lp) == HTCLIENT)
+    {
+        SetCursor(empty_cursor());
+        return TRUE;
+    }
     if (msg == WM_COPYDATA && ((COPYDATASTRUCT *)lp)->dwData == CONSOLE_COMMAND)
     {
         COPYDATASTRUCT *data = (COPYDATASTRUCT *)lp;
@@ -435,7 +534,7 @@ static LRESULT CALLBACK hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     {
         MINMAXINFO *info = (MINMAXINFO *)lp;
         info->ptMaxTrackSize.x = info->ptMaxTrackSize.y = 16384;
-        if (mac_screen.cx)
+        if (mac_screen.cx && !test_on_right_display)
         {
             info->ptMaxPosition.x = info->ptMaxPosition.y = 0;
             info->ptMaxSize.x = mac_screen.cx;
@@ -517,6 +616,36 @@ static void raise_texture_size_limit(void)
     say("texture size limit raised from %d to %u pixels", ORIGINAL_LIMIT, texture_limit);
 }
 
+static BOOL CALLBACK note_display(HMONITOR monitor, HDC dc, RECT *rect, LPARAM lp)
+{
+    MONITORINFO info = { sizeof(info) };
+
+    if (!GetMonitorInfoA(monitor, &info)) return TRUE;
+    say("display at %ld,%ld %ldx%ld, room for windows at %ld,%ld %ldx%ld", info.rcMonitor.left, info.rcMonitor.top,
+        info.rcMonitor.right - info.rcMonitor.left, info.rcMonitor.bottom - info.rcMonitor.top,
+        info.rcWork.left, info.rcWork.top, info.rcWork.right - info.rcWork.left, info.rcWork.bottom - info.rcWork.top);
+    if (IsRectEmpty(&test_display) || info.rcWork.left > test_display.left) test_display = info.rcWork;
+    return TRUE;
+}
+
+static void fit_on_test_display(DWORD style, DWORD ex)
+{
+    RECT frame = { 0, 0, 0, 0 };
+    LONG wide, high;
+
+    EnumDisplayMonitors(NULL, NULL, note_display, 0);
+    if (IsRectEmpty(&test_display))
+    {
+        test_on_right_display = FALSE;
+        return;
+    }
+    AdjustWindowRectEx(&frame, style, FALSE, ex);
+    wide = test_display.right - test_display.left - (frame.right - frame.left);
+    high = test_display.bottom - test_display.top - (frame.bottom - frame.top);
+    if (max_client.cx > wide) max_client.cx = wide;
+    if (max_client.cy > high) max_client.cy = high;
+}
+
 static void make_normal_window(HWND w)
 {
     static BOOL placed;
@@ -528,6 +657,10 @@ static void make_normal_window(HWND w)
 
     if (!game_mode.width || !game_mode.height || (normal && same_shape)) return;
     if (IsIconic(w) || IsZoomed(w)) return;
+
+    style = (style & ~WS_POPUP) | WS_OVERLAPPEDWINDOW;
+    ex &= ~WS_EX_TOPMOST;
+    if (!placed && test_on_right_display) fit_on_test_display(style, ex);
 
     GetClientRect(w, &client);
     size.cx = client.right;
@@ -545,15 +678,17 @@ static void make_normal_window(HWND w)
     fitted_for.cx = game_mode.width;
     fitted_for.cy = game_mode.height;
 
-    style = (style & ~WS_POPUP) | WS_OVERLAPPEDWINDOW;
-    ex &= ~WS_EX_TOPMOST;
     SetRect(&frame, 0, 0, size.cx, size.cy);
     AdjustWindowRectEx(&frame, style, FALSE, ex);
     SetWindowLongA(w, GWL_STYLE, style);
     SetWindowLongA(w, GWL_EXSTYLE, ex);
-    SetWindowPos(w, HWND_NOTOPMOST, 0, 0, frame.right - frame.left, frame.bottom - frame.top,
-                 SWP_FRAMECHANGED | SWP_NOACTIVATE | (placed ? SWP_NOMOVE : 0));
+    SetWindowPos(w, HWND_NOTOPMOST, test_display.left, test_display.top, frame.right - frame.left,
+                 frame.bottom - frame.top, SWP_FRAMECHANGED | SWP_NOACTIVATE | (placed ? SWP_NOMOVE : 0));
     placed = TRUE;
+    if (test_on_right_display && GetWindowRect(w, &frame))
+        say("test run: window at %ld,%ld %ldx%ld, on the display with room at %ld,%ld %ldx%ld", frame.left, frame.top,
+            frame.right - frame.left, frame.bottom - frame.top, test_display.left, test_display.top,
+            test_display.right - test_display.left, test_display.bottom - test_display.top);
 
     GetClientRect(w, &client);
     say("picture %ux%u, window client area now %ldx%ld (asked for %ldx%ld), style %08lx",
@@ -569,6 +704,7 @@ static void keep_mouse_inside(void)
     BOOL keys_down = (GetAsyncKeyState(VK_CONTROL) & 0x8000) && (GetAsyncKeyState(VK_MENU) & 0x8000);
     BOOL front = game_window && GetForegroundWindow() == game_window && !IsIconic(game_window);
     RECT client = { 0 }, now = { 0 };
+    BOOL held;
 
     if (!front) mouse_free = FALSE;
     else if (keys_down && !keys_were_down)
@@ -579,16 +715,19 @@ static void keep_mouse_inside(void)
     }
     keys_were_down = keys_down;
 
-    if (front && dinput_wants_mouse && !mouse_free && GetClientRect(game_window, &client) && client.right)
+    held = front && dinput_wants_mouse && !mouse_free && GetClientRect(game_window, &client) && client.right;
+    hide_pointer_while_held(held);
+    if (held)
     {
         MapWindowPoints(game_window, NULL, (POINT *)&client, 2);
         GetClipCursor(&now);
         if (!ours || !EqualRect(&client, &wanted) || !EqualRect(&now, &applied))
         {
-            ClipCursor(&client);
+            if (!test_leaves_mouse) ClipCursor(&client);
             GetClipCursor(&applied);
             if (!ours || !EqualRect(&client, &wanted))
-                say("mouse kept inside %ld,%ld %ldx%ld; the picture is at %ld,%ld %ldx%ld",
+                say("%s %ld,%ld %ldx%ld; the picture is at %ld,%ld %ldx%ld",
+                    test_leaves_mouse ? "test run, the mouse is not held; it can move in" : "mouse kept inside",
                     applied.left, applied.top, applied.right - applied.left, applied.bottom - applied.top,
                     client.left, client.top, client.right - client.left, client.bottom - client.top);
             wanted = client;
@@ -597,7 +736,7 @@ static void keep_mouse_inside(void)
     }
     else if (ours)
     {
-        ClipCursor(NULL);
+        if (!test_leaves_mouse) ClipCursor(NULL);
         ours = FALSE;
         say("mouse let go");
     }
@@ -673,6 +812,8 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
         mac_screen = env_size("DOGFIGHTER_SCREEN");
         read_mode_list();
         widen_view = GetEnvironmentVariableA("DOGFIGHTER_WIDEN_VIEW", NULL, 0) != 0;
+        test_on_right_display = GetEnvironmentVariableA("DOGFIGHTER_TEST_DISPLAY", NULL, 0) != 0;
+        test_leaves_mouse = GetEnvironmentVariableA("DOGFIGHTER_TEST_LEAVES_MOUSE", NULL, 0) != 0;
         anisotropy = env_size("DOGFIGHTER_ANISOTROPY").cx;
         texture_limit = env_size("DOGFIGHTER_TEXTURE_LIMIT").cx;
         if (texture_limit != 512 && texture_limit != 1024) texture_limit = 0;
