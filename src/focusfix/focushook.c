@@ -80,9 +80,11 @@ static void (__cdecl *real_texture_pitch)(const void *texture, unsigned int leve
                                           unsigned int *slice_pitch);
 
 /* With DOGFIGHTER_FULL_SIZE the game goes on believing in its own mode, and
-   the surfaces it draws its picture into are made as large as the window.
-   One entry per such surface. The shadow is a copy in the game's size, made
-   when the game locks the surface, which is how it reads a screenshot. */
+   the surfaces it draws its picture into are made as large as the screen.
+   The picture is drawn into their top left part, as large as the window is
+   at that moment, so a resized window needs no new surfaces. One entry per
+   such surface. The shadow is a copy in the game's size, made when the game
+   locks the surface, which is how it reads a screenshot. */
 static struct full_size_surface
 {
     void *texture, *resource, *shadow, *device;
@@ -92,6 +94,8 @@ static struct full_size_surface
 } full_size_surfaces[8];
 static BOOL full_size;
 static float picture_scale_x = 1.0f, picture_scale_y = 1.0f;
+static void *viewport_stateblock;
+static struct wined3d_viewport_copy game_viewport;
 static SIZE swapchain_size;
 static void *swapchain_back_buffer;
 
@@ -164,9 +168,7 @@ static SIZE fitted_client(void)
 
 static BOOL full_size_of_picture(UINT width, UINT height, SIZE *full)
 {
-    *full = fitted_client();
-    if (swapchain_size.cx && full->cx > swapchain_size.cx) full->cx = swapchain_size.cx;
-    if (swapchain_size.cy && full->cy > swapchain_size.cy) full->cy = swapchain_size.cy;
+    *full = swapchain_size.cx && swapchain_size.cy ? swapchain_size : fitted_client();
     return full_size && mode_set && width == game_mode.width && height == game_mode.height
            && full->cx > (LONG)width && full->cy > (LONG)height;
 }
@@ -180,9 +182,49 @@ static struct full_size_surface *full_size_surface(const void *texture_or_resour
     return NULL;
 }
 
+static BOOL full_size_surface_made(void)
+{
+    for (unsigned int i = 0; i < ARRAYSIZE(full_size_surfaces); i++)
+        if (full_size_surfaces[i].texture) return TRUE;
+    return FALSE;
+}
+
 static BOOL picture_is_scaled(void)
 {
     return picture_scale_x != 1.0f || picture_scale_y != 1.0f;
+}
+
+static void scale_viewport(const struct wined3d_viewport_copy *viewport)
+{
+    struct wined3d_viewport_copy full = *viewport;
+
+    full.x *= picture_scale_x;
+    full.width *= picture_scale_x;
+    full.y *= picture_scale_y;
+    full.height *= picture_scale_y;
+    real_stateblock_viewport(viewport_stateblock, &full);
+}
+
+/* The picture is drawn as large as the window's client area, at most as large
+   as the surfaces. Called between two frames, so one frame has one scale. */
+static void scale_picture_to(LONG width, LONG height)
+{
+    struct full_size_surface *any = NULL;
+    float x, y;
+
+    for (unsigned int i = 0; !any && i < ARRAYSIZE(full_size_surfaces); i++)
+        if (full_size_surfaces[i].texture) any = &full_size_surfaces[i];
+    if (!any || !game_mode.width || !game_mode.height || width <= 0 || height <= 0) return;
+    if (width > (LONG)any->width) width = any->width;
+    if (height > (LONG)any->height) height = any->height;
+    x = (float)width / game_mode.width;
+    y = (float)height / game_mode.height;
+    if (x == picture_scale_x && y == picture_scale_y) return;
+    picture_scale_x = x;
+    picture_scale_y = y;
+    if (viewport_stateblock) scale_viewport(&game_viewport);
+    say("the picture is drawn %ldx%ld now, %.3f by %.3f times the game's %ux%u", width, height, x, y,
+        game_mode.width, game_mode.height);
 }
 
 static const RECT *scaled_rect(const RECT *rect, RECT *scaled)
@@ -242,6 +284,7 @@ static HRESULT __cdecl scaled_present(void *swapchain, const RECT *src, const RE
     }
     if (picture_is_scaled()) src = scaled_rect(src, &full);
     hr = real_present(swapchain, src, dst, override, interval, flags);
+    if (full_size && dst == &client) scale_picture_to(client.right, client.bottom);
     set_viewport_again(swapchain);
     tell_helper_about_picture();
     return hr;
@@ -350,6 +393,7 @@ static HRESULT __cdecl kept_set_display_mode(void *output, const struct wined3d_
     game_mode = *wanted;
     mode_set = TRUE;
     picture_scale_x = picture_scale_y = 1.0f;
+    viewport_stateblock = NULL;
     InterlockedExchange(&to_announce, 4);
     say("the game asked for display mode %ux%u, format %d; the Mac keeps its mode and the picture is scaled",
         wanted->width, wanted->height, wanted->format_id);
@@ -427,6 +471,7 @@ static HRESULT __cdecl better_texture_create(void *device, const struct wined3d_
     static LONG said;
     struct wined3d_resource_desc_copy better;
     struct full_size_surface *entry;
+    RECT client;
     BOOL depth = (desc->bind_flags & DEPTH_STENCIL) != 0;
     BOOL the_picture = mode_set && desc->width == game_mode.width && desc->height == game_mode.height;
     SIZE full;
@@ -480,8 +525,13 @@ static HRESULT __cdecl better_texture_create(void *device, const struct wined3d_
     entry->as_asked = *desc;
     entry->width = better.width;
     entry->height = better.height;
-    picture_scale_x = (float)better.width / desc->width;
-    picture_scale_y = (float)better.height / desc->height;
+    full = fitted_client();
+    if (picture_target(&client) && fitted_for.cx == (LONG)game_mode.width && fitted_for.cy == (LONG)game_mode.height)
+    {
+        full.cx = client.right;
+        full.cy = client.bottom;
+    }
+    scale_picture_to(full.cx, full.cy);
     if (!depth && FAILED(real_texture_create(device, desc, 1, 1, 0, NULL, NULL, &shadow_ops, &entry->shadow)))
     {
         entry->shadow = NULL;
@@ -555,20 +605,15 @@ static HRESULT __cdecl scaled_upload(void *device, void *buffer, const void *dat
 /* ddraw also hands wined3d's own viewport back, which is already full size. */
 static void __cdecl scaled_stateblock_viewport(void *stateblock, const struct wined3d_viewport_copy *viewport)
 {
-    struct wined3d_viewport_copy full;
-
-    if (!picture_is_scaled() || !viewport || viewport->x + viewport->width > game_mode.width
+    if (!full_size_surface_made() || !viewport || viewport->x + viewport->width > game_mode.width
         || viewport->y + viewport->height > game_mode.height)
     {
         real_stateblock_viewport(stateblock, viewport);
         return;
     }
-    full = *viewport;
-    full.x *= picture_scale_x;
-    full.width *= picture_scale_x;
-    full.y *= picture_scale_y;
-    full.height *= picture_scale_y;
-    real_stateblock_viewport(stateblock, &full);
+    viewport_stateblock = stateblock;
+    game_viewport = *viewport;
+    scale_viewport(viewport);
 }
 
 static HRESULT __cdecl scaled_clear(void *device, unsigned int count, const RECT *rects, uint32_t flags,
@@ -587,22 +632,28 @@ static void save_full_size_picture(struct full_size_surface *entry, unsigned int
     enum { MAP_READ = 0x80000000u, B5G6R5 = 116, B8G8R8X8 = 119 };
     static int saved;
     struct { UINT row_pitch, slice_pitch; void *data; } map = { 0 };
-    BYTE header[18] = { 0, 0, 2, [12] = entry->width & 0xff, entry->width >> 8, entry->height & 0xff, entry->height >> 8, 24, 0x20 };
+    RECT asked = { 0, 0, entry->as_asked.width, entry->as_asked.height }, drawn;
+    BYTE header[18] = { 0, 0, 2, [16] = 24, 0x20 };
     char name[64];
     BYTE *row;
     FILE *file;
 
+    scaled_rect(&asked, &drawn);
+    header[12] = drawn.right & 0xff;
+    header[13] = drawn.right >> 8;
+    header[14] = drawn.bottom & 0xff;
+    header[15] = drawn.bottom >> 8;
     if (entry->as_asked.format != B5G6R5 && entry->as_asked.format != B8G8R8X8) return;
     if (FAILED(real_map(entry->resource, index, &map, NULL, MAP_READ)) || !map.data) return;
     snprintf(name, sizeof(name), "C:\\dogfighter-full-size-%d.tga", saved++);
-    if ((file = fopen(name, "wb")) && (row = malloc(entry->width * 3)))
+    if ((file = fopen(name, "wb")) && (row = malloc(drawn.right * 3)))
     {
         fwrite(header, 1, sizeof(header), file);
-        for (UINT y = 0; y < entry->height; y++)
+        for (LONG y = 0; y < drawn.bottom; y++)
         {
             const BYTE *from = (const BYTE *)map.data + y * map.row_pitch;
 
-            for (UINT x = 0; x < entry->width; x++)
+            for (LONG x = 0; x < drawn.right; x++)
             {
                 if (entry->as_asked.format == B8G8R8X8) memcpy(row + x * 3, from + x * 4, 3);
                 else
@@ -613,10 +664,10 @@ static void save_full_size_picture(struct full_size_surface *entry, unsigned int
                     row[x * 3 + 2] = (pixel >> 11) << 3;
                 }
             }
-            fwrite(row, 1, entry->width * 3, file);
+            fwrite(row, 1, drawn.right * 3, file);
         }
         free(row);
-        say("test run: the full-size picture, %ux%u, saved as %s", entry->width, entry->height, name);
+        say("test run: the full-size picture, %ldx%ld, saved as %s", drawn.right, drawn.bottom, name);
     }
     if (file) fclose(file);
     real_unmap(entry->resource, index);
@@ -641,7 +692,7 @@ static HRESULT __cdecl shadow_map(void *resource, unsigned int index, void *map_
 
     if (!entry || entry->resource != resource || !entry->shadow) return real_map(resource, index, map_desc, box, flags);
     SetRect(&asked, 0, 0, entry->as_asked.width, entry->as_asked.height);
-    SetRect(&full, 0, 0, entry->width, entry->height);
+    scaled_rect(&asked, &full);
     real_blt(real_immediate_context(entry->device), entry->shadow, index, &asked, entry->texture, index, &full, 0, NULL, LINEAR);
     entry->map_flags = flags;
     if (test_saves_full_size) save_full_size_picture(entry, index);
@@ -658,8 +709,9 @@ static HRESULT __cdecl shadow_unmap(void *resource, unsigned int index)
     hr = real_unmap(real_texture_resource(entry->shadow), index);
     if (entry->map_flags & MAP_WRITE)
     {
-        RECT asked = { 0, 0, entry->as_asked.width, entry->as_asked.height }, full = { 0, 0, entry->width, entry->height };
+        RECT asked = { 0, 0, entry->as_asked.width, entry->as_asked.height }, full;
 
+        scaled_rect(&asked, &full);
         real_blt(real_immediate_context(entry->device), entry->texture, index, &full, entry->shadow, index, &asked, 0, NULL, LINEAR);
     }
     return hr;

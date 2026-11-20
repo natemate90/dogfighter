@@ -221,7 +221,7 @@ Pictures in the menus and the HUD have no more detail than before; they are enla
 - On an M4 Max a flight ran at 62 to 89 frames a second at 2774x1734, with 4 samples per pixel.
 - It works together with `--hd-textures`.
 - F12 screenshots keep the game's own size.
-- A window you resize later is scaled from the size it had at the start.
+- The picture follows the window when it is resized or zoomed, up to the screen's size.
 - Nobody has looked at it on a screen or clicked through the menus with it yet.
 
 `--retina` opens the window with the Retina screen's own pixels and keeps the game's resolution.
