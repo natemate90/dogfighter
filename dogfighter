@@ -23,8 +23,8 @@ Usage: dogfighter [--res=WxH] [--full-res] [--sharp] [--retina] [--windowed=WxH]
                     pixels as the window has on a Retina screen, and keep the HUD,
                     the menus and all letters at their normal size. The game goes
                     on working in its own resolution; the helper enlarges what it
-                    draws. A window resized later is scaled from the size it had
-                    at the start.
+                    draws. The picture follows the window when you resize or
+                    zoom it.
   --sharp           Use Retina pixels: a sharper picture in flight. The HUD and
                     the letters in a flight are then half size; --full-res
                     does not have that.
