@@ -146,6 +146,7 @@ The game starts with the best picture by itself:
 - Text, menus and the gauges in flight keep their normal size.
 - The textures of the 3D world have twice the pixels.
 - Letters have twice the pixels too, so they look crisper.
+- Labels with small writing, such as on the bombs, the glue tube and the book spines, are redrawn with matching fonts.
 - Every start also turns some of the game's own settings up, such as the draw distance and the colour depth.
 
 Setup makes the sharper textures once.

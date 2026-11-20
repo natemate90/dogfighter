@@ -17,7 +17,9 @@ language, or installs English the first time. Saves are kept when you switch.
 At the end setup makes the larger textures that ./dogfighter uses. It
 downloads two upscalers (about 100 MB) to upscale-tools/ and takes a few
 minutes. If the upscalers cannot be fetched or do not run on this Mac, the
-textures are made with the Mac's own filter. When hd-textures/ already holds
+textures are made with the Mac's own filter. Labels with small writing are
+then redrawn with matching fonts; three of them are downloaded with the
+upscalers, the rest come with macOS. When hd-textures/ already holds
 a complete set, whatever made it, setup leaves it and the upscalers as they
 are. --no-hd-textures skips this step. --hd-textures is still accepted; it is
 the default.
@@ -289,6 +291,8 @@ make_hd_textures() {
   if python3 -I "$tool" --check; then
     step "Larger textures"
     echo "hd-textures/ holds a complete set. It is left as it is."
+    grep -q '"way": "lettering"' "$HERE/hd-textures/manifest.json" ||
+      echo "To redraw the small writing on labels in that set, run: python3 tools/upscale-textures.py --fetch-tools && python3 tools/upscale-textures.py"
     [ -n "$GENERATIVE" ] || return 0
     python3 -I "$tool" --fetch-tools --generative
     echo "To redraw the listed surfaces in that set, run: python3 tools/upscale-textures.py"
