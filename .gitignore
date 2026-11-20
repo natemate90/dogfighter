@@ -24,3 +24,5 @@
 /.claude/
 .DS_Store
 __pycache__/
+/upscale-tools/
+/texture-overrides/
