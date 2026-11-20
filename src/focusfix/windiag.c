@@ -199,6 +199,60 @@ static void end_game(const char *why)
     if (process) CloseHandle(process);
 }
 
+static void note_window(const char *when)
+{
+    RECT window = { 0 }, client = { 0 }, clip = { 0 };
+
+    GetWindowRect(game_hwnd, &window);
+    GetClientRect(game_hwnd, &client);
+    MapWindowPoints(game_hwnd, NULL, (POINT *)&client, 2);
+    GetClipCursor(&clip);
+    note("move test, %s: window at %ld,%ld %ldx%ld, picture at %ld,%ld %ldx%ld, mouse kept inside %ld,%ld %ldx%ld", when,
+         window.left, window.top, window.right - window.left, window.bottom - window.top,
+         client.left, client.top, client.right - client.left, client.bottom - client.top,
+         clip.left, clip.top, clip.right - clip.left, clip.bottom - clip.top);
+}
+
+static BOOL move_test_step(int step)
+{
+    RECT window = { 0 }, client = { 0 };
+
+    switch (step)
+    {
+    case 0:
+        note_window("at the start");
+        press_ctrl_option();
+        break;
+    case 2:
+        note_window("after Ctrl+Option");
+        GetWindowRect(game_hwnd, &window);
+        SendMessageTimeoutA(game_hwnd, WM_ENTERSIZEMOVE, 0, 0, SMTO_ABORTIFHUNG, 2000, NULL);
+        for (int i = 1; i <= 4; i++)
+        {
+            SetWindowPos(game_hwnd, NULL, window.left + 40 * i, window.top + 25 * i, 0, 0,
+                         SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            Sleep(100);
+        }
+        SendMessageTimeoutA(game_hwnd, WM_EXITSIZEMOVE, 0, 0, SMTO_ABORTIFHUNG, 2000, NULL);
+        note_window("right after a move by 160,100");
+        break;
+    case 5:
+        note_window("3 seconds after the move");
+        GetClientRect(game_hwnd, &client);
+        PostMessageA(game_hwnd, WM_LBUTTONDOWN, MK_LBUTTON, MAKELPARAM(client.right / 2, client.bottom - 20));
+        PostMessageA(game_hwnd, WM_LBUTTONUP, 0, MAKELPARAM(client.right / 2, client.bottom - 20));
+        note("move test, sent a click message for the picture");
+        break;
+    case 7:
+        note_window("after the click in the picture");
+        break;
+    case 8:
+        end_game("move test finished");
+        return FALSE;
+    }
+    return TRUE;
+}
+
 static BOOL window_test_step(int step)
 {
     static HWND thief;
@@ -291,7 +345,7 @@ static void press_key(DWORD scan)
     note("pressed the key with scan code %02lx", scan);
 }
 
-static struct { DWORD second; int dx, dy; BOOL click; } moves[32];
+static struct { DWORD second; int dx, dy; BOOL click, outside; } moves[32];
 static int move_count, moves_done;
 
 static void read_moves(const char *list)
@@ -302,16 +356,25 @@ static void read_moves(const char *list)
            && sscanf(list, "%lu:%d:%d%n", &moves[move_count].second, &moves[move_count].dx, &moves[move_count].dy, &used) == 3)
     {
         list += used;
-        if ((moves[move_count].click = !strncmp(list, ":c", 2))) list += 2;
+        moves[move_count].outside = !strncmp(list, ":o", 2);
+        if ((moves[move_count].click = moves[move_count].outside || !strncmp(list, ":c", 2))) list += 2;
         move_count++;
         if (*list == ',') list++;
     }
 }
 
-static void move_mouse(int dx, int dy, BOOL click)
+static void move_mouse(int dx, int dy, BOOL click, BOOL outside)
 {
     enum { STEPS = 20 };
     INPUT input = { .type = INPUT_MOUSE, .mi.dwFlags = MOUSEEVENTF_MOVE };
+    RECT window = { 0 };
+    POINT at = { 0, 0 };
+
+    if (outside && GetWindowRect(game_hwnd, &window))
+    {
+        SetCursorPos(window.right + 60, window.top + 60);
+        Sleep(300);
+    }
 
     for (int i = 0; i < STEPS; i++)
     {
@@ -324,6 +387,8 @@ static void move_mouse(int dx, int dy, BOOL click)
     {
         input.mi.dx = input.mi.dy = 0;
         Sleep(300);
+        GetCursorPos(&at);
+        note("clicking with the system pointer at %ld,%ld, which is %s", at.x, at.y, pointer_place(at));
         input.mi.dwFlags = MOUSEEVENTF_LEFTDOWN;
         SendInput(1, &input, sizeof(INPUT));
         Sleep(150);
@@ -400,7 +465,7 @@ static void draw_test(void)
 
 int main(int argc, char **argv)
 {
-    BOOL seen = FALSE, window_test = FALSE, start_test = FALSE, press_ok = FALSE, press_cancel = FALSE;
+    BOOL seen = FALSE, window_test = FALSE, move_test = FALSE, start_test = FALSE, press_ok = FALSE, press_cancel = FALSE;
     DWORD start = GetTickCount(), wait = 10;
     int next_step = 0;
 
@@ -414,6 +479,7 @@ int main(int argc, char **argv)
     for (int i = 1; i < argc; i++)
     {
         if (!strcmp(argv[i], "focus-test")) window_test = TRUE;
+        if (!strcmp(argv[i], "move-test")) move_test = TRUE;
         if (!strcmp(argv[i], "start-test")) start_test = TRUE;
         if (!strcmp(argv[i], "press-ok")) press_ok = TRUE;
         if (!strcmp(argv[i], "press-cancel")) press_cancel = TRUE;
@@ -447,13 +513,15 @@ int main(int argc, char **argv)
             press_key(keys[keys_pressed++].scan);
         while (moves_done < move_count && shown >= moves[moves_done].second)
         {
-            move_mouse(moves[moves_done].dx, moves[moves_done].dy, moves[moves_done].click);
+            move_mouse(moves[moves_done].dx, moves[moves_done].dy, moves[moves_done].click, moves[moves_done].outside);
             moves_done++;
         }
         while (commands_sent < command_count && shown >= commands[commands_sent].second)
             send_command(commands[commands_sent++].text);
         while (window_test && shown >= wait && (int)(shown - wait) >= next_step)
             window_test = window_test_step(next_step++);
+        while (move_test && shown >= wait && (int)(shown - wait) >= next_step)
+            move_test = move_test_step(next_step++);
 
         snapshot();
         if (strcmp(now, before))

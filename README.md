@@ -86,7 +86,10 @@ The picture is scaled to fill the window, so menu text stays readable.
 
 The game holds the mouse while it is in front.
 Press Ctrl+Option to free the mouse, for the title bar or another app.
-Press Ctrl+Option again to give it back.
+To move the window, press Ctrl+Option, then drag the title bar.
+Press Ctrl+Option again, or click in the picture, to give the mouse back.
+While the game holds the mouse, the launcher gives the Mac pointer an empty picture, so only the game's own cursor shows.
+Ctrl+Option, the drag and the hidden pointer were seen working with Mach9 on an M4 Max.
 The window title shows which of the two it is.
 Cmd+Tab also frees the mouse, and the game takes it back when you return.
 
@@ -377,6 +380,7 @@ They are listed in sections 1.1 and 1.2 of `game/readme.txt`.
 - **Logs.** Each start writes `logs/run-<date>-<time>.log`. The music player's log is next to it, ending in `-music.log`.
 - **Slow start.** The Rosetta Wine sometimes crashes or hangs while the game starts Direct3D. The launcher sees this and starts the game again, up to eight times. A crashed start costs a few seconds, a hung one 15 seconds. A start that shows no picture within 15 seconds after the setup dialog counts as hung.
 - **The mouse is stuck in the window.** Press Ctrl+Option. The game holds the mouse on purpose while you play.
+- **The window cannot be dragged.** Press Ctrl+Option first, then drag the title bar. While the game holds the mouse, the pointer cannot reach the title bar.
 - **Cmd+Tab.** The game was not made for task switching. The helper keeps it running after Cmd+Tab and brings it back to the front when you return.
 - **The helper is missing.** If the launcher says `focusfix.exe` or `focushook.dll` is missing, run `./setup.sh` again.
 - **Testing without the helper.** `--no-focusfix` runs the game in a plain Wine desktop window. The picture is not scaled, the window cannot be resized, the game stops when it loses the focus, and you press OK in the setup dialog yourself. The picture settings are the original ones, as with `--original`. A crashed start is started again, a hung one is not: end it with `./dogfighter --stop`.
