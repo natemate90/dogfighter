@@ -659,13 +659,14 @@ if [ "$FOCUSFIX" = 1 ]; then
   trap 'kill "$WATCH_PID" 2>/dev/null || true' EXIT
 else
   GAME_CMD=(explorer "/desktop=Dogfighter,$GAME_RES" start /wait /d "$GAME_DOS" "$GAME_DOS\\Dogfighter.exe")
-  if [ -n "$DIAG" ]; then
-    "$WINE" explorer "/desktop=Dogfighter,$GAME_RES" 'C:\dogfighter-windiag.exe' "$DIAG" >>"$LOG" 2>&1 &
-  fi
 fi
 
 run_wine() {
   say "Starting Airfix Dogfighter. Log: $LOG"
+  # The test tool ends when the game does, so each try needs its own.
+  if [ "$FOCUSFIX" = 0 ] && [ -n "$DIAG" ]; then
+    "$WINE" explorer "/desktop=Dogfighter,$GAME_RES" 'C:\dogfighter-windiag.exe' "$DIAG" >>"$LOG" 2>&1 &
+  fi
   if [ -n "$WINE_NAME" ]; then say "Wine build: $WINE_DIR ($("$WINE" --version 2>/dev/null || true), $(/usr/bin/lipo -archs "$WINE" 2>/dev/null || true)), prefix: $WINEPREFIX${WINE_COMPATDB:+, rules: ${WINE_COMPATDB//$'\n'/ | }}"; fi
   DOGFIGHTER_PICTURE_WAIT_MS="${PICTURE_WAIT_FIRST_TRY:-$PICTURE_WAIT_MS}" "$WINE" "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
   "$WINESERVER" -w
