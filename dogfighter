@@ -5,7 +5,7 @@ usage() {
   cat <<'EOF'
 Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures] [--original]
                   [--setup] [--no-focusfix] [--wine=NAME] [--wine-rule=KEY=VALUE]
-                  [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|start-test|stall-test|crash-test|draw-test|press-ok|press-cancel]]
+                  [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|start-test|stall-test|crash-test|fallback-test|draw-test|press-ok|press-cancel]]
                   [--diag-keys=SECONDS:SCANCODE,...] [--diag-mouse=SECONDS:DX:DY[:c],...]
                   [--diag-console=SECONDS:COMMAND] [--diag-display=right] [--diag-hold]
                   [--join=ADDRESS] [--winecfg] [--stop]
@@ -33,10 +33,16 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
                     and wait for OK. Without this the launcher presses OK itself.
   --no-focusfix     Start without the helper. The picture is not scaled, the window
                     has no title bar and the game stops when it loses the focus.
-  --wine=NAME       Run with the Wine build in wine-NAME/ and the prefix prefix-NAME/
-                    in place of wine/ and prefix/. --wine=mach9 is Mach9, a Wine that
-                    needs no Rosetta; the README says how to get it. Use the same
-                    option with --stop, --winecfg and --doctor.
+  --wine=NAME       Pick the Wine build. Without it the launcher uses Mach9, a Wine
+                    that needs no Rosetta, when wine-mach9/ is there and macOS is
+                    26.4 or later, and the Rosetta Wine otherwise. If the game does
+                    not start on a Mach9 picked that way, it is started again on the
+                    Rosetta Wine.
+                    --wine=stable is the Rosetta Wine in wine/ with the prefix prefix/.
+                    --wine=mach9 is Mach9 in wine-mach9/ with prefix-mach9/.
+                    Any other NAME uses wine-NAME/ and prefix-NAME/.
+                    --winecfg and --doctor follow the same choice. --stop without
+                    --wine ends the game on both.
   --wine-rule=KEY=VALUE
                     Only with Mach9: a Mach9 setting for the game, e.g.
                     --wine-rule=env=FEX_X87REDUCEDPRECISION= for exact x87 maths.
@@ -65,6 +71,9 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
                     that never drew, so the launcher has to start the game again.
                     --diag=crash-test is the same, but ends the first start as its
                     setup dialog closes, like a crash before the first picture.
+                    --diag=fallback-test is the same, but ends every start on a
+                    Mach9 that was picked without --wine, so the launcher has to
+                    go on with the Rosetta Wine.
                     --diag=draw-test runs a small test program in place of the game. It
                     draws straight to the screen surface, which the game never does.
                     It cannot be combined with --diag-keys, --diag-mouse or
@@ -116,6 +125,8 @@ RESTORE_FILE=
 PICTURE_WAIT_MS=15000
 PICTURE_WAIT_FIRST_TRY=
 END_AFTER_SETUP_FIRST_TRY=
+FALLBACK_TEST=0
+ARGS=("$@")
 for arg in "$@"; do
   case "$arg" in
     --windowed=*) WINDOW_SIZE="${arg#--windowed=}" ;;
@@ -135,6 +146,7 @@ for arg in "$@"; do
     --diag=start-test) DIAG=start-test ;;
     --diag=stall-test) DIAG=start-test; PICTURE_WAIT_FIRST_TRY=1 ;;
     --diag=crash-test) DIAG=start-test; END_AFTER_SETUP_FIRST_TRY=1 ;;
+    --diag=fallback-test) DIAG=start-test; FALLBACK_TEST=1 ;;
     --diag=draw-test) DIAG=draw-test ;;
     --diag=press-ok) DIAG=press-ok ;;
     --diag=press-cancel) DIAG=press-cancel ;;
@@ -201,7 +213,33 @@ while [ -L "$SELF" ]; do
   [[ "$SELF" == /* ]] || SELF="$LINK_DIR/$SELF"
 done
 HERE="$(cd -P "$(dirname "$SELF")" && pwd)"
-WINE_DIR="$HERE/wine${WINE_NAME:+-$WINE_NAME}"
+
+apple_silicon() {
+  [ "$(uname -m)" = arm64 ] || [ "$(sysctl -n hw.optional.arm64 2>/dev/null || true)" = 1 ]
+}
+
+rosetta_ok() { /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; }
+
+# Mach9 needs macOS 26.4. DOGFIGHTER_MACOS stands in for the real version in a test.
+mach9_is_default() {
+  local version="${DOGFIGHTER_MACOS:-$(/usr/bin/sw_vers -productVersion 2>/dev/null || true)}" major minor
+  major="${version%%.*}"
+  minor=0
+  if [[ "$version" == *.* ]]; then minor="${version#*.}"; fi
+  minor="${minor%%.*}"
+  [[ "$major" =~ ^[0-9]+$ && "$minor" =~ ^[0-9]+$ ]] || return 1
+  [ "$major" -gt 26 ] || { [ "$major" -eq 26 ] && [ "$minor" -ge 4 ]; } || return 1
+  apple_silicon && { [ -x "$HERE/wine-mach9/wine/bin/wine" ] || [ -x "$HERE/wine-mach9/bin/wine" ]; }
+}
+
+WINE_PICKED=0
+if [ -z "$WINE_NAME" ]; then
+  WINE_PICKED=1
+  if mach9_is_default; then WINE_NAME=mach9; else WINE_NAME=stable; fi
+fi
+SUFFIX="-$WINE_NAME"
+if [ "$WINE_NAME" = stable ]; then SUFFIX=; fi
+WINE_DIR="$HERE/wine$SUFFIX"
 if [ -x "$WINE_DIR/wine/bin/wine" ]; then WINE_DIR="$WINE_DIR/wine"; fi
 WINE="$WINE_DIR/bin/wine"
 WINESERVER="$WINE_DIR/bin/wineserver"
@@ -230,17 +268,17 @@ SAVED="User user.ini system.ini"
 SIZES="2560x1600 2560x1440 1920x1200 1920x1080 1680x1050 1600x1200 1600x900 1440x900
        1280x1024 1280x960 1280x800 1280x720 1024x768 800x600 640x480"
 
-export WINEPREFIX="$HERE/prefix${WINE_NAME:+-$WINE_NAME}"
+export WINEPREFIX="$HERE/prefix$SUFFIX"
 if [ "$MODE" = stop ]; then
   if [ -x "$WINESERVER" ]; then "$WINESERVER" -k 2>/dev/null || true; fi
+  if [ "$WINE_PICKED" = 1 ]; then
+    for other in "$HERE/wine/bin/wineserver:$HERE/prefix" "$HERE/wine-mach9/wine/bin/wineserver:$HERE/prefix-mach9" \
+      "$HERE/wine-mach9/bin/wineserver:$HERE/prefix-mach9"; do
+      if [ -x "${other%%:*}" ]; then WINEPREFIX="${other#*:}" "${other%%:*}" -k 2>/dev/null || true; fi
+    done
+  fi
   exit 0
 fi
-
-rosetta_ok() { /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; }
-
-apple_silicon() {
-  [ "$(uname -m)" = arm64 ] || [ "$(sysctl -n hw.optional.arm64 2>/dev/null || true)" = 1 ]
-}
 
 has_files() {
   local dir="$1" name
@@ -279,9 +317,12 @@ check() {
 }
 
 doctor() {
-  local t tracks=() folder="wine${WINE_NAME:+-$WINE_NAME}" get=./setup.sh
-  if [ -n "$WINE_NAME" ]; then get="unpack that Wine build into $folder/"; fi
+  local t tracks=() folder="wine$SUFFIX" get=./setup.sh
+  if [ "$WINE_NAME" != stable ] && [ "$WINE_NAME" != mach9 ]; then get="unpack that Wine build into $folder/"; fi
   for t in 02 03 04 05 06 07 08 09 10 11; do tracks+=("Track$t.ogg"); done
+  if [ "$WINE_PICKED" = 1 ]; then
+    echo "      Checking the Wine a plain ./dogfighter uses: --wine=$WINE_NAME, in $folder/."
+  fi
   check "Apple Silicon Mac" "none; this launcher needs an M1 or later" apple_silicon
   if [ "$NATIVE" = 1 ]; then
     check "Wine in $folder/ needs no Rosetta" "$get" test "$(/usr/bin/lipo -archs "$WINE" 2>/dev/null)" = arm64
@@ -302,7 +343,11 @@ doctor() {
     "delete build/focusfix.exe and build/focushook.dll, then ./setup.sh" helper_fresh
   check "Save folders in game/User" "./setup.sh" save_folders_ok
   if [ "$FAILED" = 0 ]; then
-    echo "All $CHECKS checks passed. Start the game with: ./dogfighter${WINE_NAME:+ --wine=$WINE_NAME}"
+    if [ "$WINE_PICKED" = 1 ]; then
+      echo "All $CHECKS checks passed. Start the game with: ./dogfighter"
+    else
+      echo "All $CHECKS checks passed. Start the game with: ./dogfighter --wine=$WINE_NAME"
+    fi
   else
     echo "$FAILED of $CHECKS checks failed. Do the fixes above, then run this again."
     return 1
@@ -743,7 +788,7 @@ run_wine() {
   if [ "$FOCUSFIX" = 0 ] && [ -n "$DIAG" ]; then
     "$WINE" explorer "/desktop=Dogfighter,$GAME_RES" 'C:\dogfighter-windiag.exe' "$DIAG" >>"$LOG" 2>&1 &
   fi
-  if [ -n "$WINE_NAME" ]; then say "Wine build: $WINE_DIR ($("$WINE" --version 2>/dev/null || true), $(/usr/bin/lipo -archs "$WINE" 2>/dev/null || true)), prefix: $WINEPREFIX${WINE_COMPATDB:+, rules: ${WINE_COMPATDB//$'\n'/ | }}"; fi
+  if [ -n "$WINE_NAME" ]; then say "Wine build: --wine=$WINE_NAME, $WINE_DIR ($("$WINE" --version 2>/dev/null || true), $(/usr/bin/lipo -archs "$WINE" 2>/dev/null || true)), prefix: $WINEPREFIX${WINE_COMPATDB:+, rules: ${WINE_COMPATDB//$'\n'/ | }}"; fi
   DOGFIGHTER_PICTURE_WAIT_MS="${PICTURE_WAIT_FIRST_TRY:-$PICTURE_WAIT_MS}" \
     DOGFIGHTER_END_AFTER_SETUP="${END_AFTER_SETUP_FIRST_TRY:-0}" "$WINE" "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
   "$WINESERVER" -w
@@ -762,18 +807,28 @@ START_CRASH='focusfix: the game (ended before its setup dialog appeared|got stuc
 if [ "$FOCUSFIX" = 0 ]; then
   START_CRASH='Unhandled page fault on read access to 00004DC9|Exception frame is not in stack limits'
 fi
+FALLBACK=0
+if [ "$WINE_PICKED" = 1 ] && [ "$WINE_NAME" = mach9 ] && [ "$FOCUSFIX" = 1 ] && [ -x "$HERE/wine/bin/wine" ] && rosetta_ok; then
+  FALLBACK=1
+  if [ "$FALLBACK_TEST" = 1 ]; then END_AFTER_SETUP_FIRST_TRY=1; fi
+fi
+TRIES=8
+if [ "$FALLBACK" = 1 ]; then TRIES=2; fi
 cd "$HERE"
 TRY=1
+STARTED=1
 while :; do
   LOG_LINES="$(wc -l <"$LOG")"
   run_wine
   if grep -q 'drew nothing after its setup dialog' "$LOG"; then PICTURE_WAIT_FIRST_TRY=; fi
-  if grep -q 'crash test: ending the game' "$LOG"; then END_AFTER_SETUP_FIRST_TRY=; fi
-  [ "$TRY" -lt 8 ] || break
+  if [ "$FALLBACK_TEST" = 0 ] && grep -q 'crash test: ending the game' "$LOG"; then END_AFTER_SETUP_FIRST_TRY=; fi
+  STARTED=1
   LC_ALL=C awk -v from="$LOG_LINES" -v crash="$START_CRASH" '
     NR > from && $0 ~ crash { found = 1 } END { exit !found }' "$LOG" || break
+  STARTED=0
+  [ "$TRY" -lt "$TRIES" ] || break
   TRY=$((TRY + 1))
-  say "The game did not get past Wine's start-up crash. Starting again (try $TRY of 8)."
+  say "The game did not get past Wine's start-up crash. Starting again (try $TRY of $TRIES)."
 done
 
 if [ -n "$WATCH_PID" ]; then
@@ -782,5 +837,13 @@ if [ -n "$WATCH_PID" ]; then
 fi
 if [ -f "$HERE/game/winmm.log" ]; then
   cp "$HERE/game/winmm.log" "${LOG%.log}-music.log"
+fi
+if [ "$FALLBACK" = 1 ] && [ "$STARTED" = 0 ]; then
+  KEPT=()
+  for arg in ${ARGS[@]+"${ARGS[@]}"}; do
+    case "$arg" in --wine-rule=*) ;; *) KEPT+=("$arg") ;; esac
+  done
+  say "The game did not start on Mach9. Starting it with the Rosetta Wine in wine/ instead${WINE_RULES:+, without the --wine-rule settings: they are for Mach9 only}."
+  exec "$HERE/dogfighter" --wine=stable ${KEPT[@]+"${KEPT[@]}"}
 fi
 say "Done. Log: $LOG"

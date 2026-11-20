@@ -18,13 +18,13 @@ This project is not affiliated with any of them.
 ## Requirements
 
 - A Mac with Apple Silicon (M1 or later).
-- Rosetta 2, for setup and for the default way to play: `softwareupdate --install-rosetta --agree-to-license`
-- Playing itself can do without Rosetta, with another Wine build (see Without Rosetta).
+- macOS 26.4 or later to play without Rosetta. Setup then fetches Mach9, a Wine that needs none (see Without Rosetta).
+- On older macOS, Rosetta 2: `softwareupdate --install-rosetta --agree-to-license`
 - The Xcode Command Line Tools, for `clang` and `python3`: `xcode-select --install`
-- About 3 GB of free disk space and an internet connection.
+- About 5 GB of free disk space and an internet connection. On macOS before 26.4 it is about 3 GB.
 - Your Airfix Dogfighter CD, as a raw image (see below).
 
-Setup downloads Wine 11.0 (Gcenx build), llvm-mingw, ogg-winmm, libogg and libvorbis.
+Setup downloads Mach9 0.4.0 on macOS 26.4 or later, Wine 11.0 (Gcenx build) where Rosetta is installed, and llvm-mingw, ogg-winmm, libogg and libvorbis.
 It checks each download against a pinned SHA-256 checksum.
 
 ## Setup
@@ -102,9 +102,9 @@ Cmd+Tab also frees the mouse, and the game takes it back when you return.
 | `--join=ADDRESS` | Put a server in the game's Address book, then start the game (see Online multiplayer). |
 | `--setup` | Show the game's setup dialog and wait for OK. |
 | `--no-focusfix` | Start without the helper (see Troubleshooting). |
-| `--wine=NAME` | Use the Wine build in `wine-NAME/` and the prefix `prefix-NAME/`. `--wine=mach9` plays without Rosetta (see Without Rosetta). |
+| `--wine=NAME` | Pick the Wine build: `--wine=mach9` or `--wine=stable`, the Rosetta Wine (see Without Rosetta). Any other name uses `wine-NAME/` and `prefix-NAME/`. |
 | `--wine-rule=KEY=VALUE` | Only with Mach9: one Mach9 setting for the game (see Without Rosetta). Can be given more than once. |
-| `--stop` | End a running game and all its Wine processes. |
+| `--stop` | End a running game and all its Wine processes, on both Wine builds. |
 | `--debug=CHANNELS` | Write Wine debug channels to the log, e.g. `--debug=+seh`. |
 | `--diag` | Write the game's windows, display mode and cursor state to the log. |
 | `--winecfg` | Open Wine's settings for this game instead of playing. |
@@ -112,7 +112,7 @@ Cmd+Tab also frees the mouse, and the game takes it back when you return.
 | `--backup` | Copy your saves and settings to a dated zip file in `backups/` (see Saves). |
 | `--restore[=FILE]` | Put a backup back: the newest one, or `FILE`. |
 
-The first start creates a Wine prefix in `prefix/`, which takes a minute.
+The first start creates a Wine prefix, which takes a minute: `prefix-mach9/` for Mach9, `prefix/` for the Rosetta Wine.
 The disc image is not needed while playing: `cd/` acts as the CD in drive D:.
 
 The game has a setup dialog for the driver, the language and advanced settings.
@@ -135,47 +135,34 @@ If you move this folder, run `./setup.sh` again and use the new app.
 
 ## Without Rosetta
 
-The default Wine is an Intel program, so macOS runs it through Rosetta 2.
-Apple removes most of Rosetta with macOS 28.
-[Mach9](https://github.com/athei/mach9) is a Wine build for Apple Silicon that needs no Rosetta.
-It runs the game's Intel code with its own emulator, FEX.
+There are two Wine builds, and the launcher picks one.
 
-This is an option. Rosetta and Wine 11.0 stay the default.
+- [Mach9](https://github.com/athei/mach9) is a Wine build for Apple Silicon that needs no Rosetta. It runs the game's Intel code with its own emulator, FEX. It is the default on macOS 26.4 or later, when `wine-mach9/` is there.
+- Wine 11.0 (Gcenx build) is an Intel program, so macOS runs it through Rosetta 2. It is the default on older macOS, and the fallback everywhere else. Apple removes most of Rosetta with macOS 28.
 
-- Mach9 needs macOS 26.4 or later.
-- `setup.sh` does not fetch Mach9. You download and unpack it yourself, once.
-- `setup.sh` itself still needs Rosetta today.
-- Tested on one Mac, an M4 Max, with Mach9 0.4.0. It is not tested on an M1.
+`./setup.sh` fetches Mach9 on macOS 26.4 or later and does not ask for Rosetta there.
+It fetches the Rosetta Wine too when Rosetta is installed.
 
-Download and unpack it in this folder:
+If the game does not start on Mach9, the launcher says so in one line and starts it on the Rosetta Wine.
+That needs Rosetta and `wine/`.
 
-```
-mkdir -p downloads/mach9 wine-mach9
-curl -L -o downloads/mach9/wine-v0.4.0-macos-arm64.tar.xz https://github.com/athei/mach9/releases/download/v0.4.0/wine-v0.4.0-macos-arm64.tar.xz
-shasum -a 256 downloads/mach9/wine-v0.4.0-macos-arm64.tar.xz
-tar -xJf downloads/mach9/wine-v0.4.0-macos-arm64.tar.xz -C wine-mach9
-```
-
-The checksum must be `3b81aac9b93d5652872673b400769ec525f3bc2f1f7e2ec82c9f851d0a0db05d`.
-After unpacking, `wine-mach9/wine/bin/wine` exists.
-The download is 1.1 GB unpacked.
-
-Then check it and play:
+Pick a build yourself with `--wine`:
 
 ```
-./dogfighter --wine=mach9 --doctor
 ./dogfighter --wine=mach9
+./dogfighter --wine=stable
 ```
 
-- The first start creates a second Wine prefix in `prefix-mach9/`. That takes a minute and about 770 MB.
-- The game files in `game/`, your saves and your settings are shared with the default Wine.
-- Use the same option to stop the game: `./dogfighter --wine=mach9 --stop`.
-- The other options work with it too, e.g. `--sharp`, `--wide` and `--hd-textures`.
+- `--wine=mach9` uses `wine-mach9/` and `prefix-mach9/`. `--wine=stable` uses `wine/` and `prefix/`.
+- `--doctor` and `--winecfg` take the same option. Without it they follow the launcher's pick.
+- Mach9 is tested on one Mac, an M4 Max, with Mach9 0.4.0. It is not tested on an M1.
+- Mach9 is 1.1 GB unpacked, and its prefix about 770 MB.
+- The game files in `game/`, your saves and your settings are shared by both builds.
 - The two intro videos play on Mach9. Press Esc to skip them.
 
 What was measured on the M4 Max, in the first mission at 1280x800:
 
-| | Default (Rosetta) | Mach9 |
+| | Rosetta Wine | Mach9 |
 | --- | --- | --- |
 | Frames a second in flight | about 30 | about 100 |
 | Loading a mission | about 30 seconds | 2 to 5 seconds |
@@ -305,8 +292,8 @@ It prints one line per check, with the fix for each failed one.
 It exits with status 1 when a check failed.
 
 It checks these things.
-- Rosetta 2 is installed, and Wine is there and runs.
-- With `--wine=mach9` it checks that Wine build in place of the default one, and skips the Rosetta check (see Without Rosetta).
+- The Wine build a plain `./dogfighter` uses is there and runs. For Mach9 that it needs no Rosetta, for the Rosetta Wine that Rosetta 2 is installed.
+- With `--wine=mach9` or `--wine=stable` it checks that build (see Without Rosetta).
 - macOS does not hold Wine in quarantine.
 - The game files, the CD label and the ten music tracks are in place.
 - The helper is built and newer than its source.
@@ -319,7 +306,7 @@ It checks these things.
 - [Tailscale](https://tailscale.com) is the easiest way: everyone joins one tailnet and uses the Tailscale IP addresses. No port forwarding is needed.
 - Without Tailscale, the host must forward UDP port 19400 to their Mac.
 - All players need the same game version (see the top of `game/readme.txt`).
-- Allow Wine through the macOS firewall. Click Allow when macOS asks, or add `wine/bin/wine` under System Settings > Network > Firewall > Options.
+- Allow Wine through the macOS firewall. Click Allow when macOS asks, or add `wine/bin/wine` (for Mach9 `wine-mach9/wine/bin/wine`) under System Settings > Network > Firewall > Options.
 
 ### Join a server by address
 
@@ -388,12 +375,13 @@ They are listed in sections 1.1 and 1.2 of `game/readme.txt`.
 
 - **Start here.** Run `./dogfighter --doctor`. It names what is broken and how to fix it.
 - **Logs.** Each start writes `logs/run-<date>-<time>.log`. The music player's log is next to it, ending in `-music.log`.
-- **Slow start.** Wine sometimes crashes or hangs while the game starts Direct3D. The launcher sees this and starts the game again, up to eight times. A crashed start costs a few seconds, a hung one 15 seconds. A start that shows no picture within 15 seconds after the setup dialog counts as hung.
+- **Slow start.** The Rosetta Wine sometimes crashes or hangs while the game starts Direct3D. The launcher sees this and starts the game again, up to eight times. A crashed start costs a few seconds, a hung one 15 seconds. A start that shows no picture within 15 seconds after the setup dialog counts as hung.
 - **The mouse is stuck in the window.** Press Ctrl+Option. The game holds the mouse on purpose while you play.
 - **Cmd+Tab.** The game was not made for task switching. The helper keeps it running after Cmd+Tab and brings it back to the front when you return.
 - **The helper is missing.** If the launcher says `focusfix.exe` or `focushook.dll` is missing, run `./setup.sh` again.
 - **Testing without the helper.** `--no-focusfix` runs the game in a plain Wine desktop window. The picture is not scaled, the window cannot be resized, the game stops when it loses the focus, and you press OK in the setup dialog yourself. The picture settings are the original ones, as with `--original`. A crashed start is started again, a hung one is not: end it with `./dogfighter --stop`.
 - **Tiny text.** Make the window bigger. The picture grows with it.
+- **The game does not start on Mach9.** The launcher goes on with the Rosetta Wine by itself when that is installed. To stay on it, start with `./dogfighter --wine=stable`.
 - **Game still running.** `./dogfighter --stop` ends a game that hangs or that you cannot reach.
 - **No music.** Check that `music/` holds ten `.ogg` files and that `game/winmm.dll` exists. Run `./setup.sh` again if not.
 - **Disc not found.** `cd/.windows-label` must contain `Dogfighter`, with that exact case. Delete `cd/` and run `./setup.sh` again to rebuild it.
