@@ -402,7 +402,20 @@ So letters keep their place and size, and get twice the pixels.
 One test run opened the Pilot Roster with `--full-res --hd-textures`.
 The text stood in the same place and its strokes were crisper.
 Other screens were not compared.
-Window frames and other menu pictures do not work this way and are left alone.
+### Markers for flat pictures with more pixels
+
+An empty file `<name>.2x` or `<name>.4x` next to a picture in `hd-textures/cache/` says it has 2 or 4 times the pixels a side.
+The helper then keeps the picture at its old size and place.
+
+- The game draws a flat picture as large as the size stored for it. After loading, the helper divides that stored size by 2 or 4.
+- Window frames, buttons and sliders are laid out with the picture's real pixel count, from `GtImage::GetWidth` and `GetHeight` in `Cc.dll`. For a marked picture the helper answers those calls from `AfEngine.dll` and `Dogfighter.exe` with the stored size. The Direct3D driver keeps the real one.
+- When the game shrinks a picture to its size limit, the stored size does not change, so the picture is still drawn right.
+- The helper checks the bytes of the loader and of both size functions first. On another game build it writes one line to the log and leaves everything alone; marked pictures would then be drawn too large.
+- Pictures the game reads pixel by pixel must not get a marker: the Paint Room's pieces, the stickers and `Graphics\Misc`.
+
+Test runs used plain 2x and 4x copies of the window frames, the medals, a pilot photo, the cursor, the HUD and the main menu.
+Each screen matched the one with the game's own files, with the limit at 1024 and at 512.
+Info, Login and Campaign opened on a click.
 
 ### Redrawn labels
 
