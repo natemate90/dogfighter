@@ -247,7 +247,7 @@ It stays opt-in until a person has judged it.
 The game shrinks every texture to at most 256 pixels a side.
 `--hd-textures` raises that limit and loads larger copies of the 3D textures.
 You make the copies once, on your Mac, from your own game files.
-Nothing is downloaded or uploaded.
+Nothing is uploaded, and nothing is downloaded unless you ask for the upscalers below.
 
 ```
 python3 tools/upscale-textures.py
@@ -260,18 +260,60 @@ python3 tools/upscale-textures.py
 - The packs in `game/` are never changed.
 - Without `--hd-textures` the game uses its own textures, as before.
 
-The resizer is the Lanczos filter that comes with macOS.
+Without the upscalers the resizer is the Lanczos filter that comes with macOS.
 It gives smoother edges up close. It does not add detail.
 
-If `realesrgan-ncnn-vulkan` is on your `PATH`, the tool uses that instead.
-It draws new detail, and it takes much longer.
-The tool never downloads it.
-This path is not tested yet.
-`--upscaler vimage` keeps the macOS filter.
+### Upscalers that draw detail
+
+```
+python3 tools/upscale-textures.py --fetch-tools
+python3 tools/upscale-textures.py
+```
+
+`./setup.sh --hd-textures` runs both after the normal setup.
+A plain `./setup.sh` downloads none of this.
+
+`--fetch-tools` downloads three archives, about 100 MB, to `downloads/upscale/`.
+- `upscayl-bin` 20251207-174704, which runs the model.
+- The Real-ESRGAN model `realesrgan-x4plus`, from the Real-ESRGAN release v0.2.5.0.
+- `waifu2x-ncnn-vulkan` 20250915 with its `cunet` model, as the second choice.
+
+Each archive is checked against a SHA-256 checksum pinned in the tool before it is unpacked.
+Only the program and model files are unpacked, to `upscale-tools/`.
+The tool refuses to run them when their checksums differ, unless you pass `--allow-other-tools`.
+
+It ran once on an M4 Max, on all 1,192 textures, in 271 seconds.
+Real-ESRGAN made 1,140 of them, waifu2x 50, the macOS filter 2, and none was refused.
+The eight textures made a second time came out byte-identical.
+
+Each texture goes through these steps.
+- Invisible pixels get the colour of their visible neighbours, so no dark rim appears.
+- A tiling texture gets a wrapped border of 16 pixels, cut off again afterwards.
+- Real-ESRGAN makes it 4x, and for 2x that is averaged down.
+- The result is pulled back to the original, so colours and shapes cannot drift.
+- Alpha is resized by the macOS filter, never by the upscaler.
+
+Then the texture is checked.
+- Shrunk to the original size, it must match the original.
+- A tiling texture must still tile.
+- A texture that fails goes to waifu2x, then to the macOS filter.
+- One that fails all three is not written, and the game uses its own.
+
+The limits are at the top of `tools/upscale-textures.py`, with what each score means.
+They were set with the stand-in programs and are not yet checked against Real-ESRGAN.
+
+`hd-textures/manifest.json` lists every texture with the way it took and its scores.
+The tool prints the count per way at the end.
+It also makes eight textures a second time and says whether they came out the same.
+A run that stops can be started again and goes on where it stopped.
+The old set is replaced only when the new one is complete.
+
+`--upscaler vimage` keeps the macOS filter even when the upscalers are there.
+`--sheets FOLDER` writes pictures that put the macOS filter next to the set.
 
 `--scale 4` makes textures four times as large, up to 1024 pixels.
 That needs about 730 MB of disk space.
-It loaded in the first mission at the same frame rate, and looked much like 2x.
+With the macOS filter it loaded in the first mission at the same frame rate, and looked much like 2x.
 Longer missions are not tested: the game is a 32-bit program and may run out of memory.
 
 Only textures on 3D shapes are resized: walls, floors, models, sky and effects.

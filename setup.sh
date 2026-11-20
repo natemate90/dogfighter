@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: ./setup.sh [--language=English|French|German|Italian] [path/to/Dogfighter.bin]
+Usage: ./setup.sh [--language=English|French|German|Italian] [--hd-textures] [path/to/Dogfighter.bin]
 
 Builds everything the game needs from your own Airfix Dogfighter CD image.
 On macOS 26.4 or later it also fetches Mach9, a Wine that needs no Rosetta.
@@ -12,6 +12,10 @@ Run it again after an error: finished steps are skipped.
 
 --language picks the game's language. Without it, setup keeps the installed
 language, or installs English the first time. Saves are kept when you switch.
+
+--hd-textures also makes larger textures for ./dogfighter --hd-textures. It
+downloads two upscalers (about 100 MB) to upscale-tools/ and takes a while.
+Without it nothing of that is downloaded.
 EOF
 }
 
@@ -29,10 +33,12 @@ canonical_language() {
 
 LANGUAGE=
 IMAGE=
+HD_TEXTURES=0
 for arg in "$@"; do
   case "$arg" in
     -h|--help) usage; exit 0 ;;
     --language=*) LANGUAGE="$(canonical_language "${arg#--language=}")" || { usage >&2; exit 2; } ;;
+    --hd-textures) HD_TEXTURES=1 ;;
     -*) usage >&2; exit 2 ;;
     *) [ -z "$IMAGE" ] || { usage >&2; exit 2; }; IMAGE="$arg" ;;
   esac
@@ -262,6 +268,13 @@ build_helpers() {
   done
 }
 
+make_hd_textures() {
+  [ "$HD_TEXTURES" = 1 ] || return 0
+  step "Larger textures (downloads the upscalers)"
+  python3 -I "$HERE/tools/upscale-textures.py" --fetch-tools
+  python3 -I "$HERE/tools/upscale-textures.py" --upscaler ai
+}
+
 path_hint() {
   local dir
   [ -z "$(command -v dogfighter 2>/dev/null || true)" ] || return 0
@@ -290,6 +303,7 @@ rip_music
 build_helpers
 step "Building Dogfighter.app"
 "$HERE/tools/build-app.sh"
+make_hd_textures
 
 printf '\nSetup is done. Start the game with ./dogfighter, or double-click Dogfighter.app.\n'
 path_hint
