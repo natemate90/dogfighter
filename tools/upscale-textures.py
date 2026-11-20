@@ -8,12 +8,25 @@ links game/cache to that folder. The packs are never changed.
 
 Left out, because the game draws these at the size stored in the file. A
 larger file would come out larger on the screen, or cut wrong:
-  Graphics\\Fonts      letters are cut out of the picture by pixel position
   Graphics\\Frontend   menus, loading screens, windows, mouse cursor
   Graphics\\Ingame     the HUD and the maps
   User\\Save           pilot photos
 Kept: Graphics\\Textures, Graphics\\Models, Graphics\\Backdrops and
 Graphics\\Effects, which are only ever stretched over 3D shapes.
+
+The font pictures in Graphics\\Fonts are made 2x as well, never 4x. Next to
+each goes an empty file <name>.gti.2x. The launcher's helper draws a picture
+with that marker at its old size, so letters keep their place and size.
+  - The letter shapes are the picture's alpha. They go to the upscaler as a
+    grey picture, are pulled back and checked like a colour picture. The
+    colour itself goes through the plain filter.
+  - waifu2x is tried first, then the plain filter. On sheets of all eleven
+    pictures waifu2x gave the cleanest letters; Real-ESRGAN left grey smears.
+  - A pixel that was empty in the original is empty in the result, so no
+    letter grows into its neighbour. The manifest holds two scores for it:
+    spill, the largest alpha the resizer had put on such a pixel outside
+    every glyph box of the .fnt tables, and outside_glyph_boxes, the number
+    of such pixels left after emptying. That number is 0.
 
 How a texture is resized:
   - Pixels with alpha 0 first get the colour of the nearest visible pixels,
@@ -77,6 +90,9 @@ fields that each end in a NUL byte, so a path may hold spaces.
   tools/texture-refine.c  Prints one line per job, "ok ..." or "fail <why>".
       bleed IN OUT WIDTH HEIGHT
       refine ORIGINAL PLAIN DETAIL OUT WIDTH HEIGHT SCALE BORDER PASSES
+      glyphs, with the same fields, is refine for letter shapes: the last
+        pull-back is repeated until values cut off at 0 or 255 no longer
+        keep a block from its original.
         ORIGINAL and PLAIN are raw RGBA with the border. DETAIL is the
         upscaler's PNG, or empty for the plain way. OUT gets the colour of
         DETAIL after PASSES pull-backs and the alpha of PLAIN. The line holds
@@ -88,6 +104,7 @@ import hashlib
 import json
 import multiprocessing
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -115,6 +132,9 @@ WAIFU2X_TILE = 400
 LIMITS = {"drift": 20.0, "match": 40.0, "worst": 30.0, "plain": 20.0}
 WAYS = ("ai", "waifu2x", "plain")
 ASIDE = "replaced"
+FONTS = "graphics\\fonts\\"
+TWICE = ".2x"
+FONT_WAY = "waifu2x"
 OWN = ("way", "why", "scores", "failed", "bytes", "file_sha256")
 
 ARCHIVES = (
@@ -264,12 +284,48 @@ def finish(job):
         raise ValueError("%s: resized picture has the wrong size" % job["path"])
     if job["kind"] == "cutout":
         pixels[3::4] = pixels[3::4].translate(bytes(255 if i >= 128 else 0 for i in range(256)))
+    extra = {}
+    if job["kind"] == "font":
+        with open(job["colour"] + ".plain", "rb") as f:
+            colour = f.read()
+        pixels[3::4] = pixels[0::4]
+        pixels[0::4], pixels[1::4], pixels[2::4] = colour[0::4], colour[1::4], colour[2::4]
     pixels = without_border(bytes(pixels), width, height, edge)
+    if job["kind"] == "font":
+        pixels, extra = fenced(job, pixels)
     data = gti.encode(width, height, pixels, job["alpha"], None if job["mipmaps"] else 1)
     os.makedirs(os.path.dirname(job["target"]), exist_ok=True)
     with open(job["target"], "wb") as f:
         f.write(data)
-    return job["path"], len(data), hashlib.sha256(data).hexdigest()
+    return job["path"], len(data), hashlib.sha256(data).hexdigest(), extra
+
+
+def fenced(job, pixels):
+    """Empties every pixel of a font picture whose original pixel was empty, so no letter grows into its neighbour.
+
+    Also says how much the resizer had put outside all glyph boxes on such
+    pixels (spill, the largest alpha), and counts what is left there: 0.
+    """
+    scale, width, height = job["scale"], job["width"], job["height"]
+    with open(job["source"], "rb") as f:
+        ink = without_border(f.read(), width, height, BORDER)[0::4]
+    boxed = bytearray(width * height)
+    for x, y, w, h in job["boxes"]:
+        for row in range(y, min(height, y + h)):
+            boxed[row * width + x:row * width + min(width, x + w)] = b"\1" * (min(width, x + w) - x)
+    keep, free = bytearray(), bytearray()
+    for row in range(height):
+        at = slice(row * width, (row + 1) * width)
+        keep += b"".join(bytes([255 if value else 0]) * scale for value in ink[at]) * scale
+        free += b"".join(bytes([0 if value or inside else 255]) * scale for value, inside in zip(ink[at], boxed[at])) * scale
+    count = len(keep)
+    alpha = int.from_bytes(pixels[3::4], "big")
+    spill = max((alpha & int.from_bytes(free, "big")).to_bytes(count, "big"))
+    alpha &= int.from_bytes(keep, "big")
+    left = count - (alpha & int.from_bytes(free, "big")).to_bytes(count, "big").count(0)
+    pixels = bytearray(pixels)
+    pixels[3::4] = alpha.to_bytes(count, "big")
+    return bytes(pixels), {"spill": spill, "outside_glyph_boxes": left}
 
 
 def build_helpers(work):
@@ -323,11 +379,15 @@ def verdict(way, scores, wrap_x, wrap_y):
     return None
 
 
-def prepare(number, pack, entry, data, scale, folder, fresh):
+def prepare(number, pack, entry, data, setup, folder, fresh):
+    scale = setup["scale"]
     best = gti.parse(data).best()
     width, height, pixels = gti.to_rgba(best)
     record = {"path": entry.path, "pack": os.path.basename(pack.path), "source_sha256": hashlib.sha256(data).hexdigest(),
               "size": [width, height]}
+    font = entry.path.lower().startswith(FONTS)
+    if font:
+        record.update(asked=font_way(setup))
     if width * scale > 1024 or height * scale > 1024:
         record.update(way="none", why="would pass 1024 pixels")
         return None, record
@@ -335,6 +395,8 @@ def prepare(number, pack, entry, data, scale, folder, fresh):
     wrap_x = tiles_across(pixels, width)
     wrap_y = tiles_across(turned(pixels, width, height), height)
     kind = "opaque" if not best.alpha else "cutout" if alphas <= {0, 255} else "alpha"
+    if font:
+        kind, wrap_x, wrap_y = "font", False, False
     record.update(kind=kind, tiles=[wrap_x, wrap_y])
     stem = os.path.join(folder, "%05d" % number)
     job = {
@@ -344,9 +406,38 @@ def prepare(number, pack, entry, data, scale, folder, fresh):
         "source": stem + ".in", "plain": stem + ".plain", "stem": stem,
         "target": os.path.join(fresh, *up.safe_parts(entry.path)),
     }
+    if font:
+        boxes = setup["glyphs"].get(os.path.splitext(entry.name)[0].lower(), [])
+        record.update(glyphs=len(boxes))
+        job.update(alpha=True, boxes=boxes, colour=stem + ".rgb", ways=(record["asked"], "plain"))
+        with open(job["colour"], "wb") as f:
+            f.write(with_border(pixels, width, height, False, False))
+        shape = bytearray(pixels)
+        shape[0::4] = shape[1::4] = shape[2::4] = pixels[3::4]
+        shape[3::4] = b"\xff" * (width * height)
+        pixels = bytes(shape)
     with open(job["source"], "wb") as f:
         f.write(with_border(pixels, width, height, wrap_x, wrap_y))
     return job, record
+
+
+def font_way(setup):
+    """The way a font picture tries first; the plain filter is its only other one."""
+    way = setup["font_way"] or FONT_WAY
+    return way if way in setup["ways"] else "plain"
+
+
+def glyph_boxes(packs):
+    """{font picture: [(x, y, width, height)]} from the .fnt tables, whose lines read 'A' = X Y WIDTH HEIGHT PICTURE."""
+    boxes = {}
+    for pack in packs:
+        for entry in pack.entries:
+            if entry.path.lower().startswith(FONTS) and entry.name.lower().endswith(".fnt"):
+                for line in pack.read(entry).decode("latin-1").splitlines():
+                    found = re.match(r"\s*'.+'\s*=\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\S+)\s*$", line)
+                    if found:
+                        boxes.setdefault(found.group(5).lower(), []).append(tuple(int(found.group(i)) for i in range(1, 5)))
+    return boxes
 
 
 def run_batch(setup, items, fresh, pool):
@@ -357,7 +448,7 @@ def run_batch(setup, items, fresh, pool):
     os.makedirs(folder)
     jobs, records = [], {}
     for number, pack, entry, data in items:
-        job, record = prepare(number, pack, entry, data, scale, folder, fresh)
+        job, record = prepare(number, pack, entry, data, setup, folder, fresh)
         records[entry.path] = record
         if job:
             jobs.append(job)
@@ -365,19 +456,24 @@ def run_batch(setup, items, fresh, pool):
     fields = []
     for job in jobs:
         if job["bleed"]:
-            fields += ["bleed", job["source"], job["source"], job["width"] + 2 * BORDER, job["height"] + 2 * BORDER]
+            picture = job.get("colour", job["source"])
+            fields += ["bleed", picture, picture, job["width"] + 2 * BORDER, job["height"] + 2 * BORDER]
     if "fail" in [line.split()[0] for line in run_jobs(helpers["texture-refine"], fields, True)]:
         sys.exit("tools/texture-refine.c could not prepare a texture. Nothing was replaced.")
     fields = []
     for job in jobs:
         full_w, full_h = job["width"] + 2 * BORDER, job["height"] + 2 * BORDER
         fields += [job["source"], job["plain"], full_w, full_h, full_w * scale, full_h * scale]
+        if "colour" in job:
+            fields += [job["colour"], job["colour"] + ".plain", full_w, full_h, full_w * scale, full_h * scale]
     run_jobs(helpers["vimage-scale"], fields)
 
-    waiting = jobs
+    left = jobs
     for way in setup["ways"]:
+        waiting = [job for job in left if way in job.get("ways", setup["ways"])]
+        left = [job for job in left if job not in waiting]
         if not waiting:
-            break
+            continue
         if way != "plain":
             source, target = os.path.join(folder, way + "-in"), os.path.join(folder, way + "-out")
             os.makedirs(source)
@@ -391,12 +487,12 @@ def run_batch(setup, items, fresh, pool):
         fields = []
         for job in waiting:
             detail = os.path.join(folder, way + "-out", "%05d.png" % job["number"]) if way != "plain" else ""
-            fields += ["refine", job["source"], job["plain"], detail, "%s.%s" % (job["stem"], way),
-                       job["width"] + 2 * BORDER, job["height"] + 2 * BORDER, scale, BORDER, 0 if way == "plain" else PASSES]
+            fields += ["glyphs" if job["kind"] == "font" else "refine", job["source"], job["plain"], detail, "%s.%s" % (job["stem"], way),
+                       job["width"] + 2 * BORDER, job["height"] + 2 * BORDER, scale, BORDER,
+                       PASSES if way != "plain" or job["kind"] == "font" else 0]
         lines = run_jobs(helpers["texture-refine"], fields, True)
         if len(lines) != len(waiting):
             sys.exit("tools/texture-refine.c answered %d of %d jobs. Nothing was replaced." % (len(lines), len(waiting)))
-        still = []
         for job, line in zip(waiting, lines):
             record = records[job["path"]]
             if line.startswith("ok "):
@@ -410,14 +506,14 @@ def run_batch(setup, items, fresh, pool):
                 record.update(way=way, scores=scores)
             else:
                 record.setdefault("failed", []).append({"way": way, "why": why, "scores": scores})
-                still.append(job)
-        waiting = still
-    for job in waiting:
+                left.append(job)
+    for job in left:
         records[job["path"]].update(way="none", why="failed every check")
 
     written = [job for job in jobs if "scaled" in job]
-    for path, size, digest in pool.imap_unordered(finish, written, 8):
+    for path, size, digest, extra in pool.imap_unordered(finish, written, 8):
         records[path].update(out=[records[path]["size"][0] * scale, records[path]["size"][1] * scale], bytes=size, file_sha256=digest)
+        records[path]["scores"].update(extra)
     shutil.rmtree(folder, ignore_errors=True)
     return [records[entry.path] for _, _, entry, _ in items]
 
@@ -437,6 +533,10 @@ def summary(records):
             if way != "plain":
                 print("  %-8s drift dB: %s" % (way, spread([s["drift"] for s in scored])))
                 print("  %-8s worst dB: %s" % (way, spread([s["worst"] for s in scored])))
+    fonts = [generated(record) for record in records if record.get("kind") == "font"]
+    if fonts:
+        print("  font pictures: " + ", ".join("%s %s" % (os.path.splitext(record["path"].split("\\")[-1])[0], record["way"])
+                                                for record in fonts))
     for record in records:
         if record["way"] == "none":
             print("  not written: %s (%s)" % (record["path"], record["why"]))
@@ -457,6 +557,8 @@ def main():
     parser.add_argument("--overrides", default=os.path.join(root, "texture-overrides"),
                         help="folder with your own textures, which take the place of the made ones (default: texture-overrides/)")
     parser.add_argument("--only", default="", help="only textures whose path contains this text; the rest of the set stays as it is")
+    parser.add_argument("--font-way", choices=WAYS, default="",
+                        help="the way the font pictures try first (default: %s)" % FONT_WAY)
     parser.add_argument("--jobs", type=int, default=os.cpu_count() or 4, help="worker processes")
     parser.add_argument("--repeat", type=int, default=8, help="textures to make a second time, to see that the result is the same (default 8)")
     parser.add_argument("--sheets", default="", help="folder for PNG sheets that put the plain filter next to the set")
@@ -489,10 +591,12 @@ def main():
         else:
             ways = WAYS
 
-    chosen, left_out = [], {}
+    chosen, left_out, opened = [], {}, []
+    kept = KEPT + ((FONTS,) if args.scale == 2 else ())
     for path in packs:
         pack = up.Pack(path)
         pack.path = path
+        opened.append(pack)
         for entry in pack.entries:
             if not entry.name.lower().endswith(".gti"):
                 continue
@@ -500,7 +604,7 @@ def main():
                 up.safe_parts(entry.path)
             except ValueError as problem:
                 sys.exit("%s: %s. Nothing was written." % (path, problem))
-            if not entry.path.lower().startswith(KEPT):
+            if not entry.path.lower().startswith(kept):
                 folder = "\\".join(entry.folder.split("\\")[:2])
                 left_out[folder] = left_out.get(folder, 0) + 1
             elif args.only.lower() in entry.path.lower():
@@ -532,6 +636,7 @@ def main():
     if old.get("key") != key:
         old = {}
         targets = {os.path.join(cache, *up.safe_parts(entry.path)).lower() for _, entry in chosen}
+        targets |= {target + TWICE for target in targets}
         if args.only and set(files_under(cache)) - targets:
             sys.exit("The set in %s was made with other settings, and --only would leave part of it as it is.\n"
                      "Run once without --only. Nothing was replaced." % args.out)
@@ -541,7 +646,8 @@ def main():
         if name.startswith(WORK) and os.path.join(args.out, name) != work:
             shutil.rmtree(os.path.join(args.out, name), ignore_errors=True)
     os.makedirs(work, exist_ok=True)
-    setup = {"scale": args.scale, "ways": ways, "tools": tools, "work": work, "out": args.out}
+    setup = {"scale": args.scale, "ways": ways, "tools": tools, "work": work, "out": args.out,
+             "font_way": args.font_way, "glyphs": glyph_boxes(opened)}
     sources = [(pack, entry, pack.read(entry)) for pack, entry in chosen]
     records, run = build(args, setup, sources, old)
     settle(args, setup, settings, key, sources, records, run, old)
@@ -596,7 +702,8 @@ def build(args, setup, sources, old):
     todo, records = [], {}
     for number, (pack, entry, data) in enumerate(sources):
         record = done.get(entry.path)
-        if record and record["source_sha256"] == hashlib.sha256(data).hexdigest() and (
+        asked = font_way(setup) if entry.path.lower().startswith(FONTS) else None
+        if record and record["source_sha256"] == hashlib.sha256(data).hexdigest() and record.get("asked") == asked and (
                 record["way"] == "none" or where(setup, record)):
             records[entry.path] = record
         else:
@@ -718,12 +825,18 @@ def settle(args, setup, settings, key, sources, records, run, old):
                 changed += 1
             if os.path.exists(kept):
                 os.remove(kept)
+        if record.get("kind") == "font" and record["way"] != "none" and not os.path.exists(target + TWICE):
+            open(target + TWICE, "w").close()
+        elif record["way"] == "none" and os.path.exists(target + TWICE):
+            os.remove(target + TWICE)
 
     if args.only:
         now = {record["path"]: record for record in final}
         final = [now.pop(record["path"], record) for record in old.get("textures", [])] + list(now.values())
     else:
         wanted = {os.path.join(cache, *up.safe_parts(record["path"])).lower() for record in final if record["way"] != "none"}
+        wanted |= {os.path.join(cache, *up.safe_parts(record["path"])).lower() + TWICE for record in final
+                   if record.get("kind") == "font" and record["way"] != "none"}
         wanted |= {os.path.join(aside, *up.safe_parts(record["path"])).lower() for record in final
                    if record["way"] == "override" and record["generated"]["way"] != "none"}
         for folder in (cache, aside):

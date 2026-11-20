@@ -238,7 +238,7 @@ static void seams(const unsigned char *pixels, size_t w, size_t h, size_t border
 }
 
 static const char *refine(const char *original_path, const char *plain_path, const char *detail_path, const char *out_path,
-                          size_t w, size_t h, size_t scale, size_t border, size_t passes)
+                          size_t w, size_t h, size_t scale, size_t border, size_t passes, int to_the_limits)
 {
     size_t bw = w * scale, bh = h * scale;
     unsigned char *original = load(original_path, w * h * 4);
@@ -266,7 +266,15 @@ static const char *refine(const char *original_path, const char *plain_path, con
         add_enlarged(big, small, w, h, scale);
         shrink(big, w, h, scale, small);
     }
-    if (passes)
+    /* One round leaves a block short of its original where a value was cut off at 0 or 255. Letter shapes are
+       mostly 0 and 255, so they get more rounds: each hands what was cut off to the block's other pixels. */
+    for (size_t round = 0; passes && round < (to_the_limits ? 16 : 1); round++)
+    {
+        if (round)
+        {
+            for (size_t i = 0; i < bw * bh * 3; i++) big[i] = big[i] < 0 ? 0 : big[i] > 255 ? 255 : big[i];
+            shrink(big, w, h, scale, small);
+        }
         for (size_t y = 0; y < bh; y++)
             for (size_t x = 0; x < bw; x++)
                 for (size_t c = 0; c < 3; c++)
@@ -275,6 +283,7 @@ static const char *refine(const char *original_path, const char *plain_path, con
 
                     big[(y * bw + x) * 3 + c] += (float)original[from * 4 + c] - small[from * 3 + c];
                 }
+    }
     for (size_t i = 0; i < bw * bh; i++)
         for (size_t c = 0; c < 3; c++)
         {
@@ -306,7 +315,8 @@ int main(void)
     {
         char *path[4] = { NULL, NULL, NULL, NULL };
         size_t value[5] = { 0, 0, 1, 0, 0 };
-        int paths = !strcmp(kind, "bleed") ? 2 : !strcmp(kind, "refine") ? 4 : 0;
+        int glyphs = !strcmp(kind, "glyphs");
+        int paths = !strcmp(kind, "bleed") ? 2 : glyphs || !strcmp(kind, "refine") ? 4 : 0;
         int numbers = paths == 2 ? 2 : 5, ok = paths != 0;
         const char *problem;
 
@@ -320,7 +330,7 @@ int main(void)
             return 2;
         }
         problem = paths == 2 ? bleed(path[0], path[1], value[0], value[1])
-                             : refine(path[0], path[1], path[2], path[3], value[0], value[1], value[2], value[3], value[4]);
+                             : refine(path[0], path[1], path[2], path[3], value[0], value[1], value[2], value[3], value[4], glyphs);
         if (problem) printf("fail %s\n", problem);
         else if (paths == 2) printf("ok\n");
         fflush(stdout);
