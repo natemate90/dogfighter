@@ -4,8 +4,8 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--original] [--setup]
-                  [--no-focusfix]
-                  [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|start-test|stall-test|draw-test]]
+                  [--no-focusfix] [--wine=NAME] [--wine-rule=KEY=VALUE]
+                  [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|start-test|stall-test|draw-test|press-ok]]
                   [--diag-keys=SECONDS:SCANCODE,...] [--diag-console=SECONDS:COMMAND]
                   [--winecfg] [--stop]
 
@@ -26,6 +26,14 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--original] [
                     and wait for OK. Without this the launcher presses OK itself.
   --no-focusfix     Start without the helper. The picture is not scaled, the window
                     has no title bar and the game stops when it loses the focus.
+  --wine=NAME       Run with the Wine build in wine-NAME/ and the prefix prefix-NAME/
+                    in place of wine/ and prefix/. --wine=mach9 is a Wine that needs no
+                    Rosetta. Use the same option with --stop and --winecfg.
+  --wine-rule=KEY=VALUE
+                    Only with a Wine that needs no Rosetta: a Mach9 setting for the
+                    game, e.g. --wine-rule=opengl=cgl for Apple's OpenGL, or
+                    --wine-rule=env=FEX_X87REDUCEDPRECISION= for exact x87 maths.
+                    Can be given more than once.
   --debug=CHANNELS  Write Wine debug channels to the log, e.g. --debug=+seh,+ddraw.
   --diag            Write the game's windows, display mode and cursor state to the log.
                     --diag=focus-test also runs a test with nobody at the screen: it
@@ -38,6 +46,8 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--original] [
                     --diag=draw-test runs a small test program in place of the game. It
                     draws straight to the screen surface, which the game never does.
                     It cannot be combined with --diag-keys or --diag-console.
+                    --diag=press-ok is for --no-focusfix: it presses OK in the setup
+                    dialog, which the helper does otherwise.
   --diag-keys=LIST  Press keys in a test run, e.g. --diag-keys=30:1c,45:3b presses
                     Enter 30 seconds after the first picture and F1 at 45 seconds.
                     The codes are keyboard scan codes in hex.
@@ -62,6 +72,8 @@ DEBUG=
 DIAG=
 DIAG_KEYS=
 DIAG_CONSOLE=()
+WINE_NAME=
+WINE_RULES=
 PICTURE_WAIT_MS=15000
 PICTURE_WAIT_FIRST_TRY=
 for arg in "$@"; do
@@ -73,6 +85,8 @@ for arg in "$@"; do
     --wide) WIDE=1 ;;
     --setup) SETUP=show ;;
     --no-focusfix) FOCUSFIX=0 ;;
+    --wine=*) WINE_NAME="${arg#--wine=}" ;;
+    --wine-rule=*) WINE_RULES="$WINE_RULES;${arg#--wine-rule=}" ;;
     --debug=*) DEBUG="${arg#--debug=}" ;;
     --diag) DIAG=log ;;
     --diag=focus-test) DIAG=focus-test ;;
@@ -80,6 +94,7 @@ for arg in "$@"; do
     --diag=start-test) DIAG=start-test ;;
     --diag=stall-test) DIAG=start-test; PICTURE_WAIT_FIRST_TRY=1 ;;
     --diag=draw-test) DIAG=draw-test ;;
+    --diag=press-ok) DIAG=press-ok ;;
     --diag-keys=*) DIAG_KEYS="${arg#--diag-keys=}" ;;
     --diag-console=*) DIAG_CONSOLE+=("${arg#--diag-console=}") ;;
     --winecfg) MODE=winecfg ;;
@@ -100,6 +115,8 @@ for command in ${DIAG_CONSOLE[@]+"${DIAG_CONSOLE[@]}"}; do
   [[ "$command" =~ ^[0-9]+:[A-Za-z0-9_.+\ ]+$ ]] || { echo "Bad console command: $command" >&2; exit 2; }
   DIAG="${DIAG:-log} console=${command// /+}"
 done
+[[ -z "$WINE_NAME" || "$WINE_NAME" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "Bad Wine name: $WINE_NAME" >&2; exit 2; }
+[[ -z "$WINE_RULES" || "$WINE_RULES" =~ ^(\;[a-z0-9_]+=[A-Za-z0-9_.,=-]*)+$ ]] || { echo "Bad Wine rule: ${WINE_RULES#;}" >&2; exit 2; }
 if [[ "$DIAG" == draw-test\ * ]]; then
   echo "--diag=draw-test runs a test program in place of the game; leave out --diag-keys and --diag-console." >&2
   exit 2
@@ -117,8 +134,12 @@ while [ -L "$SELF" ]; do
   [[ "$SELF" == /* ]] || SELF="$LINK_DIR/$SELF"
 done
 HERE="$(cd -P "$(dirname "$SELF")" && pwd)"
-WINE="$HERE/wine/bin/wine"
-WINESERVER="$HERE/wine/bin/wineserver"
+WINE_DIR="$HERE/wine${WINE_NAME:+-$WINE_NAME}"
+if [ -x "$WINE_DIR/wine/bin/wine" ]; then WINE_DIR="$WINE_DIR/wine"; fi
+WINE="$WINE_DIR/bin/wine"
+WINESERVER="$WINE_DIR/bin/wineserver"
+NATIVE=0
+if [ -d "$WINE_DIR/lib/wine/aarch64-unix" ]; then NATIVE=1; fi
 GAME_DOS='C:\Games\Dogfighter'
 REG="$HERE/dogfighter.reg"
 INI="$HERE/game/system.ini"
@@ -131,13 +152,18 @@ CRASHLOG_DLL="$HERE/build/crashlog.dll"
 SIZES="2560x1600 2560x1440 1920x1200 1920x1080 1680x1050 1600x1200 1600x900 1440x900
        1280x1024 1280x960 1280x800 1280x720 1024x768 800x600 640x480"
 
-export WINEPREFIX="$HERE/prefix"
+export WINEPREFIX="$HERE/prefix${WINE_NAME:+-$WINE_NAME}"
 if [ "$MODE" = stop ]; then
   if [ -x "$WINESERVER" ]; then "$WINESERVER" -k 2>/dev/null || true; fi
   exit 0
 fi
 export WINEDEBUG="${DEBUG:-${WINEDEBUG:-fixme-all}}"
 export WINEDLLOVERRIDES="winmm=n,b;mscoree=;mshtml=;ddraw=b"
+unset WINE_COMPATDB WINE_COMPATDB_FILE WINE_PROF_SERVICE
+if [ -n "$WINE_RULES" ]; then
+  [ "$NATIVE" = 1 ] || { echo "--wine-rule needs a Wine that runs without Rosetta, e.g. --wine=mach9." >&2; exit 2; }
+  export WINE_COMPATDB="exe=Dogfighter.exe$WINE_RULES"$'\n'"exe=dogfighter-windiag.exe$WINE_RULES"
+fi
 
 mkdir -p "$HERE/logs"
 LOG="$HERE/logs/run-$(date +%Y%m%d-%H%M%S).log"
@@ -292,7 +318,7 @@ watch_front() {
       sed -n 's/.*=\([0-9][0-9]*\).*/\1/p')"
     exe=""
     [ -n "$pid" ] && exe="$(ps -o comm=,command= -p "$pid" 2>/dev/null || true)"
-    if [[ "$exe" == *"$HERE/wine/"* || "$exe" == *Dogfighter* ]]; then
+    if [[ "$exe" == *"$WINE_DIR/"* || "$exe" == *Dogfighter* ]]; then
       if [ "$was_front" = 0 ]; then
         : >"$flag"
         echo "focusfix: Wine is in front again" >>"$LOG"
@@ -304,7 +330,7 @@ watch_front() {
   done
 }
 
-if ! /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; then
+if [ "$NATIVE" = 0 ] && ! /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; then
   echo "Rosetta 2 is missing. Install it with:" >&2
   echo "  softwareupdate --install-rosetta --agree-to-license" >&2
   exit 1
@@ -321,7 +347,7 @@ fi
 
 if [ ! -f "$WINEPREFIX/system.reg" ]; then
   say "First run: creating the Wine prefix in $WINEPREFIX (takes a minute)..."
-  xattr -dr com.apple.quarantine "$HERE/wine" 2>/dev/null || true
+  xattr -dr com.apple.quarantine "$WINE_DIR" 2>/dev/null || true
   "$WINE" wineboot --init >>"$LOG" 2>&1
   "$WINESERVER" -w
 fi
@@ -423,6 +449,7 @@ fi
 
 run_wine() {
   say "Starting Airfix Dogfighter. Log: $LOG"
+  if [ -n "$WINE_NAME" ]; then say "Wine build: $WINE_DIR ($("$WINE" --version 2>/dev/null || true), $(/usr/bin/lipo -archs "$WINE" 2>/dev/null || true)), prefix: $WINEPREFIX${WINE_COMPATDB:+, rules: ${WINE_COMPATDB//$'\n'/ | }}"; fi
   DOGFIGHTER_PICTURE_WAIT_MS="${PICTURE_WAIT_FIRST_TRY:-$PICTURE_WAIT_MS}" "$WINE" "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
   "$WINESERVER" -w
   cat "$WINEPREFIX/drive_c/dogfighter-focusfix.log" "$WINEPREFIX/drive_c/dogfighter-focushook.log" \
