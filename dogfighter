@@ -3,8 +3,8 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures] [--original]
-                  [--mute]
+Usage: dogfighter [--res=WxH] [--sharp] [--retina] [--windowed=WxH] [--wide] [--hd-textures] [--original]
+                  [--smooth=0|2|4] [--deep-z] [--mute]
                   [--setup] [--no-focusfix] [--wine=NAME] [--wine-rule=KEY=VALUE]
                   [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|move-test|start-test|stall-test|crash-test|fallback-test|draw-test|press-ok|press-cancel]]
                   [--diag-keys=SECONDS:SCANCODE,...] [--diag-mouse=SECONDS:DX:DY[:c|:o],...]
@@ -20,6 +20,10 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
   --res=WxH         Use this game resolution in flight, e.g. --res=1440x900.
                     The menus are always 640x480.
   --sharp           Use Retina pixels: a sharper picture in flight.
+  --retina          Draw the window with the Retina screen's own pixels, but keep
+                    the game's resolution, so the HUD keeps its size. The picture
+                    is then scaled once, by Wine, and not a second time by macOS.
+                    Not judged by eye yet.
   --windowed=WxH    Start with the picture at most this big, e.g. --windowed=1024x768.
   --wide            Widen the view angle for a 16:10 or 16:9 picture. It shows more at
                     the sides and the top. The bottom edge of the picture may show a
@@ -29,8 +33,15 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
                     python3 tools/upscale-textures.py. Without this option the game
                     uses its own textures.
   --original        Leave the picture as the game made it: 16-bit colour, the normal
-                    draw distance, no light shafts, blurry ground in the distance.
+                    draw distance, no light shafts, blurry ground in the distance,
+                    jagged edges.
                     Without this the launcher turns these up at every start.
+  --smooth=N        Smooth the jagged edges of 3D shapes with N samples per pixel
+                    (multisampling). The launcher uses 4 by itself. 0 turns it
+                    off, as --original does. The HUD and the menus keep their size.
+  --deep-z          Give the game a 24-bit depth buffer where it asks for 16 bits.
+                    No difference was seen in the first mission; not tested
+                    elsewhere.
   --mute            Start the game without sound: no videos, music or effects are
                     heard. Other apps keep their sound, and the next start without
                     this option has sound again. Every --diag run is muted.
@@ -121,6 +132,7 @@ WINDOW_SIZE=
 GAME_RES=
 FOCUSFIX=1
 SHARP=0
+RETINA_WINDOW=0
 SETUP=accept
 ORIGINAL=0
 WIDE=0
@@ -135,6 +147,8 @@ DIAG_DISPLAY=
 DIAG_HOLD=0
 DIAG_SOUND=0
 DIAG_END=
+SMOOTH=4
+DEEP_Z=0
 WINE_NAME=
 WINE_RULES=
 JOIN=
@@ -149,6 +163,7 @@ for arg in "$@"; do
     --windowed=*) WINDOW_SIZE="${arg#--windowed=}" ;;
     --res=*) GAME_RES="${arg#--res=}" ;;
     --sharp) SHARP=1 ;;
+    --retina) RETINA_WINDOW=1 ;;
     --original) ORIGINAL=1 ;;
     --wide) WIDE=1 ;;
     --hd-textures) HD_TEXTURES=1 ;;
@@ -176,6 +191,8 @@ for arg in "$@"; do
     --diag-hold) DIAG_HOLD=1 ;;
     --diag-sound) DIAG_SOUND=1 ;;
     --diag-end=*) DIAG_END="${arg#--diag-end=}" ;;
+    --smooth=*) SMOOTH="${arg#--smooth=}" ;;
+    --deep-z) DEEP_Z=1 ;;
     --winecfg) MODE=winecfg ;;
     --doctor) MODE=doctor ;;
     --backup) MODE=backup ;;
@@ -211,6 +228,7 @@ if [ -n "$DIAG_END" ]; then
   [[ "$DIAG_END" =~ ^[0-9]+$ ]] || { echo "Bad number of seconds: $DIAG_END" >&2; exit 2; }
   DIAG="${DIAG:-log} end=$DIAG_END"
 fi
+[[ "$SMOOTH" =~ ^(0|2|4)$ ]] || { echo "Bad --smooth value: $SMOOTH. Use 0, 2 or 4." >&2; exit 2; }
 for command in ${DIAG_CONSOLE[@]+"${DIAG_CONSOLE[@]}"}; do
   [[ "$command" =~ ^[0-9]+:[A-Za-z0-9_.+\ ]+$ ]] || { echo "Bad console command: $command" >&2; exit 2; }
   DIAG="${DIAG:-log} console=${command// /+}"
@@ -224,6 +242,10 @@ fi
 [[ "$DIAG" != *wait=* || "$DIAG" =~ wait=[0-9]+(\ |$) ]] || { echo "Bad number of seconds: $DIAG" >&2; exit 2; }
 if [ "$FOCUSFIX" = 0 ] && [ "$HD_TEXTURES" = 1 ]; then
   echo "--hd-textures needs the helper; leave out --no-focusfix." >&2
+  exit 2
+fi
+if [ "$FOCUSFIX" = 0 ] && [ "$RETINA_WINDOW" = 1 ]; then
+  echo "--retina needs the helper; leave out --no-focusfix." >&2
   exit 2
 fi
 if [ "$FOCUSFIX" = 0 ] && [[ "$DIAG" == *-test* || "$DIAG" == *=* ]]; then
@@ -631,7 +653,7 @@ set_user_reg() {
 }
 
 fits() {
-  [ "${1%x*}" -le "${LIMIT%x*}" ] && [ "${1#*x}" -le "${LIMIT#*x}" ]
+  [ "${1%x*}" -le "${RES_LIMIT%x*}" ] && [ "${1#*x}" -le "${RES_LIMIT#*x}" ]
 }
 
 largest_fit() {
@@ -737,12 +759,15 @@ fi
 
 SCREEN="$(screen_info)"
 LIMIT=1024x768
+RES_LIMIT=1024x768
 RETINA=n
 if [[ "$SCREEN" =~ ^([12])\ ([0-9]+)\ ([0-9]+)$ ]]; then
   scale="${BASH_REMATCH[1]}"
-  [ "$SHARP" = 1 ] || scale=1
+  [ "$SHARP" = 1 ] || [ "$RETINA_WINDOW" = 1 ] || scale=1
   if [ "$scale" = 2 ]; then RETINA=y; fi
   LIMIT="$((BASH_REMATCH[2] * scale))x$((BASH_REMATCH[3] * scale))"
+  RES_LIMIT="$LIMIT"
+  if [ "$SHARP" = 0 ]; then RES_LIMIT="${BASH_REMATCH[2]}x${BASH_REMATCH[3]}"; fi
 else
   say "Could not read the screen size; assuming room for a $LIMIT picture."
 fi
@@ -750,7 +775,7 @@ fi
 if [ -z "$GAME_RES" ]; then
   GAME_RES="$(largest_fit)"
 elif ! fits "$GAME_RES"; then
-  say "$GAME_RES does not fit on this screen ($LIMIT max); using $(largest_fit)."
+  say "$GAME_RES does not fit on this screen ($RES_LIMIT max); using $(largest_fit)."
   GAME_RES="$(largest_fit)"
 fi
 SECTION="$(game_section || true)"
@@ -799,6 +824,8 @@ if [ "$FOCUSFIX" = 1 ]; then
   if [ -n "$DIAG_DISPLAY" ]; then export DOGFIGHTER_TEST_DISPLAY="$DIAG_DISPLAY"; fi
   if [ -n "$DIAG" ] && [ "$DIAG_HOLD" = 0 ]; then export DOGFIGHTER_TEST_LEAVES_MOUSE=1; fi
   if [ "$ORIGINAL" = 0 ]; then export DOGFIGHTER_ANISOTROPY=16; fi
+  if [ "$ORIGINAL" = 0 ] && [ "$SMOOTH" != 0 ]; then export DOGFIGHTER_EDGE_SAMPLES="$SMOOTH"; fi
+  if [ "$DEEP_Z" = 1 ]; then export DOGFIGHTER_DEEP_Z=1; fi
   if [ -n "$DIAG" ]; then export DOGFIGHTER_DIAG="$DIAG"; fi
   GAME_CMD=('C:\dogfighter-focusfix.exe' 'C:\dogfighter-focusfix.flag' "$GAME_DOS\\Dogfighter.exe")
   if [ "$DIAG" = draw-test ]; then

@@ -98,9 +98,12 @@ Cmd+Tab also frees the mouse, and the game takes it back when you return.
 | (none) | Play in a window you can resize. The picture is scaled to fill it. |
 | `--res=WxH` | Use this game resolution in flight, e.g. `--res=1440x900`. The menus are always 640x480. Without it, the largest size that fits the screen is used. |
 | `--sharp` | Use Retina pixels: a sharper picture in flight. |
+| `--retina` | Draw the window with the Retina screen's own pixels and keep the game's resolution (see Picture quality). |
 | `--windowed=WxH` | Start with the picture at most this big, e.g. `--windowed=1024x768`. |
 | `--wide` | Widen the view angle for a 16:10 or 16:9 picture (see Picture quality). |
 | `--hd-textures` | Use the larger textures you made (see Larger textures). |
+| `--smooth=N` | Smooth jagged edges with N samples per pixel: 0, 2 or 4. Without it the launcher uses 4 (see Picture quality). |
+| `--deep-z` | Give the game a 24-bit depth buffer where it asks for 16 bits (see Picture quality). |
 | `--original` | Leave the picture settings as the game made them (see Picture quality). |
 | `--mute` | Start the game without sound: no videos, music or effects. Other apps keep their sound, and the next start without it has sound again. |
 | `--join=ADDRESS` | Put a server in the game's Address book, then start the game (see Online multiplayer). |
@@ -193,14 +196,27 @@ At every start the launcher turns four of the game's settings up.
 | Rooms drawn through doorways (`view_portals`) | 4 | 5 |
 
 It also makes the ground and walls sharper in the distance (16x anisotropic filtering).
+It smooths the jagged edges of 3D shapes with 4 samples per pixel (multisampling).
+The HUD and the menus keep their size.
+On an M4 Max the frame rate stayed the same, on both Wine builds.
+`--smooth=0` turns the smoothing off, and `--smooth=2` uses 2 samples.
 Your other settings and key bindings are not touched.
 
-`--original` puts the four settings back to what they were and turns the sharper textures off.
+`--original` puts the four settings back to what they were and turns the sharper textures and the smooth edges off.
 The old values are kept in `game/dogfighter-picture-before.txt` until then.
 A draw distance you set in the game's Options menu is raised again at the next start; use `--original` to keep it.
 
 `--sharp` gives smoother edges on a Retina screen: the flight is drawn with four times the pixels.
 On an M4 Max the frame rate stayed the same, about 30 frames a second.
+
+`--retina` opens the window with the Retina screen's own pixels and keeps the game's resolution.
+Wine then scales the picture once to those pixels, and macOS does not scale it a second time.
+The HUD keeps its size.
+Nobody has compared the two on a screen yet.
+
+`--deep-z` gives the game a 24-bit depth buffer where it asks for a 16-bit one.
+That can stop far-away surfaces from flickering through each other.
+In the first mission the picture was the same with and without it.
 
 `--wide` widens the view angle for a 16:10 or 16:9 picture.
 It shows more at the sides and the top.
