@@ -25,6 +25,11 @@ struct wined3d_swapchain_desc_start
     BOOL windowed;
 };
 
+struct wined3d_viewport_copy
+{
+    float x, y, width, height, min_z, max_z;
+};
+
 #define WINED3DERR_INVALIDCALL ((HRESULT)0x8876086c)
 #define CONSOLE_COMMAND 0x41664463
 #define WIDEN_VIEW (WM_APP + 0x4466)
@@ -43,6 +48,10 @@ static HRESULT (__cdecl *real_get_display_mode)(const void *output, struct wined
                                                 int *rotation);
 
 static void (__cdecl *real_sampler_state)(void *stateblock, UINT sampler, int state, unsigned int value);
+static void *(__cdecl *real_swapchain_device)(void *swapchain);
+static void *(__cdecl *real_immediate_context)(void *device);
+static void (__cdecl *real_get_viewports)(const void *context, unsigned int *count, struct wined3d_viewport_copy *viewports);
+static void (__cdecl *real_set_viewports)(void *context, unsigned int count, const struct wined3d_viewport_copy *viewports);
 
 static FILE *log_file;
 static HWND game_window;
@@ -115,6 +124,23 @@ static void count_scaled(volatile LONG *counter, const char *path, const RECT *c
             game_mode.width, game_mode.height, client->right, client->bottom);
 }
 
+/* macOS sets the OpenGL viewport to the size of the window each time the window
+   gets a new size. wined3d does not know, and sets the viewport only when the
+   game changes it, which is once. The game's picture is then drawn at window
+   size into a surface of the game's size: only its top left part fits, and that
+   part is what gets stretched over the window. Handing wined3d its own viewport
+   again makes it set the OpenGL one before the next frame is drawn. */
+static void set_viewport_again(void *swapchain)
+{
+    struct wined3d_viewport_copy viewports[16];
+    unsigned int count = ARRAYSIZE(viewports);
+    void *context;
+
+    if (!real_set_viewports || !(context = real_immediate_context(real_swapchain_device(swapchain)))) return;
+    real_get_viewports(context, &count, viewports);
+    if (count && count <= ARRAYSIZE(viewports)) real_set_viewports(context, count, viewports);
+}
+
 static HRESULT __cdecl scaled_present(void *swapchain, const RECT *src, const RECT *dst,
                                       HWND override, unsigned int interval, uint32_t flags)
 {
@@ -127,6 +153,7 @@ static HRESULT __cdecl scaled_present(void *swapchain, const RECT *src, const RE
         dst = &client;
     }
     hr = real_present(swapchain, src, dst, override, interval, flags);
+    set_viewport_again(swapchain);
     tell_helper_about_picture();
     return hr;
 }
@@ -335,6 +362,15 @@ static BOOL install_hooks(void)
         if (patch_import(ddraw, ddraw_hooks[i].dll, ddraw_hooks[i].name, ddraw_hooks[i].replacement)) continue;
         say("ddraw.dll does not import %s", ddraw_hooks[i].name);
         if (ddraw_hooks[i].needed) return FALSE;
+    }
+    real_swapchain_device = (void *)GetProcAddress(wined3d, "wined3d_swapchain_get_device");
+    real_immediate_context = (void *)GetProcAddress(wined3d, "wined3d_device_get_immediate_context");
+    real_get_viewports = (void *)GetProcAddress(wined3d, "wined3d_device_context_get_viewports");
+    real_set_viewports = (void *)GetProcAddress(wined3d, "wined3d_device_context_set_viewports");
+    if (!real_swapchain_device || !real_immediate_context || !real_get_viewports || !real_set_viewports)
+    {
+        real_set_viewports = NULL;
+        say("this Wine cannot be told to set its viewport again; the picture is cut when the window and the game's picture differ in size");
     }
     real_sampler_state = (void *)GetProcAddress(wined3d, "wined3d_stateblock_set_sampler_state");
     if (anisotropy > 1 && real_sampler_state
