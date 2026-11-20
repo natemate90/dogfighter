@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: ./setup.sh [--language=English|French|German|Italian] [--hd-textures] [path/to/Dogfighter.bin]
+Usage: ./setup.sh [--language=English|French|German|Italian] [--hd-textures [--generative]] [path/to/Dogfighter.bin]
 
 Builds everything the game needs from your own Airfix Dogfighter CD image.
 On macOS 26.4 or later it also fetches Mach9, a Wine that needs no Rosetta.
@@ -16,6 +16,10 @@ language, or installs English the first time. Saves are kept when you switch.
 --hd-textures also makes larger textures for ./dogfighter --hd-textures. It
 downloads two upscalers (about 100 MB) to upscale-tools/ and takes a while.
 Without it nothing of that is downloaded.
+
+--generative, with --hd-textures, also sets up the generative way for a
+hand-picked list of surface textures: a Python environment and two models,
+about 6.6 GB in upscale-tools/generative/. It needs Python 3.12 or later.
 EOF
 }
 
@@ -34,15 +38,19 @@ canonical_language() {
 LANGUAGE=
 IMAGE=
 HD_TEXTURES=0
+GENERATIVE=
 for arg in "$@"; do
   case "$arg" in
     -h|--help) usage; exit 0 ;;
     --language=*) LANGUAGE="$(canonical_language "${arg#--language=}")" || { usage >&2; exit 2; } ;;
     --hd-textures) HD_TEXTURES=1 ;;
+    --generative) GENERATIVE=--generative ;;
     -*) usage >&2; exit 2 ;;
     *) [ -z "$IMAGE" ] || { usage >&2; exit 2; }; IMAGE="$arg" ;;
   esac
 done
+
+[ -z "$GENERATIVE" ] || [ "$HD_TEXTURES" = 1 ] || { usage >&2; exit 2; }
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 IMAGE="${IMAGE:-$HERE/Dogfighter.bin}"
@@ -271,7 +279,7 @@ build_helpers() {
 make_hd_textures() {
   [ "$HD_TEXTURES" = 1 ] || return 0
   step "Larger textures (downloads the upscalers)"
-  python3 -I "$HERE/tools/upscale-textures.py" --fetch-tools
+  python3 -I "$HERE/tools/upscale-textures.py" --fetch-tools $GENERATIVE
   python3 -I "$HERE/tools/upscale-textures.py" --upscaler ai
 }
 

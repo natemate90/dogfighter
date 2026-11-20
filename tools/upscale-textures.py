@@ -49,6 +49,17 @@ Three ways to resize the colour, tried in this order:
 The first two need files that --fetch-tools downloads to upscale-tools/.
 Their SHA-256 checksums are pinned below. Without them only plain is used.
 
+A fourth way, generative, is used only for the textures listed in
+tools/generative-surfaces.json, and only when --fetch-tools --generative has
+set it up in upscale-tools/generative/. It starts from the texture's faithful
+result and redraws it 4x with Stable Diffusion 1.5 and the ControlNet 1.1 tile
+model, in tools/generative-upscale.py, run by that folder's own Python. Its
+checks and limits are in that file and in GENERATIVE_SETTINGS below. A texture
+that fails them keeps its faithful result. The manifest records the prompt,
+strength, seed and model checksums under "asked"; when any of them changes, the
+texture is made again. The list is checked by eye: the model can draw things
+that are not in the original and still pass every check.
+
 After ai and waifu2x the result is pulled back to the original: it is shrunk
 to the original size and the difference with the original is enlarged and
 added. That is done twice with a smooth enlargement, then once block by
@@ -136,6 +147,36 @@ FONTS = "graphics\\fonts\\"
 TWICE = ".2x"
 FONT_WAY = "waifu2x"
 OWN = ("way", "why", "scores", "failed", "bytes", "file_sha256")
+GENERATIVE = "generative"
+COUNTED = WAYS + (GENERATIVE, "override", "none")
+GENERATIVE_LIST = os.path.join(HERE, "generative-surfaces.json")
+GENERATIVE_SCALE = 4
+GENERATIVE_SETTINGS = {
+    "seed": 1234, "steps": 20, "guidance": 5.0, "control": 1.0, "cutoff": 2,
+    "limits": {"drift": 18.0, "match": 26.0}, "stop_free": 15, "abort_free": 10,
+    "style": "photo-real material texture, flat even lighting, highly detailed, sharp focus, seen straight on",
+    "negative": "text, letters, logo, watermark, signature, objects, people, face, frame, border, perspective, "
+                "shadows, vignette, blurry, lowres, jpeg artifacts, cartoon, painting, oversaturated",
+}
+HF = "https://huggingface.co/"
+SD15 = HF + "stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/451f4fe16113bff5a5d2269ed5ad43b0592e9a14/"
+CN_TILE = HF + "lllyasviel/control_v11f1e_sd15_tile/resolve/3f877705c37010b7221c3d10743307d6b5b6efac/"
+GENERATIVE_MODELS = {
+    "sd15/v1-5-pruned-emaonly.safetensors": "6ce0161689b3853acaa03779ec93eafe75a02f4ced659bee03f50797806fa2fa",
+    "sd15/model_index.json": "e2f6f22e274374010aec30c79eb2d6e53fff4a36ac0225523a92cb2d41a83347",
+    "sd15/scheduler/scheduler_config.json": "699cce92eb7c122e2eb7dfdea78e6187fda76a5ed4a8e42319b85610e620e091",
+    "sd15/text_encoder/config.json": "845df614cb9327ae7bbea027316246fae917827407da6df13572e41b5f93b4cc",
+    "sd15/unet/config.json": "78f474de6bab3d893868f37be97b636ae65c0df3073ed3256ca458ff599b5f96",
+    "sd15/vae/config.json": "786a7d21647ddea6a04b9675c03d3cb45e90a2f3c6da5fbda2c54ade040036de",
+    "sd15/tokenizer/merges.txt": "9fd691f7c8039210e0fced15865466c65820d09b63988b0174bfe25de299051a",
+    "sd15/tokenizer/vocab.json": "e089ad92ba36837a0d31433e555c8f45fe601ab5c221d4f607ded32d9f7a4349",
+    "sd15/tokenizer/special_tokens_map.json": "c4864a9376a8401918425bed71fc14fc0e81f9b59ec45c1cf96cccb2df508eac",
+    "sd15/tokenizer/tokenizer_config.json": "00439066fcba73de57644cf41e4e3b9f2dbb09d7f3fc2005898ba52399045882",
+    "cn-tile/config.json": "c6488d01fc339c83d777b6d71df4f5bc36c035b2c977f987e8a5c0a54c79b706",
+    "cn-tile/diffusion_pytorch_model.safetensors": "92ef6ffc6056db572a86b996f4427c39089bb7ec878a7e06a01c649ddef9e165",
+}
+CN_TILE_PICKLE = ("diffusion_pytorch_model.bin", "eb05b4c3665bd76dad70a90652014a9b3aab391abd8a5bb484e860330f9492fb")
+GENERATIVE_PYTHON = (3, 12)
 
 ARCHIVES = (
     {
@@ -225,6 +266,103 @@ def fetch_tools(root, tools):
     print("The upscalers are in %s. Their checksums match." % tools)
 
 
+def generative_stack(tools, log):
+    """Where the generative way's Python and models are, or None when it is not set up."""
+    folder = os.path.join(tools, GENERATIVE)
+    python = os.path.join(folder, "venv", "bin", "python")
+    models = os.path.join(folder, "models")
+    if not os.access(python, os.X_OK) or not all(os.path.isfile(os.path.join(models, *name.split("/"))) for name in GENERATIVE_MODELS):
+        return None
+    return {"python": python, "models": models, "log": log}
+
+
+def check_generative_models(setup):
+    """Refuses the generative way for this run when a model file is not the pinned one."""
+    stack = setup["generative_stack"]
+    wrong = [name for name, digest in GENERATIVE_MODELS.items() if sha256_of(os.path.join(stack["models"], *name.split("/"))) != digest]
+    if wrong and not setup["allow_other_tools"]:
+        stack["refused"] = "model files differ from the pinned ones: " + ", ".join(wrong)
+        print("The generative way is off for this run: %s. Fetch them again with --fetch-tools --generative." % stack["refused"])
+
+
+def generative_python():
+    """A Python of at least GENERATIVE_PYTHON: the one running this tool, else one from Homebrew or python.org."""
+    if sys.version_info[:2] >= GENERATIVE_PYTHON:
+        return sys.executable
+    for minor in range(20, GENERATIVE_PYTHON[1] - 1, -1):
+        name = "python3.%d" % minor
+        for found in (shutil.which(name), "/opt/homebrew/bin/" + name, "/usr/local/bin/" + name,
+                      "/Library/Frameworks/Python.framework/Versions/3.%d/bin/%s" % (minor, name)):
+            if found and os.access(found, os.X_OK):
+                return found
+    return None
+
+
+def download(url, target, digest):
+    """Fetches url to target unless a file with that checksum is there. Stops the tool on a wrong checksum."""
+    if os.path.isfile(target) and sha256_of(target) == digest:
+        return
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    print("Downloading " + url)
+    part = target + ".part"
+    if subprocess.run(["/usr/bin/curl", "-fL", "--retry", "3", "--progress-bar", "-C", "-", "-o", part, url]).returncode:
+        sys.exit("Download failed: " + url)
+    if sha256_of(part) != digest:
+        os.remove(part)
+        sys.exit("%s does not match its pinned SHA-256 checksum. It was deleted." % url)
+    os.replace(part, target)
+
+
+def fetch_generative(tools):
+    """Sets up upscale-tools/generative: a Python environment with the pinned packages, and the two pinned models.
+
+    The tile ControlNet is published only as a pickle file. It is read once with
+    torch's weights-only loader, which cannot run code, and saved as safetensors.
+    """
+    folder = os.path.join(tools, GENERATIVE)
+    models = os.path.join(folder, "models")
+    venv = os.path.join(folder, "venv")
+    python = os.path.join(venv, "bin", "python")
+    requirements = os.path.join(HERE, "generative-requirements.txt")
+    if shutil.disk_usage(tools if os.path.isdir(tools) else os.path.dirname(tools)).free < 9e9 and not generative_stack(tools, ""):
+        sys.exit("The generative way needs about 9 GB of free disk space while it is set up, 6.6 GB after.")
+    if not os.access(python, os.X_OK):
+        base = generative_python()
+        if not base:
+            sys.exit("The generative way needs Python %d.%d or later; the Xcode Command Line Tools have 3.9. "
+                     "Install one, for example with 'brew install python', then run this again." % GENERATIVE_PYTHON)
+        print("Making a Python environment in %s with %s" % (venv, base))
+        subprocess.run([base, "-m", "venv", venv], check=True)
+    env = dict(os.environ, PIP_CACHE_DIR=os.path.join(folder, "cache", "pip"), PIP_DISABLE_PIP_VERSION_CHECK="1")
+    with open(requirements) as f:
+        wanted = sorted(line.strip().lower() for line in f if line.strip() and not line.startswith("#"))
+    have = subprocess.run([python, "-I", "-m", "pip", "freeze"], env=env, capture_output=True, text=True).stdout
+    if sorted(line.strip().lower() for line in have.splitlines() if line.strip()) != wanted:
+        subprocess.run([python, "-I", "-m", "pip", "install", "--only-binary", ":all:", "--no-deps", "-r", requirements],
+                       env=env, check=True)
+        subprocess.run([python, "-I", "-m", "pip", "check"], env=env, check=True)
+    for name, digest in GENERATIVE_MODELS.items():
+        target = os.path.join(models, *name.split("/"))
+        if name.endswith("diffusion_pytorch_model.safetensors"):
+            if os.path.isfile(target) and sha256_of(target) == digest:
+                continue
+            pickle = os.path.join(os.path.dirname(target), CN_TILE_PICKLE[0])
+            download(CN_TILE + CN_TILE_PICKLE[0], pickle, CN_TILE_PICKLE[1])
+            print("Converting the tile ControlNet to safetensors with the weights-only loader")
+            subprocess.run([python, "-I", "-c", "import sys, torch, safetensors.torch as st; "
+                            "st.save_file(torch.load(sys.argv[1], map_location='cpu', weights_only=True), sys.argv[2])",
+                            pickle, target + ".part"], check=True)
+            if sha256_of(target + ".part") != digest:
+                os.remove(target + ".part")
+                sys.exit("The converted tile ControlNet does not match its pinned checksum. The pickle is kept in " + pickle)
+            os.replace(target + ".part", target)
+            os.remove(pickle)
+        else:
+            base = SD15 if name.startswith("sd15/") else CN_TILE
+            download(base + name.split("/", 1)[1], target, digest)
+    print("The generative way is set up in %s. Its models match their pinned checksums." % folder)
+
+
 def column(pixels, width, x):
     return pixels[x * 4::width * 4], pixels[x * 4 + 1::width * 4], pixels[x * 4 + 2::width * 4], pixels[x * 4 + 3::width * 4]
 
@@ -276,7 +414,7 @@ def without_border(pixels, width, height, edge):
 
 def finish(job):
     """Runs in a worker: cut the border off, tidy alpha, write the .gti."""
-    scale, edge = job["scale"], BORDER * job["scale"]
+    scale, edge = job["scale"], job.get("edge", BORDER * job["scale"])
     width, height = job["width"] * scale, job["height"] * scale
     with open(job["scaled"], "rb") as f:
         pixels = bytearray(f.read())
@@ -509,13 +647,97 @@ def run_batch(setup, items, fresh, pool):
                 left.append(job)
     for job in left:
         records[job["path"]].update(way="none", why="failed every check")
+    listed = [job for job in jobs if "scaled" in job and job["path"] in setup["generative"]]
+    if listed:
+        redraw(setup, listed, records, folder)
 
     written = [job for job in jobs if "scaled" in job]
+    scales = {job["path"]: job["scale"] for job in written}
     for path, size, digest, extra in pool.imap_unordered(finish, written, 8):
-        records[path].update(out=[records[path]["size"][0] * scale, records[path]["size"][1] * scale], bytes=size, file_sha256=digest)
+        records[path].update(out=[side * scales[path] for side in records[path]["size"]], bytes=size, file_sha256=digest)
         records[path]["scores"].update(extra)
     shutil.rmtree(folder, ignore_errors=True)
     return [records[entry.path] for _, _, entry, _ in items]
+
+
+def generative_asked(setup, path):
+    """What a listed texture asks of the generative way; a texture is made again when this changes."""
+    entry = setup["generative"][path]
+    settings = GENERATIVE_SETTINGS
+    tiling = "seamless tileable " if any(entry["tiles"]) else ""
+    return {"way": GENERATIVE, "prompt": "%s%s, %s" % (tiling, entry["prompt"], settings["style"]), "negative": settings["negative"],
+            "strength": entry["strength"], "tiles": entry["tiles"], "seed": settings["seed"], "steps": settings["steps"],
+            "guidance": settings["guidance"], "control": settings["control"], "cutoff": settings["cutoff"],
+            "limits": settings["limits"], "models": GENERATIVE_MODELS}
+
+
+def redraw(setup, jobs, records, folder):
+    """Runs the generative way on listed textures that already passed a faithful way, whose result is the start picture.
+
+    A texture that passes is written 4x from the helper's picture. One that
+    fails keeps its faithful result. A failure that is no fault of the texture
+    (memory, a stopped helper) leaves "asked" out, so the next run tries again.
+    """
+    stack = setup["generative_stack"]
+    task = {"models": stack["models"], "log": stack["log"], "settings": dict(GENERATIVE_SETTINGS), "jobs": []}
+    for job in jobs:
+        record = records[job["path"]]
+        asked = generative_asked(setup, job["path"])
+        if job["kind"] != "opaque" or max(job["width"], job["height"]) * GENERATIVE_SCALE > 1024:
+            why = "has alpha" if job["kind"] != "opaque" else "would pass 1024 pixels"
+            record.update(asked=asked)
+            record.setdefault("failed", []).insert(0, {"way": GENERATIVE, "why": why, "scores": None})
+            continue
+        if stack.get("refused"):
+            record.setdefault("failed", []).insert(0, {"way": GENERATIVE, "why": stack["refused"], "scores": None})
+            continue
+        width, height, scale = job["width"], job["height"], job["scale"]
+        with open(job["source"], "rb") as f:
+            original = without_border(f.read(), width, height, BORDER)
+        with open(job["scaled"], "rb") as f:
+            faithful = without_border(f.read(), width * scale, height * scale, BORDER * scale)
+        for name, size, pixels in (("original", 1, original), ("faithful", scale, faithful)):
+            with open("%s.%s.png" % (job["stem"], name), "wb") as f:
+                f.write(gti.write_png(width * size, height * size, pixels, False))
+        task["jobs"].append({"id": job["number"], "name": job["path"], "original": job["stem"] + ".original.png",
+                             "faithful": job["stem"] + ".faithful.png", "faithful_scale": scale, "out": job["stem"] + ".generative.png",
+                             "prompt": asked["prompt"], "strength": asked["strength"], "seed": asked["seed"], "tiles": asked["tiles"]})
+    if not task["jobs"]:
+        return
+    with open(os.path.join(folder, "generative.json"), "w") as f:
+        json.dump(task, f)
+    by_number = {job["number"]: job for job in jobs}
+    answered = set()
+    helper = subprocess.Popen([stack["python"], "-I", os.path.join(HERE, "generative-upscale.py"), os.path.join(folder, "generative.json")],
+                              stdout=subprocess.PIPE, text=True)
+    for line in helper.stdout:
+        try:
+            said = json.loads(line)
+            job = by_number[said["id"]]
+        except (ValueError, KeyError, TypeError):
+            continue
+        answered.add(job["number"])
+        record, why = records[job["path"]], said.get("why")
+        scores = said.get("scores")
+        print("  %s %s: %s%s" % (GENERATIVE, job["path"], why or "ok", ", %.1f s" % scores["seconds"] if scores else ""), flush=True)
+        if not said.get("retry"):
+            record.update(asked=generative_asked(setup, job["path"]))
+        if why:
+            record.setdefault("failed", []).insert(0, {"way": GENERATIVE, "why": why, "scores": scores})
+            continue
+        with open(job["stem"] + ".generative.png", "rb") as f:
+            width, height, pixels, _ = gti.read_png(f.read())
+        if (width, height) != (job["width"] * GENERATIVE_SCALE, job["height"] * GENERATIVE_SCALE):
+            record.setdefault("failed", []).insert(0, {"way": GENERATIVE, "why": "the picture has the wrong size", "scores": scores})
+            continue
+        with open(job["stem"] + "." + GENERATIVE, "wb") as f:
+            f.write(pixels)
+        job.update(scale=GENERATIVE_SCALE, edge=0, scaled=job["stem"] + "." + GENERATIVE)
+        record.update(way=GENERATIVE, scores=scores)
+    code = helper.wait()
+    for number in set(task_job["id"] for task_job in task["jobs"]) - answered:
+        records[by_number[number]["path"]].setdefault("failed", []).insert(
+            0, {"way": GENERATIVE, "why": "the generative helper stopped (exit %d)" % code, "scores": None})
 
 
 def spread(values):
@@ -524,14 +746,15 @@ def spread(values):
 
 
 def summary(records):
-    counts = {way: sum(1 for record in records if record["way"] == way) for way in WAYS + ("override", "none")}
-    print("Ways: %d ai, %d waifu2x, %d plain, %d override, %d not written." % tuple(counts[way] for way in WAYS + ("override", "none")))
-    for way in WAYS:
+    counts = {way: sum(1 for record in records if record["way"] == way) for way in COUNTED}
+    print("Ways: %d ai, %d waifu2x, %d plain, %d generative, %d override, %d not written." % tuple(counts[way] for way in COUNTED))
+    for way in WAYS + (GENERATIVE,):
         scored = [record["scores"] for record in records if record["way"] == way]
         if scored:
             print("  %-8s match dB: %s" % (way, spread([s["match"] for s in scored])))
             if way != "plain":
                 print("  %-8s drift dB: %s" % (way, spread([s["drift"] for s in scored])))
+            if way in ("ai", "waifu2x"):
                 print("  %-8s worst dB: %s" % (way, spread([s["worst"] for s in scored])))
     fonts = [generated(record) for record in records if record.get("kind") == "font"]
     if fonts:
@@ -550,6 +773,10 @@ def main():
     parser.add_argument("--upscaler", choices=("auto", "ai", "vimage"), default="auto",
                         help="auto (default) uses the fetched upscalers if they are there, else the Mac's own vimage")
     parser.add_argument("--fetch-tools", action="store_true", help="download the pinned upscalers to upscale-tools/, then stop")
+    parser.add_argument("--generative", action="store_true",
+                        help="with --fetch-tools: also set up the generative way in upscale-tools/generative/ (about 6.6 GB)")
+    parser.add_argument("--no-generative", action="store_true", help="do not use the generative way even when it is set up")
+    parser.add_argument("--generative-log", default="", help="log of the generative way (default: generative.log in the output folder)")
     parser.add_argument("--tools", default=os.path.join(root, "upscale-tools"), help="folder with the upscalers (default: upscale-tools/)")
     parser.add_argument("--allow-other-tools", action="store_true", help="run upscalers whose checksums are not the pinned ones")
     parser.add_argument("--game", default=os.path.join(root, "game"), help="the installed game (default: game/)")
@@ -564,14 +791,18 @@ def main():
     parser.add_argument("--sheets", default="", help="folder for PNG sheets that put the plain filter next to the set")
     parser.add_argument("--list", action="store_true", help="show what would be resized, then stop")
     args = parser.parse_args()
-    for name in ("tools", "game", "out", "overrides", "sheets"):
+    for name in ("tools", "game", "out", "overrides", "sheets", "generative_log"):
         if getattr(args, name):
             setattr(args, name, os.path.abspath(getattr(args, name)))
     tools = args.tools
 
     if args.fetch_tools:
         fetch_tools(root, tools)
+        if args.generative:
+            fetch_generative(tools)
         return
+    if args.generative:
+        sys.exit("--generative goes with --fetch-tools. A normal run uses the generative way when it is set up.")
     packs = sorted(os.path.join(args.game, name) for name in os.listdir(args.game) if name.lower().endswith(".up"))
     if not packs:
         sys.exit("No .up packs in %s. Run ./setup.sh first." % args.game)
@@ -609,7 +840,15 @@ def main():
                 left_out[folder] = left_out.get(folder, 0) + 1
             elif args.only.lower() in entry.path.lower():
                 chosen.append((pack, entry))
+    stack = generative_stack(tools, args.generative_log or os.path.join(args.out, "generative.log"))
+    listed = {}
+    if stack and ways == WAYS and not args.no_generative:
+        paths = {entry.path for _, entry in chosen}
+        with open(GENERATIVE_LIST) as f:
+            listed = {entry["path"]: entry for entry in json.load(f) if entry["path"] in paths}
     print("%d textures to resize %dx. Ways: %s." % (len(chosen), args.scale, ", then ".join(ways)))
+    if listed:
+        print("  %d listed in %s try the %s way first, at %dx." % (len(listed), os.path.relpath(GENERATIVE_LIST, root), GENERATIVE, GENERATIVE_SCALE))
     for folder in sorted(left_out):
         print("  left out: %4d in %s" % (left_out[folder], folder))
     if args.list:
@@ -647,7 +886,8 @@ def main():
             shutil.rmtree(os.path.join(args.out, name), ignore_errors=True)
     os.makedirs(work, exist_ok=True)
     setup = {"scale": args.scale, "ways": ways, "tools": tools, "work": work, "out": args.out,
-             "font_way": args.font_way, "glyphs": glyph_boxes(opened)}
+             "font_way": args.font_way, "glyphs": glyph_boxes(opened), "generative": listed, "generative_stack": stack,
+             "allow_other_tools": args.allow_other_tools}
     sources = [(pack, entry, pack.read(entry)) for pack, entry in chosen]
     records, run = build(args, setup, sources, old)
     settle(args, setup, settings, key, sources, records, run, old)
@@ -703,6 +943,8 @@ def build(args, setup, sources, old):
     for number, (pack, entry, data) in enumerate(sources):
         record = done.get(entry.path)
         asked = font_way(setup) if entry.path.lower().startswith(FONTS) else None
+        if entry.path in setup["generative"]:
+            asked = generative_asked(setup, entry.path)
         if record and record["source_sha256"] == hashlib.sha256(data).hexdigest() and record.get("asked") == asked and (
                 record["way"] == "none" or where(setup, record)):
             records[entry.path] = record
@@ -715,6 +957,8 @@ def build(args, setup, sources, old):
         return records, run
 
     setup["helpers"] = build_helpers(work)
+    if any(entry.path in setup["generative"] for _, _, entry, _ in todo):
+        check_generative_models(setup)
     with multiprocessing.Pool(max(1, args.jobs)) as pool:
         for at in range(0, len(todo), BATCH):
             made = run_batch(setup, todo[at:at + BATCH], fresh, pool)
@@ -751,7 +995,7 @@ def fitting_overrides(args, sources, records):
             continue
         path, data = by_name[name.lower()]
         best = gti.parse(data).best()
-        width, height = best.width * args.scale, best.height * args.scale
+        width, height = records[path].get("out") or (best.width * args.scale, best.height * args.scale)
         wanted = [(8 if best.alpha else 7, width, height, gti.level_count(width, height) if len(best.levels) > 1 else 1)]
         with open(file, "rb") as f:
             content = f.read()
@@ -796,7 +1040,7 @@ def settle(args, setup, settings, key, sources, records, run, old):
         if record["path"] in overrides:
             _, digest, size = overrides[record["path"]]
             taken = {name: value for name, value in record.items() if name not in OWN}
-            taken.update(way="override", bytes=size, file_sha256=digest, out=[record["size"][0] * scale, record["size"][1] * scale],
+            taken.update(way="override", bytes=size, file_sha256=digest, out=record.get("out") or [side * scale for side in record["size"]],
                          generated={name: record[name] for name in OWN if name in record})
             record = taken
         final.append(record)
