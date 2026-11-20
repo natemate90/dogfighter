@@ -18,7 +18,8 @@ This project is not affiliated with any of them.
 ## Requirements
 
 - A Mac with Apple Silicon (M1 or later).
-- Rosetta 2: `softwareupdate --install-rosetta --agree-to-license`
+- Rosetta 2, for setup and for the default way to play: `softwareupdate --install-rosetta --agree-to-license`
+- Playing itself can do without Rosetta, with another Wine build (see Without Rosetta).
 - The Xcode Command Line Tools, for `clang` and `python3`: `xcode-select --install`
 - About 3 GB of free disk space and an internet connection.
 - Your Airfix Dogfighter CD, as a raw image (see below).
@@ -101,6 +102,8 @@ Cmd+Tab also frees the mouse, and the game takes it back when you return.
 | `--join=ADDRESS` | Put a server in the game's Address book, then start the game (see Online multiplayer). |
 | `--setup` | Show the game's setup dialog and wait for OK. |
 | `--no-focusfix` | Start without the helper (see Troubleshooting). |
+| `--wine=NAME` | Use the Wine build in `wine-NAME/` and the prefix `prefix-NAME/`. `--wine=mach9` plays without Rosetta (see Without Rosetta). |
+| `--wine-rule=KEY=VALUE` | Only with Mach9: one Mach9 setting for the game (see Without Rosetta). Can be given more than once. |
 | `--stop` | End a running game and all its Wine processes. |
 | `--debug=CHANNELS` | Write Wine debug channels to the log, e.g. `--debug=+seh`. |
 | `--diag` | Write the game's windows, display mode and cursor state to the log. |
@@ -129,6 +132,63 @@ Its icon is made from `cd/Airfix.ico` on your Mac, so the app is not part of thi
 You can drag the app to `/Applications` or the Dock.
 It remembers where this folder is.
 If you move this folder, run `./setup.sh` again and use the new app.
+
+## Without Rosetta
+
+The default Wine is an Intel program, so macOS runs it through Rosetta 2.
+Apple removes most of Rosetta with macOS 28.
+[Mach9](https://github.com/athei/mach9) is a Wine build for Apple Silicon that needs no Rosetta.
+It runs the game's Intel code with its own emulator, FEX.
+
+This is an option. Rosetta and Wine 11.0 stay the default.
+
+- Mach9 needs macOS 26.4 or later.
+- `setup.sh` does not fetch Mach9. You download and unpack it yourself, once.
+- `setup.sh` itself still needs Rosetta today.
+- Tested on one Mac, an M4 Max, with Mach9 0.4.0. It is not tested on an M1.
+
+Download and unpack it in this folder:
+
+```
+mkdir -p downloads/mach9 wine-mach9
+curl -L -o downloads/mach9/wine-v0.4.0-macos-arm64.tar.xz https://github.com/athei/mach9/releases/download/v0.4.0/wine-v0.4.0-macos-arm64.tar.xz
+shasum -a 256 downloads/mach9/wine-v0.4.0-macos-arm64.tar.xz
+tar -xJf downloads/mach9/wine-v0.4.0-macos-arm64.tar.xz -C wine-mach9
+```
+
+The checksum must be `3b81aac9b93d5652872673b400769ec525f3bc2f1f7e2ec82c9f851d0a0db05d`.
+After unpacking, `wine-mach9/wine/bin/wine` exists.
+The download is 1.1 GB unpacked.
+
+Then check it and play:
+
+```
+./dogfighter --wine=mach9 --doctor
+./dogfighter --wine=mach9
+```
+
+- The first start creates a second Wine prefix in `prefix-mach9/`. That takes a minute and about 770 MB.
+- The game files in `game/`, your saves and your settings are shared with the default Wine.
+- Use the same option to stop the game: `./dogfighter --wine=mach9 --stop`.
+- The other options work with it too, e.g. `--sharp`, `--wide` and `--hd-textures`.
+- The two intro videos play on Mach9. Press Esc to skip them.
+
+What was measured on the M4 Max, in the first mission at 1280x800:
+
+| | Default (Rosetta) | Mach9 |
+| --- | --- | --- |
+| Frames a second in flight | about 30 | about 100 |
+| Loading a mission | about 30 seconds | 2 to 5 seconds |
+| Starts that needed a second try | about half | none of 27 |
+
+The launcher gives Mach9 one setting by itself: `opengl=cgl`, Apple's OpenGL.
+Mach9's own OpenGL ends the game at start on the Mac it was tested on.
+`--wine-rule=KEY=VALUE` adds more Mach9 settings, or another `opengl=` value in place of that one.
+For example, `--wine-rule=env=FEX_X87REDUCEDPRECISION=` turns on exact floating-point maths.
+With that the game ran at 21 frames a second, so it is off by default.
+
+Nobody has played a whole mission on Mach9 yet.
+Sound, game speed and a real mouse are not judged.
 
 ## Picture quality
 
@@ -244,7 +304,8 @@ It prints one line per check, with the fix for each failed one.
 It exits with status 1 when a check failed.
 
 It checks these things.
-- Rosetta 2 is installed, and Wine is there and runs. With `--wine=NAME` it checks that Wine build, and skips Rosetta for one that does not need it.
+- Rosetta 2 is installed, and Wine is there and runs.
+- With `--wine=mach9` it checks that Wine build in place of the default one, and skips the Rosetta check (see Without Rosetta).
 - macOS does not hold Wine in quarantine.
 - The game files, the CD label and the ten music tracks are in place.
 - The helper is built and newer than its source.
