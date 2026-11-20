@@ -514,6 +514,11 @@ static LRESULT CALLBACK hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         SetCursor(empty_cursor());
         return TRUE;
     }
+    if (msg == WM_LBUTTONDOWN && mouse_free)
+    {
+        mouse_free = FALSE;
+        say("a click in the picture: the mouse belongs to the game again");
+    }
     if (msg == WM_COPYDATA && ((COPYDATASTRUCT *)lp)->dwData == CONSOLE_COMMAND)
     {
         COPYDATASTRUCT *data = (COPYDATASTRUCT *)lp;
@@ -698,20 +703,33 @@ static void make_normal_window(HWND w)
 
 static void keep_mouse_inside(void)
 {
-    static BOOL keys_were_down, ours, titled_free;
+    static BOOL keys_were_down, ours, titled_free, ctrl_was_down, option_was_down;
+    static int keys_noted;
     static HWND titled;
     static RECT wanted, applied;
-    BOOL keys_down = (GetAsyncKeyState(VK_CONTROL) & 0x8000) && (GetAsyncKeyState(VK_MENU) & 0x8000);
+    BOOL ctrl_down = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0, option_down = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
+    BOOL keys_down = ctrl_down && option_down;
+    SYSTEMTIME at;
     BOOL front = game_window && GetForegroundWindow() == game_window && !IsIconic(game_window);
     RECT client = { 0 }, now = { 0 };
     BOOL held;
+
+    GetLocalTime(&at);
+    if ((ctrl_down != ctrl_was_down || option_down != option_was_down) && keys_noted < 200)
+    {
+        keys_noted++;
+        say("%02u:%02u:%02u keys: Ctrl is %s, Option is %s%s", at.wHour, at.wMinute, at.wSecond,
+            ctrl_down ? "down" : "up", option_down ? "down" : "up", front ? "" : "; the game is not in front");
+    }
+    ctrl_was_down = ctrl_down;
+    option_was_down = option_down;
 
     if (!front) mouse_free = FALSE;
     else if (keys_down && !keys_were_down)
     {
         mouse_free = !mouse_free;
-        say("Ctrl+Option: the mouse %s; so far DirectInput asked %ld times to hold it and moved the pointer itself %ld times",
-            mouse_free ? "is free" : "belongs to the game again", dinput_clips, dinput_moves);
+        say("%02u:%02u:%02u Ctrl+Option: the mouse %s; so far DirectInput asked %ld times to hold it and moved the pointer itself %ld times",
+            at.wHour, at.wMinute, at.wSecond, mouse_free ? "is free" : "belongs to the game again", dinput_clips, dinput_moves);
     }
     keys_were_down = keys_down;
 

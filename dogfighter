@@ -5,8 +5,8 @@ usage() {
   cat <<'EOF'
 Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures] [--original]
                   [--setup] [--no-focusfix] [--wine=NAME] [--wine-rule=KEY=VALUE]
-                  [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|start-test|stall-test|crash-test|fallback-test|draw-test|press-ok|press-cancel]]
-                  [--diag-keys=SECONDS:SCANCODE,...] [--diag-mouse=SECONDS:DX:DY[:c],...]
+                  [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|move-test|start-test|stall-test|crash-test|fallback-test|draw-test|press-ok|press-cancel]]
+                  [--diag-keys=SECONDS:SCANCODE,...] [--diag-mouse=SECONDS:DX:DY[:c|:o],...]
                   [--diag-console=SECONDS:COMMAND] [--diag-display=right] [--diag-hold]
                   [--join=ADDRESS] [--winecfg] [--stop]
        dogfighter [--wine=NAME] --doctor
@@ -66,6 +66,9 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
                     takes the focus away and gives it back, frees and takes the mouse,
                     resizes and zooms the window, then ends the game. It starts 10
                     seconds after the first picture, or after SECONDS.
+                    --diag=move-test frees the mouse, moves the window by 160,100,
+                    sends a click for the picture and logs where the window and the
+                    rectangle the mouse is kept in are after each step.
                     --diag=start-test ends the game after 8 seconds of picture.
                     --diag=stall-test is the same, but treats the first start as one
                     that never drew, so the launcher has to start the game again.
@@ -86,7 +89,9 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
                     The codes are keyboard scan codes in hex. 1d38 presses Ctrl+Option.
   --diag-mouse=LIST Move the mouse in a test run, e.g. --diag-mouse=20:300:150:c moves
                     it 300 right and 150 down at 20 seconds and then clicks. Without
-                    :c it only moves. The menus take the mouse, not the keyboard.
+                    :c it only moves. :o in place of :c first puts the system pointer
+                    outside the game window, then moves and clicks. The menus take
+                    the mouse, not the keyboard.
   --diag-console=SECONDS:COMMAND
                     Run a game console command in a test run, e.g.
                     --diag-console=30:mode+Singleplayer, with + for each space.
@@ -143,6 +148,7 @@ for arg in "$@"; do
     --diag) DIAG=log ;;
     --diag=focus-test) DIAG=focus-test ;;
     --diag=focus-test:*) DIAG="focus-test wait=${arg#--diag=focus-test:}" ;;
+    --diag=move-test) DIAG=move-test ;;
     --diag=start-test) DIAG=start-test ;;
     --diag=stall-test) DIAG=start-test; PICTURE_WAIT_FIRST_TRY=1 ;;
     --diag=crash-test) DIAG=start-test; END_AFTER_SETUP_FIRST_TRY=1 ;;
@@ -183,7 +189,7 @@ if [ -n "$DIAG_KEYS" ]; then
 fi
 if [ "$DIAG_HOLD" = 1 ]; then DIAG="${DIAG:-log}"; fi
 if [ -n "$DIAG_MOUSE" ]; then
-  [[ "$DIAG_MOUSE" =~ ^[0-9]+:-?[0-9]+:-?[0-9]+(:c)?(,[0-9]+:-?[0-9]+:-?[0-9]+(:c)?)*$ ]] || { echo "Bad mouse list: $DIAG_MOUSE" >&2; exit 2; }
+  [[ "$DIAG_MOUSE" =~ ^[0-9]+:-?[0-9]+:-?[0-9]+(:[co])?(,[0-9]+:-?[0-9]+:-?[0-9]+(:[co])?)*$ ]] || { echo "Bad mouse list: $DIAG_MOUSE" >&2; exit 2; }
   DIAG="${DIAG:-log} mouse=$DIAG_MOUSE"
 fi
 for command in ${DIAG_CONSOLE[@]+"${DIAG_CONSOLE[@]}"}; do
@@ -737,6 +743,10 @@ fi
 
 set_user_reg 'Software\Wine\Mac Driver' RetinaMode "$RETINA"
 set_user_reg 'Software\Wine\Mac Driver' CaptureDisplaysForFullscreen n
+# Wine's Mac driver gives the Option keys no Windows key at all unless told to.
+# Without these two, Ctrl+Option never reaches the helper; only Ctrl+Command did.
+set_user_reg 'Software\Wine\Mac Driver' LeftOptionIsAlt y
+set_user_reg 'Software\Wine\Mac Driver' RightOptionIsAlt y
 set_user_reg 'Software\Wine\Direct3D' renderer gl
 # Without the helper the game runs inside a Wine virtual desktop. win32u
 # builds that desktop's mode list from this value, not from the size on the
