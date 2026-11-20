@@ -53,7 +53,7 @@ static struct wined3d_display_mode_copy game_mode;
 static BOOL mode_set, dinput_wants_mouse, mouse_free, widen_view;
 static void *front_swapchain, *front_texture;
 static DWORD front_thread;
-static unsigned int anisotropy;
+static unsigned int anisotropy, texture_limit;
 static volatile LONG flips, direct_draws, gdi_draws, unscaled_draws, to_announce, dinput_clips, dinput_moves;
 
 static void say(const char *fmt, ...)
@@ -450,6 +450,37 @@ static void let_screenshots_work_in_32_bit(void)
     }
 }
 
+static void raise_texture_size_limit(void)
+{
+    enum { MAX_TEXTURE_SIDE_FUNCTION = 0x70f0, ORIGINAL_LIMIT = 256 };
+    static const BYTE returns_a_constant[] = { 0xb8, 0x00 }, rest[] = { 0x00, 0x00, 0xc3 };
+    static BOOL done;
+    BYTE *code = (BYTE *)GetModuleHandleA("Cc.dll"), wanted = texture_limit >> 8;
+    DWORD old;
+
+    if (done || !texture_limit || !code) return;
+    done = TRUE;
+    code += MAX_TEXTURE_SIDE_FUNCTION;
+    if (IsBadReadPtr(code, 6) || memcmp(code, returns_a_constant, 2) || memcmp(code + 3, rest, 3)
+        || (code[2] != ORIGINAL_LIMIT >> 8 && code[2] != wanted))
+    {
+        say("this is not the known game build; textures stay at most %d pixels", ORIGINAL_LIMIT);
+        return;
+    }
+    if (code[2] != wanted)
+    {
+        if (!VirtualProtect(code + 2, 1, PAGE_EXECUTE_READWRITE, &old))
+        {
+            say("could not change the texture size limit; textures stay at most %d pixels", ORIGINAL_LIMIT);
+            return;
+        }
+        code[2] = wanted;
+        VirtualProtect(code + 2, 1, old, &old);
+        FlushInstructionCache(GetCurrentProcess(), code, 6);
+    }
+    say("texture size limit raised from %d to %u pixels", ORIGINAL_LIMIT, texture_limit);
+}
+
 static void make_normal_window(HWND w)
 {
     static BOOL placed;
@@ -575,6 +606,7 @@ static DWORD WINAPI watch(void *arg)
             }
         }
         let_screenshots_work_in_32_bit();
+        raise_texture_size_limit();
         if (max_client.cx) keep_mouse_inside();
         if (max_client.cx && ++ticks % 100 == 0 && flips + direct_draws + gdi_draws + unscaled_draws != reported)
         {
@@ -606,6 +638,8 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
         read_mode_list();
         widen_view = GetEnvironmentVariableA("DOGFIGHTER_WIDEN_VIEW", NULL, 0) != 0;
         anisotropy = env_size("DOGFIGHTER_ANISOTROPY").cx;
+        texture_limit = env_size("DOGFIGHTER_TEXTURE_LIMIT").cx;
+        if (texture_limit != 512 && texture_limit != 1024) texture_limit = 0;
         if (max_client.cx && max_client.cy)
         {
             log_file = fopen("C:\\dogfighter-focushook.log", "w");
