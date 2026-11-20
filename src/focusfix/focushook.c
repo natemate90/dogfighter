@@ -30,6 +30,12 @@ struct wined3d_viewport_copy
     float x, y, width, height, min_z, max_z;
 };
 
+struct wined3d_resource_desc_copy
+{
+    int resource_type, format, multisample_type;
+    unsigned int multisample_quality, usage, bind_flags, access, width, height, depth, size;
+};
+
 #define WINED3DERR_INVALIDCALL ((HRESULT)0x8876086c)
 #define CONSOLE_COMMAND 0x41664463
 #define WIDEN_VIEW (WM_APP + 0x4466)
@@ -54,17 +60,21 @@ static void *(__cdecl *real_immediate_context)(void *device);
 static void (__cdecl *real_get_viewports)(const void *context, unsigned int *count, struct wined3d_viewport_copy *viewports);
 static void (__cdecl *real_set_viewports)(void *context, unsigned int count, const struct wined3d_viewport_copy *viewports);
 
+static HRESULT (__cdecl *real_texture_create)(void *device, const struct wined3d_resource_desc_copy *desc,
+                                              unsigned int layers, unsigned int levels, uint32_t flags,
+                                              const void *data, void *parent, const void *parent_ops, void **texture);
+
 static FILE *log_file;
 static HWND game_window;
 static WNDPROC game_proc, next_proc;
 static SIZE max_client, mac_screen, fitted_for, modes[32];
 static unsigned int mode_count;
 static struct wined3d_display_mode_copy game_mode;
-static BOOL mode_set, dinput_wants_mouse, mouse_free, widen_view, test_on_right_display, test_leaves_mouse, pointer_hidden;
+static BOOL mode_set, dinput_wants_mouse, mouse_free, widen_view, test_on_right_display, test_leaves_mouse, pointer_hidden, deep_z;
 static RECT test_display;
 static void *front_swapchain, *front_texture;
 static DWORD front_thread;
-static unsigned int anisotropy, texture_limit;
+static unsigned int anisotropy, texture_limit, edge_samples;
 static volatile LONG flips, direct_draws, gdi_draws, unscaled_draws, to_announce, dinput_clips, dinput_moves;
 
 static void say(const char *fmt, ...)
@@ -105,6 +115,20 @@ static void read_mode_list(void)
 static BOOL picture_target(RECT *client)
 {
     return game_window && GetClientRect(game_window, client) && client->right > 0 && client->bottom > 0;
+}
+
+static SIZE fitted_client(void)
+{
+    SIZE size = { max_client.cx, 0 };
+
+    if (!game_mode.width || !game_mode.height) return size;
+    size.cy = max_client.cx * game_mode.height / game_mode.width;
+    if (size.cy > max_client.cy)
+    {
+        size.cy = max_client.cy;
+        size.cx = max_client.cy * game_mode.width / game_mode.height;
+    }
+    return size;
 }
 
 static void tell_helper_about_picture(void)
@@ -285,6 +309,43 @@ static void __cdecl sharper_sampler_state(void *stateblock, UINT sampler, int st
     real_sampler_state(stateblock, sampler, state, value);
 }
 
+/* ddraw has no multisampling, so wined3d's SampleCount setting only reaches
+   the swapchain, which the game never draws its 3D picture into. The picture
+   is drawn into ddraw's own surfaces. Those that can be drawn into, and the
+   depth buffers that go with them, are made multisampled here; wined3d then
+   resolves them whenever ddraw copies, locks or shows one. Colour and depth
+   must have the same sample count, so a refused count is halved for the rest.
+   The numbers are wined3d's resource types, bind flags and format ids. */
+static HRESULT __cdecl better_texture_create(void *device, const struct wined3d_resource_desc_copy *desc,
+                                             unsigned int layers, unsigned int levels, uint32_t flags,
+                                             const void *data, void *parent, const void *parent_ops, void **texture)
+{
+    enum { TEXTURE_2D = 3, RENDER_TARGET = 0x20, DEPTH_STENCIL = 0x40, D16 = 85, X8D24 = 24 };
+    static LONG said;
+    struct wined3d_resource_desc_copy better;
+    BOOL depth = (desc->bind_flags & DEPTH_STENCIL) != 0;
+    HRESULT hr;
+
+    if (desc->resource_type != TEXTURE_2D || desc->multisample_type || layers != 1 || levels != 1 || data
+        || !(desc->bind_flags & (RENDER_TARGET | DEPTH_STENCIL)))
+        return real_texture_create(device, desc, layers, levels, flags, data, parent, parent_ops, texture);
+
+    for (;;)
+    {
+        better = *desc;
+        if (edge_samples > 1) better.multisample_type = edge_samples;
+        if (deep_z && depth && desc->format == D16) better.format = X8D24;
+        hr = real_texture_create(device, &better, layers, levels, flags, data, parent, parent_ops, texture);
+        if (InterlockedIncrement(&said) <= 24 || FAILED(hr))
+            say("%s surface %ux%u, format %d made as format %d with %d samples: %s", depth ? "depth" : "picture",
+                desc->width, desc->height, desc->format, better.format, better.multisample_type,
+                SUCCEEDED(hr) ? "done" : "refused");
+        if (SUCCEEDED(hr) || !memcmp(&better, desc, sizeof(better))) return hr;
+        if (edge_samples > 1) edge_samples /= 2;
+        else deep_z = FALSE;
+    }
+}
+
 static BOOL WINAPI ddraw_clip_cursor(const RECT *rect)
 {
     return TRUE;
@@ -463,6 +524,9 @@ static BOOL install_hooks(void)
     if (anisotropy > 1 && real_sampler_state
         && !patch_import(ddraw, "wined3d.dll", "wined3d_stateblock_set_sampler_state", sharper_sampler_state))
         say("ddraw.dll does not import wined3d_stateblock_set_sampler_state; textures keep the game's filtering");
+    real_texture_create = (void *)GetProcAddress(wined3d, "wined3d_texture_create");
+    if (!real_texture_create || !patch_import(ddraw, "wined3d.dll", "wined3d_texture_create", better_texture_create))
+        say("ddraw.dll does not import wined3d_texture_create; edges and depth stay as the game makes them");
     if (!patch_import(dinput, "user32.dll", "ClipCursor", dinput_clip_cursor))
         say("dinput.dll does not import ClipCursor; the mouse is not kept inside the picture");
     if (!patch_import(dinput, "user32.dll", "SetCursorPos", dinput_set_cursor_pos))
@@ -672,13 +736,7 @@ static void make_normal_window(HWND w)
     size.cy = client.bottom;
     if (!same_shape)
     {
-        size.cx = max_client.cx;
-        size.cy = max_client.cx * game_mode.height / game_mode.width;
-        if (size.cy > max_client.cy)
-        {
-            size.cy = max_client.cy;
-            size.cx = max_client.cy * game_mode.width / game_mode.height;
-        }
+        size = fitted_client();
     }
     fitted_for.cx = game_mode.width;
     fitted_for.cy = game_mode.height;
@@ -834,6 +892,9 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
         test_leaves_mouse = GetEnvironmentVariableA("DOGFIGHTER_TEST_LEAVES_MOUSE", NULL, 0) != 0;
         anisotropy = env_size("DOGFIGHTER_ANISOTROPY").cx;
         texture_limit = env_size("DOGFIGHTER_TEXTURE_LIMIT").cx;
+        edge_samples = env_size("DOGFIGHTER_EDGE_SAMPLES").cx;
+        if (edge_samples > 16) edge_samples = 0;
+        deep_z = GetEnvironmentVariableA("DOGFIGHTER_DEEP_Z", NULL, 0) != 0;
         if (texture_limit != 512 && texture_limit != 1024) texture_limit = 0;
         if (max_client.cx && max_client.cy)
         {
