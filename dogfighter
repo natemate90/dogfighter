@@ -6,7 +6,8 @@ usage() {
 Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures] [--original]
                   [--setup] [--no-focusfix] [--wine=NAME] [--wine-rule=KEY=VALUE]
                   [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|start-test|stall-test|draw-test|press-ok]]
-                  [--diag-keys=SECONDS:SCANCODE,...] [--diag-console=SECONDS:COMMAND]
+                  [--diag-keys=SECONDS:SCANCODE,...] [--diag-mouse=SECONDS:DX:DY[:c],...]
+                  [--diag-console=SECONDS:COMMAND]
                   [--join=ADDRESS] [--winecfg] [--stop]
        dogfighter [--wine=NAME] --doctor
        dogfighter --backup | --restore[=FILE]
@@ -41,8 +42,9 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
                     Can be given more than once. The launcher adds opengl=cgl
                     (Apple's OpenGL) itself, because the game does not start on
                     Mach9's own OpenGL. An opengl= rule of your own replaces it.
-  --join=ADDRESS    Put a server's IP address or host name in the game's Address book,
-                    then start the game. The server shows in the Multiplayer list.
+  --join=ADDRESS    Write a server's IP address or host name into the game's Address
+                    book in game/user.ini, then start the game. Not checked yet: that
+                    the Multiplayer screen then lists the server.
   --doctor          Check the installation and print a fix for each problem.
                     Does not start the game. With --wine=NAME it checks that build.
   --backup          Copy pilots, levels, photos, stickers and settings to a dated
@@ -60,12 +62,16 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
                     that never drew, so the launcher has to start the game again.
                     --diag=draw-test runs a small test program in place of the game. It
                     draws straight to the screen surface, which the game never does.
-                    It cannot be combined with --diag-keys or --diag-console.
+                    It cannot be combined with --diag-keys, --diag-mouse or
+                    --diag-console.
                     --diag=press-ok is for --no-focusfix: it presses OK in the setup
                     dialog, which the helper does otherwise.
   --diag-keys=LIST  Press keys in a test run, e.g. --diag-keys=30:1c,45:3b presses
                     Enter 30 seconds after the first picture and F1 at 45 seconds.
                     The codes are keyboard scan codes in hex.
+  --diag-mouse=LIST Move the mouse in a test run, e.g. --diag-mouse=20:300:150:c moves
+                    it 300 right and 150 down at 20 seconds and then clicks. Without
+                    :c it only moves. The menus take the mouse, not the keyboard.
   --diag-console=SECONDS:COMMAND
                     Run a game console command in a test run, e.g.
                     --diag-console=30:mode+Singleplayer, with + for each space.
@@ -87,6 +93,7 @@ HD_TEXTURES=0
 DEBUG=
 DIAG=
 DIAG_KEYS=
+DIAG_MOUSE=
 DIAG_CONSOLE=()
 WINE_NAME=
 WINE_RULES=
@@ -115,6 +122,7 @@ for arg in "$@"; do
     --diag=draw-test) DIAG=draw-test ;;
     --diag=press-ok) DIAG=press-ok ;;
     --diag-keys=*) DIAG_KEYS="${arg#--diag-keys=}" ;;
+    --diag-mouse=*) DIAG_MOUSE="${arg#--diag-mouse=}" ;;
     --diag-console=*) DIAG_CONSOLE+=("${arg#--diag-console=}") ;;
     --winecfg) MODE=winecfg ;;
     --doctor) MODE=doctor ;;
@@ -141,6 +149,10 @@ if [ -n "$DIAG_KEYS" ]; then
   [[ "$DIAG_KEYS" =~ ^[0-9]+:[0-9a-fA-F]+(,[0-9]+:[0-9a-fA-F]+)*$ ]] || { echo "Bad key list: $DIAG_KEYS" >&2; exit 2; }
   DIAG="${DIAG:-log} keys=$DIAG_KEYS"
 fi
+if [ -n "$DIAG_MOUSE" ]; then
+  [[ "$DIAG_MOUSE" =~ ^[0-9]+:-?[0-9]+:-?[0-9]+(:c)?(,[0-9]+:-?[0-9]+:-?[0-9]+(:c)?)*$ ]] || { echo "Bad mouse list: $DIAG_MOUSE" >&2; exit 2; }
+  DIAG="${DIAG:-log} mouse=$DIAG_MOUSE"
+fi
 for command in ${DIAG_CONSOLE[@]+"${DIAG_CONSOLE[@]}"}; do
   [[ "$command" =~ ^[0-9]+:[A-Za-z0-9_.+\ ]+$ ]] || { echo "Bad console command: $command" >&2; exit 2; }
   DIAG="${DIAG:-log} console=${command// /+}"
@@ -148,7 +160,7 @@ done
 [[ -z "$WINE_NAME" || "$WINE_NAME" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "Bad Wine name: $WINE_NAME" >&2; exit 2; }
 [[ -z "$WINE_RULES" || "$WINE_RULES" =~ ^(\;[a-z0-9_]+=[A-Za-z0-9_.,=-]*)+$ ]] || { echo "Bad Wine rule: ${WINE_RULES#;}" >&2; exit 2; }
 if [[ "$DIAG" == draw-test\ * ]]; then
-  echo "--diag=draw-test runs a test program in place of the game; leave out --diag-keys and --diag-console." >&2
+  echo "--diag=draw-test runs a test program in place of the game; leave out --diag-keys, --diag-mouse and --diag-console." >&2
   exit 2
 fi
 [[ "$DIAG" != *wait=* || "$DIAG" =~ wait=[0-9]+(\ |$) ]] || { echo "Bad number of seconds: $DIAG" >&2; exit 2; }
@@ -421,7 +433,7 @@ address_book_add() {
     n=$((n + 1))
   done
   user_set "address_$n" "$1"
-  say "Added $1 to the game's Address book. Open Multiplayer to see the server."
+  say "Added $1 to the game's Address book: address_$n in game/user.ini."
 }
 
 picture_get() {

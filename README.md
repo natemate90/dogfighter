@@ -326,9 +326,11 @@ It checks these things.
 ./dogfighter --join=100.64.0.7
 ```
 
-This adds the address to the game's Address book and starts the game.
-Open Multiplayer; the server is in the list when it is online.
-The address stays in the Address book for later starts.
+This writes the address into the game's Address book and starts the game.
+The Address book is kept in `game/user.ini`, as a line like `sets address_0 "100.64.0.7"`.
+The line is still there after you quit the game.
+Nobody has checked yet that the Multiplayer screen then lists the server.
+If it does not, type the address into the Address book in the game.
 
 - Give an IP address or a host name, without a port.
 - The game must have run once before, so that `game/user.ini` exists.
