@@ -17,13 +17,15 @@ language, or installs English the first time. Saves are kept when you switch.
 At the end setup makes the larger textures that ./dogfighter uses. It
 downloads two upscalers (about 100 MB) to upscale-tools/ and takes a few
 minutes. If the upscalers cannot be fetched or do not run on this Mac, the
-textures are made with the Mac's own filter. A finished set is not made again.
---no-hd-textures skips this step. --hd-textures is still accepted; it is the
-default.
+textures are made with the Mac's own filter. When hd-textures/ already holds
+a complete set, whatever made it, setup leaves it and the upscalers as they
+are. --no-hd-textures skips this step. --hd-textures is still accepted; it is
+the default.
 
 --generative also sets up the generative way for a hand-picked list of
 surface textures: a Python environment and two models, about 6.6 GB in
-upscale-tools/generative/. It needs Python 3.12 or later.
+upscale-tools/generative/. It needs Python 3.12 or later. A set that is
+already complete is not redrawn; setup prints the command that does it.
 EOF
 }
 
@@ -284,6 +286,14 @@ build_helpers() {
 make_hd_textures() {
   [ "$HD_TEXTURES" = 1 ] || return 0
   local tool="$HERE/tools/upscale-textures.py"
+  if python3 -I "$tool" --check; then
+    step "Larger textures"
+    echo "hd-textures/ holds a complete set. It is left as it is."
+    [ -n "$GENERATIVE" ] || return 0
+    python3 -I "$tool" --fetch-tools --generative
+    echo "To redraw the listed surfaces in that set, run: python3 tools/upscale-textures.py"
+    return 0
+  fi
   step "Larger textures (the first time this downloads two upscalers, about 100 MB)"
   if [ -n "$GENERATIVE" ]; then
     python3 -I "$tool" --fetch-tools --generative

@@ -150,6 +150,7 @@ Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [-
   --diag-hd-dir=FOLDER
                     Look for the larger textures in FOLDER, a full path, in place
                     of hd-textures/. An empty folder tests a start without them.
+                    The link to FOLDER is removed when the run ends.
   --winecfg         Open Wine's settings for this game's prefix instead of playing.
   --stop            End a running game and all Wine processes of this prefix.
 EOF
@@ -359,13 +360,12 @@ HD_DIR="$HERE/hd-textures"
 CACHE_LINK="$HERE/game/cache"
 CACHE_TARGET=../hd-textures/cache
 HD_SHOWN=hd-textures/
-OWN_TARGETS=("$CACHE_TARGET")
 if [ -n "$DIAG_HD_DIR" ]; then
   HD_DIR="${DIAG_HD_DIR%/}"
   CACHE_TARGET="$HD_DIR/cache"
   HD_SHOWN="$HD_DIR/"
-  OWN_TARGETS+=("$CACHE_TARGET")
 fi
+RUNNING="$HERE/game/.dogfighter-running"
 FOCUSFIX_EXE="$HERE/build/focusfix.exe"
 FOCUSHOOK_DLL="$HERE/build/focushook.dll"
 WINDIAG_EXE="$HERE/build/windiag.exe"
@@ -525,6 +525,57 @@ case "$MODE" in
   restore) restore_saves "$RESTORE_FILE"; exit ;;
 esac
 
+# A lock is stale when its process is gone or now runs something else. Inside
+# a macOS sandbox ps may not run and kill may say "not permitted"; the holder
+# then counts as alive.
+lock_holder_alive() {
+  local pid="$1" said command
+  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+  if said="$(kill -0 "$pid" 2>&1)"; then
+    command="$(ps -o command= -p "$pid" 2>/dev/null)" || return 0
+    [[ "$command" == *dogfighter* ]]
+  else
+    [[ "$said" == *"not permitted"* ]]
+  fi
+}
+
+# One game per installation: every Wine build shares game/, its settings and
+# the game/cache link. The lock is a symlink to the launcher's process id, so
+# it is made with its content in one step. The fallback to the Rosetta Wine
+# keeps this process id through exec, so it finds its own lock.
+take_lock() {
+  local holder
+  [ -d "$HERE/game" ] || return 0
+  if ! ln -s "$$" "$RUNNING" 2>/dev/null; then
+    holder="$(readlink "$RUNNING" 2>/dev/null || true)"
+    if [ "$holder" != $$ ]; then
+      if lock_holder_alive "$holder"; then
+        echo "Dogfighter is already running. Stop it with ./dogfighter --stop." >&2
+        exit 1
+      fi
+      rm -f "$RUNNING"
+      ln -s "$$" "$RUNNING" 2>/dev/null || {
+        echo "Dogfighter is already running. Stop it with ./dogfighter --stop." >&2
+        exit 1
+      }
+    fi
+  fi
+  LOCKED=1
+}
+
+LOCKED=0
+WATCH_PID=
+finish() {
+  if [ -n "$WATCH_PID" ]; then kill $WATCH_PID 2>/dev/null || true; fi
+  if [ -n "$DIAG_HD_DIR" ] && [ -L "$CACHE_LINK" ] && [ "$(readlink "$CACHE_LINK")" = "$CACHE_TARGET" ]; then
+    rm -f "$CACHE_LINK"
+    if [ -n "${LOG:-}" ]; then echo "Removed game/cache, the link to the test textures." >>"$LOG"; fi
+  fi
+  if [ "$LOCKED" = 1 ] && [ "$(readlink "$RUNNING" 2>/dev/null || true)" = $$ ]; then rm -f "$RUNNING"; fi
+}
+take_lock
+trap finish EXIT
+
 export WINEDEBUG="${DEBUG:-${WINEDEBUG:-fixme-all}}"
 export WINEDLLOVERRIDES="winmm=n,b;mscoree=;mshtml=;ddraw=b"
 # A muted start runs without mmdevapi, the one door from Wine's sound DLLs to
@@ -650,31 +701,26 @@ restore_picture_settings() {
 }
 
 hd_set_complete() {
-  [ -d "$HD_DIR/cache" ] && [ -f "$HD_DIR/manifest.json" ] || return 1
-  python3 -I - "$HD_DIR" <<'EOF' 2>/dev/null
-import json, os, sys
-out = sys.argv[1]
-with open(os.path.join(out, "manifest.json")) as f:
-    made = [t["path"] for t in json.load(f)["textures"] if t["way"] != "none"]
-sys.exit(not made or not all(os.path.isfile(os.path.join(out, "cache", *path.split("\\"))) for path in made))
-EOF
+  [ -f "$HD_DIR/manifest.json" ] && python3 -I "$HERE/tools/upscale-textures.py" --check --out "$HD_DIR" 2>/dev/null
 }
 
+# Without the larger textures no link may stay: the game would still load the
+# files behind it, without the raised size limit the helper sets for them.
 link_hd_textures() {
-  local limit target own
+  local limit
   limit="$(cat "$HD_DIR/texture-limit" 2>/dev/null || true)"
   if [ "$HD_TEXTURES" = 1 ] && [ -e "$CACHE_LINK" ] && [ ! -L "$CACHE_LINK" ]; then
     say "game/cache is a folder of your own, so the larger textures stay off. Move it away to use them."
     HD_TEXTURES=0
-  elif [ "$HD_TEXTURES" = 1 ] && { [ "$limit" != 512 ] && [ "$limit" != 1024 ] || ! hd_set_complete; }; then
+  elif [ "$HD_TEXTURES" = 1 ] && ! hd_set_complete; then
     say "No complete set of larger textures in $HD_SHOWN. Run ./setup.sh to make it."
     HD_TEXTURES=0
   fi
   if [ "$HD_TEXTURES" = 0 ]; then
-    target="$(readlink "$CACHE_LINK" 2>/dev/null || true)"
-    for own in "${OWN_TARGETS[@]}"; do
-      if [ -L "$CACHE_LINK" ] && [ "$target" = "$own" ]; then rm -f "$CACHE_LINK"; fi
-    done
+    if [ -L "$CACHE_LINK" ]; then
+      echo "Removed game/cache, a link to $(readlink "$CACHE_LINK")." >>"$LOG"
+      rm -f "$CACHE_LINK"
+    fi
     return 0
   fi
   ln -sfn "$CACHE_TARGET" "$CACHE_LINK"
@@ -884,7 +930,6 @@ if [ -n "$DIAG" ]; then
   cp "$WINDIAG_EXE" "$WINEPREFIX/drive_c/dogfighter-windiag.exe"
   cp "$CRASHLOG_DLL" "$WINEPREFIX/drive_c/dogfighter-crashlog.dll"
 fi
-WATCH_PID=
 if [ "$FOCUSFIX" = 1 ]; then
   FLAG="$WINEPREFIX/drive_c/dogfighter-focusfix.flag"
   cp "$FOCUSFIX_EXE" "$WINEPREFIX/drive_c/dogfighter-focusfix.exe"
@@ -920,7 +965,6 @@ if [ "$FOCUSFIX" = 1 ]; then
     watch_mac_pointer &
     WATCH_PID="$WATCH_PID $!"
   fi
-  trap 'kill $WATCH_PID 2>/dev/null || true' EXIT
 else
   GAME_CMD=(explorer "/desktop=Dogfighter,$GAME_RES" start /wait /d "$GAME_DOS" "$GAME_DOS\\Dogfighter.exe")
 fi
@@ -942,7 +986,7 @@ run_wine() {
   for shot in "$WINEPREFIX"/drive_c/dogfighter-full-size-*.tga; do
     [ -f "$shot" ] || continue
     mkdir -p "$HERE/logs/shots"
-    mv "$shot" "$HERE/logs/shots/$(basename "${LOG%.log}")-${shot##*dogfighter-}"
+    mv "$shot" "$HERE/logs/shots/$(basename "${LOG%.log}")-${shot##*dogfighter-}" || true
   done
 }
 
