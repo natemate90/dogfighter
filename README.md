@@ -324,6 +324,49 @@ Only textures on 3D shapes and the font pictures are resized.
 Menus, loading screens, the HUD and the maps keep their size.
 The game draws those at the size stored in the file, so larger files would break the layout.
 
+### Generative detail for some surfaces
+
+This is optional. It redraws 32 hand-picked surface textures four times as large, with new fine detail.
+They are wood floors and boards, brick, slate, concrete, grass and cloth.
+The list with a short prompt and a strength per texture is `tools/generative-surfaces.json`.
+
+```
+python3 tools/upscale-textures.py --fetch-tools --generative
+python3 tools/upscale-textures.py
+```
+
+`./setup.sh --hd-textures --generative` does the same.
+
+- It downloads about 6.6 GB to `upscale-tools/generative/`: a Python environment with the pinned packages of `tools/generative-requirements.txt`, and two models.
+- The models are Stable Diffusion 1.5 (licence CreativeML OpenRAIL-M) and the ControlNet 1.1 tile model (licence OpenRAIL), at pinned revisions with pinned checksums.
+- The tile model only comes as a pickle file. It is read once with a loader that cannot run code, and kept as safetensors.
+- It needs Python 3.12 or later. The Xcode Command Line Tools have 3.9, so the tool looks for one from Homebrew or python.org.
+- After that, a normal run uses it for the listed textures. `--no-generative` leaves it out.
+
+How a listed texture is made:
+- First the usual way above, at 2x.
+- The model redraws that result at 4x, on the Mac's graphics card, with a fixed seed.
+- A tiling texture is drawn so that it still tiles.
+- The coarse shapes are then put back from the original.
+- The result must stay close to the original and must not show a seam. Otherwise the 2x result is kept.
+- The manifest lists it with the way `generative`, its prompt, strength, seed and the model checksums.
+
+The checks do not catch everything the model invents.
+So the list holds only textures whose result was looked at by eye.
+In the first run 40 were listed.
+Four failed the checks and four more were dropped after looking: a seam, a swirl pattern, and nails drawn as a metal bracket.
+
+One run on an M4 Max, all 40 textures:
+- 386 seconds in all, 4 to 8 seconds for a 512-pixel texture, 14 to 27 seconds for 1024 by 512.
+- Free memory never went under 20%. The tool starts no new texture under 15% free and stops under 10%.
+- Eight textures made a second time came out byte-identical. Another Mac may give slightly different pictures.
+- The 32 textures take 29 MB instead of 7 MB.
+
+In the game, with `--full-res --hd-textures`, the living room of the first Axis mission loaded without errors.
+The floor boards showed finer grain.
+No loss of frame rate was measured: 61 to 118 a second, against 52 to 81 with the usual set in the same scene.
+Longer missions were not tested.
+
 ### Sharper letters
 
 The game cuts its letters out of 11 font pictures in `Graphics\Fonts`.
