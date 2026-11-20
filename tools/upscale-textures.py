@@ -29,7 +29,8 @@ How a texture is resized:
 Resizers:
   vimage      Lanczos from the Mac's own Accelerate framework. Smooth edges,
               no new detail. Built from tools/vimage-scale.c with the Xcode
-              Command Line Tools. Jobs go to it on stdin, one per line:
+              Command Line Tools. Jobs go to it on stdin as six fields, each
+              ended by a NUL byte, so a path may hold spaces:
               IN OUT WIDTH HEIGHT NEW_WIDTH NEW_HEIGHT, raw RGBA bytes.
   realesrgan  realesrgan-ncnn-vulkan, if it is on the PATH. It draws new
               detail. It is never downloaded. Alpha still goes through vimage.
@@ -40,6 +41,7 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -50,6 +52,7 @@ import up  # noqa: E402
 KEPT = ("graphics\\textures\\", "graphics\\models\\", "graphics\\backdrops\\", "graphics\\effects\\")
 BORDER = 8
 MARKER = "texture-limit"
+WORK = ".upscale-work"
 ESRGAN = "realesrgan-ncnn-vulkan"
 ESRGAN_SCALE = 4
 
@@ -168,6 +171,10 @@ def main():
         for entry in pack.entries:
             if not entry.name.lower().endswith(".gti"):
                 continue
+            try:
+                up.safe_parts(entry.path)
+            except ValueError as problem:
+                sys.exit("%s: %s. Nothing was written." % (path, problem))
             if not entry.path.lower().startswith(KEPT):
                 folder = "\\".join(entry.folder.split("\\")[:2])
                 left_out[folder] = left_out.get(folder, 0) + 1
@@ -184,16 +191,27 @@ def main():
         sys.exit("Nothing to do.")
 
     cache = os.path.join(args.out, "cache")
-    work = os.path.join(args.out, ".upscale-work")
     if os.path.exists(cache) and not os.path.exists(os.path.join(args.out, MARKER)):
         sys.exit("%s exists and was not made by this tool. Move it away first." % cache)
-    for folder in (cache, work):
-        shutil.rmtree(folder, ignore_errors=True)
+    os.makedirs(args.out, exist_ok=True)
+    for name in os.listdir(args.out):
+        if name.startswith(WORK):
+            shutil.rmtree(os.path.join(args.out, name), ignore_errors=True)
+    work = tempfile.mkdtemp(prefix=WORK, dir=args.out)
+    try:
+        build(args, chosen, cache, work, esrgan if use_esrgan else None)
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
+def build(args, chosen, cache, work, esrgan):
+    """Makes the whole set in work/cache. The old set is replaced only when every texture is written."""
+    fresh = os.path.join(work, "cache")
     os.makedirs(os.path.join(work, "colour"))
     helper = build_helper(work)
 
     started = time.time()
-    jobs, lines, largest = [], [], 0
+    jobs, fields, largest = [], [], 0
     for number, (pack, entry) in enumerate(chosen):
         best = gti.parse(pack.read(entry)).best()
         width, height, pixels = gti.to_rgba(best)
@@ -209,29 +227,34 @@ def main():
             "alpha": best.alpha, "mipmaps": len(best.levels) > 1,
             "cutout": best.alpha and set(pixels[3::4]) <= {0, 255},
             "scaled": os.path.join(work, "%05d.out" % number),
-            "target": os.path.join(cache, *entry.path.split("\\")),
+            "target": os.path.join(fresh, *up.safe_parts(entry.path)),
         }
         source = os.path.join(work, "%05d.in" % number)
         with open(source, "wb") as f:
             f.write(bordered)
-        lines.append("%s %s %d %d %d %d" % (source, job["scaled"], full_w, full_h, full_w * args.scale, full_h * args.scale))
-        if use_esrgan:
+        fields += [source, job["scaled"], full_w, full_h, full_w * args.scale, full_h * args.scale]
+        if esrgan:
             with open(os.path.join(work, "colour", "%05d.png" % number), "wb") as f:
                 f.write(gti.write_png(full_w, full_h, bordered, False))
             job["detail"] = os.path.join(work, "detail", "%05d.png" % number)
         jobs.append(job)
         largest = max(largest, width * args.scale, height * args.scale)
 
-    subprocess.run([helper], input="\n".join(lines).encode(), check=True)
-    if use_esrgan:
+    if not jobs:
+        sys.exit("Nothing to do.")
+    subprocess.run([helper], input=b"".join(os.fsencode(str(field)) + b"\0" for field in fields), check=True)
+    if esrgan:
         os.makedirs(os.path.join(work, "detail"))
         subprocess.run([esrgan, "-i", os.path.join(work, "colour"), "-o", os.path.join(work, "detail"),
                         "-n", args.model, "-s", str(ESRGAN_SCALE), "-f", "png"], check=True)
 
     with multiprocessing.Pool(max(1, args.jobs)) as pool:
         written = sum(pool.imap_unordered(finish, jobs, 8))
-    shutil.rmtree(work, ignore_errors=True)
     limit = 512 if largest <= 512 else 1024
+    old = os.path.join(work, "old")
+    if os.path.exists(cache):
+        os.rename(cache, old)
+    os.rename(fresh, cache)
     with open(os.path.join(args.out, MARKER), "w") as f:
         f.write("%d\n" % limit)
     print("%d textures, %.0f MB, in %s. Took %.0f seconds." % (len(jobs), written / 1e6, cache, time.time() - started))
