@@ -73,7 +73,11 @@ Once linked, `dogfighter` works from any folder.
 | `--windowed=WxH` | Force another Wine window size, e.g. `--windowed=1280x960`. |
 | `--fullscreen` | Let the game switch the Mac's real display mode. |
 | `--no-focusfix` | Turn off the focus fix (see Troubleshooting). |
+| `--join=ADDRESS` | Put a server in the game's Address book, then start the game (see Online multiplayer). |
 | `--winecfg` | Open Wine's settings for this game instead of playing. |
+| `--doctor` | Check the installation and print a fix for each problem (see Self-test). |
+| `--backup` | Copy your saves and settings to a dated zip file in `backups/` (see Saves). |
+| `--restore[=FILE]` | Put a backup back: the newest one, or `FILE`. |
 
 The first start creates a Wine prefix in `prefix/`, which takes a minute.
 The disc image is not needed while playing: `cd/` acts as the CD in drive D:.
@@ -91,16 +95,65 @@ To override it, set a number from 0 to 99 in `game/winmm.ini`; 100 means "use th
 
 Pilots, levels, photos and stickers live in `game/User`.
 Screenshots (F12) go to `game/ScreenShots`.
-Back up `game/User` to keep your pilots.
+
+```
+./dogfighter --backup
+```
+
+This writes `backups/saves-<date>-<time>.zip`.
+The zip holds `game/User`, `game/user.ini` and `game/system.ini`.
+`backups/` is git-ignored.
+
+```
+./dogfighter --restore
+./dogfighter --restore=saves-20260101-120000.zip
+```
+
+The first line puts the newest backup back.
+The second one takes a file name from `backups/`, or a full path.
+Restore replaces `game/User` and both settings files.
+It first backs up what is there now, so nothing is lost.
+Quit the game before you restore.
+
+## Self-test
+
+```
+./dogfighter --doctor
+```
+
+It does not start the game.
+It prints one line per check, with the fix for each failed one.
+It exits with status 1 when a check failed.
+
+It checks these things.
+- Rosetta 2 is installed, and Wine is there and runs.
+- macOS does not hold Wine in quarantine.
+- The game files, the CD label and the ten music tracks are in place.
+- The focus fix is built and newer than its source.
+- The save folders in `game/User` exist.
 
 ## Online multiplayer
 
 - The game uses UDP port 19400.
-- Add the other players' addresses in the in-game Address book.
+- Add the other players' addresses in the in-game Address book, or use `--join` (below).
 - [Tailscale](https://tailscale.com) is the easiest way: everyone joins one tailnet and uses the Tailscale IP addresses. No port forwarding is needed.
 - Without Tailscale, the host must forward UDP port 19400 to their Mac.
 - All players need the same game version (see the top of `game/readme.txt`).
 - Allow Wine through the macOS firewall. Click Allow when macOS asks, or add `wine/bin/wine` under System Settings > Network > Firewall > Options.
+
+### Join a server by address
+
+```
+./dogfighter --join=100.64.0.7
+```
+
+This adds the address to the game's Address book and starts the game.
+Open Multiplayer; the server is in the list when it is online.
+The address stays in the Address book for later starts.
+
+- Give an IP address or a host name, without a port.
+- The game must have run once before, so that `game/user.ini` exists.
+- The game cannot connect by itself at start: its menus open first.
 
 ## Controls
 
@@ -146,6 +199,7 @@ They are listed in sections 1.1 and 1.2 of `game/readme.txt`.
 
 ## Troubleshooting
 
+- **Start here.** Run `./dogfighter --doctor`. It names what is broken and how to fix it.
 - **Logs.** Each start writes `logs/run-<date>-<time>.log`. The music player's log is next to it, ending in `-music.log`.
 - **Cmd+Tab.** The game was not made for task switching. The focus fix, on by default, keeps it running after Cmd+Tab and brings it back to the front when you return. If it says `focusfix.exe` or `focushook.dll` is missing, run `./setup.sh` again. Use `--no-focusfix` to test without it.
 - **Tiny text.** `--sharp` halves the size of the menu text. Leave it off, or pick a smaller `--res`, for bigger text.

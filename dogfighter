@@ -3,7 +3,9 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: dogfighter [--res=WxH] [--sharp] [--windowed[=WxH] | --fullscreen] [--no-focusfix] [--winecfg]
+Usage: dogfighter [--res=WxH] [--sharp] [--windowed[=WxH] | --fullscreen] [--no-focusfix]
+                  [--join=ADDRESS] [--winecfg]
+       dogfighter --doctor | --backup | --restore[=FILE]
 
   (no option)       Play in a window at the largest resolution that fits the screen.
                     macOS scales it up on a Retina screen, so menu text stays readable.
@@ -13,7 +15,15 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed[=WxH] | --fullscreen] [--no-
   --fullscreen      Let the game switch the Mac's real display mode.
   --no-focusfix     Turn off the focus fix. By default the game keeps running after
                     Cmd+Tab and comes back to the front when you return to it.
+  --join=ADDRESS    Put a server's IP address or host name in the game's Address book,
+                    then start the game. The server shows in the Multiplayer list.
   --winecfg         Open Wine's settings for this game's prefix instead of playing.
+  --doctor          Check the installation and print a fix for each problem.
+                    Does not start the game.
+  --backup          Copy pilots, levels, photos, stickers and settings to a dated
+                    zip file in backups/.
+  --restore[=FILE]  Put a backup back: the newest one, or FILE. The current saves
+                    are backed up first.
 EOF
 }
 
@@ -22,6 +32,8 @@ DESKTOP_SIZE=
 GAME_RES=
 FOCUSFIX=1
 SHARP=0
+JOIN=
+RESTORE_FILE=
 for arg in "$@"; do
   case "$arg" in
     --windowed) MODE=windowed ;;
@@ -32,6 +44,17 @@ for arg in "$@"; do
     --focusfix) FOCUSFIX=1 ;;
     --no-focusfix) FOCUSFIX=0 ;;
     --winecfg) MODE=winecfg ;;
+    --doctor) MODE=doctor ;;
+    --backup) MODE=backup ;;
+    --restore) MODE=restore ;;
+    --restore=*) MODE=restore; RESTORE_FILE="${arg#--restore=}" ;;
+    --join=*)
+      JOIN="${arg#--join=}"
+      [[ "$JOIN" =~ ^[0-9A-Za-z._-]{1,63}$ ]] || {
+        echo "Bad address: $JOIN. Give an IP address or a host name without a port; the game always uses UDP port 19400." >&2
+        exit 2
+      }
+      ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; exit 2 ;;
   esac
@@ -56,6 +79,141 @@ FOCUSFIX_EXE="$HERE/build/focusfix.exe"
 FOCUSHOOK_DLL="$HERE/build/focushook.dll"
 SIZES="2560x1600 2560x1440 1920x1200 1920x1080 1680x1050 1600x1200 1600x900 1440x900
        1280x1024 1280x960 1280x800 1280x720 1024x768 800x600 640x480"
+
+BACKUPS="$HERE/backups"
+SAVED="User user.ini system.ini"
+
+rosetta_ok() { /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; }
+
+apple_silicon() {
+  [ "$(uname -m)" = arm64 ] || [ "$(sysctl -n hw.optional.arm64 2>/dev/null || true)" = 1 ]
+}
+
+has_files() {
+  local dir="$1" name
+  shift
+  for name in "$@"; do [ -f "$dir/$name" ] || return 1; done
+}
+
+not_quarantined() { ! xattr -p com.apple.quarantine "$WINE"; }
+
+cd_label_ok() { [ "$(cat "$HERE/cd/.windows-label")" = Dogfighter ]; }
+
+focusfix_fresh() {
+  [ "$FOCUSFIX_EXE" -nt "$HERE/src/focusfix/focusfix.c" ] &&
+    [ "$FOCUSHOOK_DLL" -nt "$HERE/src/focusfix/focushook.c" ]
+}
+
+save_folders_ok() {
+  local dir
+  for dir in Rosters Save/Levels Save/Photos Save/Stickers; do
+    [ -d "$HERE/game/User/$dir" ] && [ -w "$HERE/game/User/$dir" ] || return 1
+  done
+}
+
+CHECKS=0
+FAILED=0
+check() {
+  local name="$1" fix="$2"
+  shift 2
+  CHECKS=$((CHECKS + 1))
+  if "$@" >/dev/null 2>&1; then
+    echo "ok    $name"
+  else
+    FAILED=$((FAILED + 1))
+    echo "FAIL  $name. Fix: $fix"
+  fi
+}
+
+doctor() {
+  local t tracks=()
+  for t in 02 03 04 05 06 07 08 09 10 11; do tracks+=("Track$t.ogg"); done
+  check "Apple Silicon Mac" "none; this launcher needs an M1 or later" apple_silicon
+  check "Rosetta 2" "softwareupdate --install-rosetta --agree-to-license" rosetta_ok
+  check "Wine is installed in wine/" "./setup.sh" test -x "$WINE"
+  check "macOS does not block Wine (quarantine)" "xattr -dr com.apple.quarantine wine" not_quarantined
+  check "Wine runs (wine --version)" "delete wine/, then ./setup.sh" "$WINE" --version
+  check "Game files in game/" "./setup.sh" has_files "$HERE/game" \
+    Dogfighter.exe AfEngine.dll Cc.dll UdsPack.dll gtDirect3D.dll Resource.up English.up
+  check "CD label in cd/.windows-label" "delete cd/, then ./setup.sh" cd_label_ok
+  check "Ten music tracks in music/" "./setup.sh" has_files "$HERE/music" "${tracks[@]}"
+  check "Music player (game/winmm.dll, game/Music)" "./setup.sh" \
+    has_files "$HERE/game" winmm.dll Music/Track02.ogg
+  check "Focus fix is built in build/" "./setup.sh" has_files "$HERE/build" focusfix.exe focushook.dll
+  check "Focus fix is newer than its source" \
+    "delete build/focusfix.exe and build/focushook.dll, then ./setup.sh" focusfix_fresh
+  check "Save folders in game/User" "./setup.sh" save_folders_ok
+  if [ "$FAILED" = 0 ]; then
+    echo "All $CHECKS checks passed. Start the game with: ./dogfighter"
+  else
+    echo "$FAILED of $CHECKS checks failed. Do the fixes above, then run this again."
+    return 1
+  fi
+}
+
+saved_items() {
+  local item
+  for item in $SAVED; do
+    if [ -e "$HERE/game/$item" ]; then echo "$item"; fi
+  done
+}
+
+backup_saves() {
+  local items=() item stamp file n=1
+  while IFS= read -r item; do items+=("$item"); done < <(saved_items)
+  [ "${#items[@]}" -gt 0 ] || { echo "Nothing to back up: game/ has no saves or settings yet." >&2; return 1; }
+  mkdir -p "$BACKUPS"
+  stamp="$(date +%Y%m%d-%H%M%S)"
+  file="$BACKUPS/saves-$stamp.zip"
+  while [ -e "$file" ]; do
+    n=$((n + 1))
+    file="$BACKUPS/saves-$stamp-$n.zip"
+  done
+  (cd "$HERE/game" && zip -qr "$file" "${items[@]}")
+  echo "$file"
+}
+
+restore_saves() {
+  local archive="$1" work item kept
+  if [ -z "$archive" ]; then
+    archive="$(find "$BACKUPS" -maxdepth 1 -name 'saves-*.zip' -exec stat -f '%m %N' {} + 2>/dev/null |
+      sort -rn | sed -n '1s/^[0-9]* //p' || true)"
+    [ -n "$archive" ] || { echo "No backup in backups/. Make one with: dogfighter --backup" >&2; return 1; }
+  elif [ ! -f "$archive" ] && [ -f "$BACKUPS/$archive" ]; then
+    archive="$BACKUPS/$archive"
+  fi
+  [ -f "$archive" ] || { echo "Backup not found: $archive" >&2; return 1; }
+  archive="$(cd "$(dirname "$archive")" && pwd)/$(basename "$archive")"
+  [ -d "$HERE/game" ] || { echo "game/ is missing. Run ./setup.sh first." >&2; return 1; }
+  if pgrep -qf 'Dogfighter\.exe' 2>/dev/null; then
+    echo "The game is running. Quit it first: it writes its settings again when it quits." >&2
+    return 1
+  fi
+  mkdir -p "$BACKUPS"
+  work="$(mktemp -d "$BACKUPS/restore.XXXXXX")"
+  if ! unzip -q "$archive" -d "$work" 2>/dev/null || [ ! -d "$work/User" ]; then
+    rm -rf "$work"
+    echo "$archive is not a saves backup. Nothing was changed." >&2
+    return 1
+  fi
+  if [ -n "$(saved_items)" ]; then
+    kept="$(backup_saves)"
+    echo "Current saves kept in $kept"
+  fi
+  for item in $SAVED; do
+    [ -e "$work/$item" ] || continue
+    rm -rf "$HERE/game/${item:?}"
+    mv "$work/$item" "$HERE/game/$item"
+  done
+  rm -rf "$work"
+  echo "Restored from $archive"
+}
+
+case "$MODE" in
+  doctor) doctor; exit ;;
+  backup) BACKUP_FILE="$(backup_saves)"; echo "Backup written to $BACKUP_FILE"; exit ;;
+  restore) restore_saves "$RESTORE_FILE"; exit ;;
+esac
 
 export WINEPREFIX="$HERE/prefix"
 export WINEDEBUG="${WINEDEBUG:-fixme-all}"
@@ -86,6 +244,35 @@ ini_set() {
     { print $0 cr }
     END { if (!seen) print s "\r"; if (!done) print k "=" v "\r" }' "$1" >"$tmp"
   mv "$tmp" "$1"
+}
+
+address_book_add() {
+  local file="$HERE/game/user.ini" tmp
+  if [ ! -f "$file" ]; then
+    echo "game/user.ini is not there yet. Start the game once, quit it, then use --join." >&2
+    exit 1
+  fi
+  tmp="$(mktemp "$file.XXXXXX")"
+  LC_ALL=C awk -v a="$1" '
+    { line = $0; sub(/\r$/, "", line); split(line, word, " ") }
+    word[1] == "sets" && index(word[2], "address_") == 1 {
+      value = word[3]; gsub(/"/, "", value)
+      used[substr(word[2], 9)] = 1
+      if (tolower(value) == tolower(a)) found = 1
+    }
+    { print }
+    END {
+      n = 0
+      while (n in used) n++
+      if (!found) printf "sets address_%d \"%s\"\r\n", n, a
+    }' "$file" >"$tmp"
+  if cmp -s "$tmp" "$file"; then
+    rm -f "$tmp"
+    say "$1 is already in the game's Address book."
+  else
+    mv "$tmp" "$file"
+    say "Added $1 to the game's Address book. Open Multiplayer to see the server."
+  fi
 }
 
 game_section() {
@@ -148,7 +335,7 @@ watch_front() {
   done
 }
 
-if ! /usr/bin/arch -x86_64 /usr/bin/true 2>/dev/null; then
+if ! rosetta_ok; then
   echo "Rosetta 2 is missing. Install it with:" >&2
   echo "  softwareupdate --install-rosetta --agree-to-license" >&2
   exit 1
@@ -157,6 +344,9 @@ fi
 if [ "$FOCUSFIX" = 1 ] && { [ ! -f "$FOCUSFIX_EXE" ] || [ ! -f "$FOCUSHOOK_DLL" ]; }; then
   say "Warning: build/focusfix.exe or build/focushook.dll is missing; starting without the focus fix. Run ./setup.sh to build them."
   FOCUSFIX=0
+fi
+if [ -n "$JOIN" ] && [ "$MODE" != winecfg ]; then
+  address_book_add "$JOIN"
 fi
 
 if [ ! -f "$WINEPREFIX/system.reg" ]; then
