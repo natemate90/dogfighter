@@ -3,8 +3,8 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--original] [--setup]
-                  [--no-focusfix]
+Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures] [--original]
+                  [--setup] [--no-focusfix]
                   [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|start-test|stall-test|draw-test]]
                   [--diag-keys=SECONDS:SCANCODE,...] [--diag-console=SECONDS:COMMAND]
                   [--winecfg] [--stop]
@@ -19,6 +19,9 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--original] [
   --wide            Widen the view angle to fit a picture wider than 4:3, so its top
                     and bottom are not cut off. The glow around lamps is not drawn
                     with this on.
+  --hd-textures     Use the larger textures in hd-textures/. Make them once with
+                    python3 tools/upscale-textures.py. Without this option the game
+                    uses its own textures.
   --original        Leave the picture as the game made it: 16-bit colour, the normal
                     draw distance, no light shafts, blurry ground in the distance.
                     Without this the launcher turns these up at every start.
@@ -58,6 +61,7 @@ SHARP=0
 SETUP=accept
 ORIGINAL=0
 WIDE=0
+HD_TEXTURES=0
 DEBUG=
 DIAG=
 DIAG_KEYS=
@@ -71,6 +75,7 @@ for arg in "$@"; do
     --sharp) SHARP=1 ;;
     --original) ORIGINAL=1 ;;
     --wide) WIDE=1 ;;
+    --hd-textures) HD_TEXTURES=1 ;;
     --setup) SETUP=show ;;
     --no-focusfix) FOCUSFIX=0 ;;
     --debug=*) DEBUG="${arg#--debug=}" ;;
@@ -105,6 +110,10 @@ if [[ "$DIAG" == draw-test\ * ]]; then
   exit 2
 fi
 [[ "$DIAG" != *wait=* || "$DIAG" =~ wait=[0-9]+(\ |$) ]] || { echo "Bad number of seconds: $DIAG" >&2; exit 2; }
+if [ "$FOCUSFIX" = 0 ] && [ "$HD_TEXTURES" = 1 ]; then
+  echo "--hd-textures needs the helper; leave out --no-focusfix." >&2
+  exit 2
+fi
 if [ "$FOCUSFIX" = 0 ] && [[ "$DIAG" == *-test* || "$DIAG" == *=* ]]; then
   echo "The diagnostic tests need the helper; leave out --no-focusfix." >&2
   exit 2
@@ -124,6 +133,9 @@ REG="$HERE/dogfighter.reg"
 INI="$HERE/game/system.ini"
 USER_INI="$HERE/game/user.ini"
 PICTURE_BEFORE="$HERE/game/dogfighter-picture-before.txt"
+HD_DIR="$HERE/hd-textures"
+CACHE_LINK="$HERE/game/cache"
+CACHE_TARGET=../hd-textures/cache
 FOCUSFIX_EXE="$HERE/build/focusfix.exe"
 FOCUSHOOK_DLL="$HERE/build/focushook.dll"
 WINDIAG_EXE="$HERE/build/windiag.exe"
@@ -228,6 +240,26 @@ restore_picture_settings() {
     say "Picture setting $key: back to $(picture_get "$key")."
   done
   rm -f "$PICTURE_BEFORE"
+}
+
+link_hd_textures() {
+  local limit
+  if [ "$HD_TEXTURES" = 0 ]; then
+    if [ -L "$CACHE_LINK" ] && [ "$(readlink "$CACHE_LINK")" = "$CACHE_TARGET" ]; then rm -f "$CACHE_LINK"; fi
+    return 0
+  fi
+  limit="$(cat "$HD_DIR/texture-limit" 2>/dev/null || true)"
+  if [ ! -d "$HD_DIR/cache" ] || { [ "$limit" != 512 ] && [ "$limit" != 1024 ]; }; then
+    say "No larger textures in hd-textures/. Make them first: python3 tools/upscale-textures.py"
+    exit 1
+  fi
+  if [ -e "$CACHE_LINK" ] && [ ! -L "$CACHE_LINK" ]; then
+    say "game/cache is a folder of your own. Move it away to use --hd-textures."
+    exit 1
+  fi
+  ln -sfn "$CACHE_TARGET" "$CACHE_LINK"
+  export DOGFIGHTER_TEXTURE_LIMIT="$limit"
+  say "Larger textures on: up to $limit pixels a side, from hd-textures/cache."
 }
 
 game_section() {
@@ -345,6 +377,7 @@ if [ "$MODE" = winecfg ]; then
   exit 0
 fi
 clean_wrapper_leftovers
+link_hd_textures
 
 SCREEN="$(screen_info)"
 LIMIT=1024x768
