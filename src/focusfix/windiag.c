@@ -352,7 +352,7 @@ static void draw_test(void)
 
 int main(int argc, char **argv)
 {
-    BOOL seen = FALSE, window_test = FALSE, start_test = FALSE;
+    BOOL seen = FALSE, window_test = FALSE, start_test = FALSE, press_ok = FALSE;
     DWORD start = GetTickCount(), wait = 10;
     int next_step = 0;
 
@@ -367,6 +367,7 @@ int main(int argc, char **argv)
     {
         if (!strcmp(argv[i], "focus-test")) window_test = TRUE;
         if (!strcmp(argv[i], "start-test")) start_test = TRUE;
+        if (!strcmp(argv[i], "press-ok")) press_ok = TRUE;
         if (!strncmp(argv[i], "wait=", 5)) wait = atoi(argv[i] + 5);
         if (!strncmp(argv[i], "keys=", 5)) read_keys(argv[i] + 5);
         if (!strncmp(argv[i], "console=", 8)) read_command(argv[i] + 8);
@@ -377,6 +378,14 @@ int main(int argc, char **argv)
         game = game_pid();
         if (game) seen = TRUE;
         else if (seen || GetTickCount() - start > 30000) break;
+
+        HWND setup = press_ok ? FindWindowA("#32770", "Airfix Dogfighter setup") : NULL;
+        if (setup && IsWindowVisible(setup))
+        {
+            PostMessageA(setup, WM_COMMAND, IDOK, 0);
+            note("pressed OK in the game's setup dialog");
+            press_ok = FALSE;
+        }
 
         DWORD shown = sized_at ? (GetTickCount() - sized_at) / 1000 : 0;
         if (start_test && shown >= 8)
