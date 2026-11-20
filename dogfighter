@@ -10,7 +10,7 @@ Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [-
                   [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|move-test|start-test|stall-test|crash-test|fallback-test|draw-test|press-ok|press-cancel]]
                   [--diag-keys=SECONDS:SCANCODE,...] [--diag-mouse=SECONDS:DX:DY[:c|:o],...]
                   [--diag-console=SECONDS:COMMAND] [--diag-display=right] [--diag-hold] [--diag-sound]
-                  [--diag-hd-dir=FOLDER]
+                  [--diag-hd-dir=FOLDER] [--diag-draws] [--diag-shot-on=TEXT]
                   [--diag-end=SECONDS] [--diag-zoom=SECONDS] [--diag-drag=SECONDS]
                   [--join=ADDRESS] [--winecfg] [--stop]
        dogfighter [--wine=NAME] --doctor
@@ -151,6 +151,13 @@ Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [-
                     Look for the larger textures in FOLDER, a full path, in place
                     of hd-textures/. An empty folder tests a start without them.
                     The link to FOLDER is removed when the run ends.
+  --diag-draws      Write to the log where the game first draws each flat picture:
+                    its place on the game's screen and its size. Needs the larger
+                    textures to be on.
+  --diag-shot-on=TEXT
+                    With --full-res: save the full-size picture a few frames after
+                    the game loads a picture whose path holds TEXT, e.g.
+                    --diag-shot-on=loadingscreen. It lands in logs/shots/.
   --winecfg         Open Wine's settings for this game's prefix instead of playing.
   --stop            End a running game and all Wine processes of this prefix.
 EOF
@@ -179,6 +186,8 @@ DIAG_HD_DIR=
 DIAG_END=
 DIAG_ZOOM=
 DIAG_DRAG=
+DIAG_DRAWS=0
+DIAG_SHOT_ON=
 FULL_RES=auto
 SMOOTH=4
 DEEP_Z=0
@@ -229,6 +238,8 @@ for arg in "$@"; do
     --diag-end=*) DIAG_END="${arg#--diag-end=}" ;;
     --diag-zoom=*) DIAG_ZOOM="${arg#--diag-zoom=}" ;;
     --diag-drag=*) DIAG_DRAG="${arg#--diag-drag=}" ;;
+    --diag-draws) DIAG_DRAWS=1 ;;
+    --diag-shot-on=*) DIAG_SHOT_ON="${arg#--diag-shot-on=}" ;;
     --full-res) FULL_RES=1 ;;
     --no-full-res) FULL_RES=0 ;;
     --smooth=*) SMOOTH="${arg#--smooth=}" ;;
@@ -270,7 +281,8 @@ if [ -n "$DIAG_KEYS" ]; then
   [[ "$DIAG_KEYS" =~ ^[0-9]+:[0-9a-fA-F]+(,[0-9]+:[0-9a-fA-F]+)*$ ]] || { echo "Bad key list: $DIAG_KEYS" >&2; exit 2; }
   DIAG="${DIAG:-log} keys=$DIAG_KEYS"
 fi
-if [ "$DIAG_HOLD" = 1 ] || [ "$DIAG_SOUND" = 1 ] || [ -n "$DIAG_HD_DIR" ]; then DIAG="${DIAG:-log}"; fi
+if [ "$DIAG_HOLD" = 1 ] || [ "$DIAG_SOUND" = 1 ] || [ -n "$DIAG_HD_DIR" ] || [ "$DIAG_DRAWS" = 1 ] || [ -n "$DIAG_SHOT_ON" ]; then DIAG="${DIAG:-log}"; fi
+[[ "$DIAG_SHOT_ON" =~ ^[A-Za-z0-9_.\\-]{0,60}$ ]] || { echo "Bad text: $DIAG_SHOT_ON" >&2; exit 2; }
 [[ -z "$DIAG_HD_DIR" || "$DIAG_HD_DIR" == /* ]] || { echo "Bad folder: $DIAG_HD_DIR. Give a full path." >&2; exit 2; }
 if [ -n "$DIAG_MOUSE" ]; then
   [[ "$DIAG_MOUSE" =~ ^[0-9]+:-?[0-9]+:-?[0-9]+(:[co])?(,[0-9]+:-?[0-9]+:-?[0-9]+(:[co])?)*$ ]] || { echo "Bad mouse list: $DIAG_MOUSE" >&2; exit 2; }
@@ -952,6 +964,8 @@ if [ "$FOCUSFIX" = 1 ]; then
   fi
   if [ "$FULL_RES_GIVEN" = 1 ] && [ -n "$DIAG" ]; then export DOGFIGHTER_TEST_FULL_SIZE_SHOTS=1; fi
   if [ "$DEEP_Z" = 1 ]; then export DOGFIGHTER_DEEP_Z=1; fi
+  if [ "$DIAG_DRAWS" = 1 ]; then export DOGFIGHTER_TEST_NOTES_DRAWS=1; fi
+  if [ -n "$DIAG_SHOT_ON" ]; then export DOGFIGHTER_TEST_SHOT_ON="$DIAG_SHOT_ON"; fi
   if [ -n "$DIAG" ]; then export DOGFIGHTER_DIAG="$DIAG"; fi
   GAME_CMD=('C:\dogfighter-focusfix.exe' 'C:\dogfighter-focusfix.flag' "$GAME_DOS\\Dogfighter.exe")
   if [ "$DIAG" = draw-test ]; then

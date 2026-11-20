@@ -118,6 +118,9 @@ static RECT test_display;
 static void *front_swapchain, *front_texture;
 static DWORD front_thread;
 static unsigned int anisotropy, texture_limit, edge_samples;
+static BOOL test_notes_draws;
+static char test_shot_on[64];
+static LONG test_shot_in;
 static volatile LONG flips, direct_draws, gdi_draws, unscaled_draws, to_announce, dinput_clips, dinput_moves;
 
 static void say(const char *fmt, ...)
@@ -307,6 +310,7 @@ static void *__cdecl noted_front_buffer(void *swapchain)
 }
 
 static void save_test_picture(void *resource, unsigned int index, int format, LONG width, LONG height);
+static void save_full_size_picture(struct full_size_surface *entry, unsigned int index);
 
 static void *__cdecl noted_back_buffer(void *swapchain, UINT index)
 {
@@ -333,6 +337,8 @@ static HRESULT __cdecl scaled_blt(void *context, void *dst, unsigned int dst_ind
         if (from_picture) src_rect = scaled_rect(src_rect, &full_src);
     }
     if (dst && (dst == swapchain_back_buffer || dst == front_texture)) shown_picture_is_full_size = full_size_surface(src) != NULL;
+    if (test_shot_in > 0 && dst && dst == swapchain_back_buffer && shown_picture_is_full_size && !--test_shot_in)
+        save_full_size_picture(full_size_surface(src), src_index);
     if (test_saves_full_size && dst && dst == swapchain_back_buffer && !shown_picture_is_full_size && src_rect)
     {
         static int plain;
@@ -1347,6 +1353,8 @@ static unsigned char __fastcall marked_texture_load(void *texture, void *unused,
 
     if (entry) entry->texture = NULL;
     if (!loaded || !file || IsBadStringPtrA(file, MAX_PATH)) return loaded;
+    if (test_shot_on[0] && snprintf(marker, sizeof(marker), "%s", file) < (int)sizeof(marker) && strstr(CharLowerA(marker), test_shot_on))
+        test_shot_in = 4;
     for (int times = 4; times >= 2; times -= 2)
     {
         if (snprintf(marker, sizeof(marker), "cache\\%s.%dx", file, times) >= (int)sizeof(marker)
@@ -1363,6 +1371,56 @@ static unsigned char __fastcall marked_texture_load(void *texture, void *unused,
         break;
     }
     return loaded;
+}
+
+/* Test runs only: one log line for the first time each picture is drawn flat,
+   with its place on the game's screen. Every flat draw of the game ends in
+   this one function of GtScreen. */
+static void (__fastcall *game_draw_flat)(void *screen, void *unused, void *texture, float x, float y, float width, float height,
+                                         float left, float top, float right, float bottom, DWORD colour);
+
+static void __fastcall noted_draw_flat(void *screen, void *unused, void *texture, float x, float y, float width, float height,
+                                       float left, float top, float right, float bottom, DWORD colour)
+{
+    static struct { void *texture; const char *file; } seen[2048];
+    static int used;
+    const char *file = texture && !IsBadReadPtr(texture, TEXTURE_FILE_NAME + sizeof(char *)) ? *(const char **)((BYTE *)texture + TEXTURE_FILE_NAME) : NULL;
+    int i;
+
+    for (i = 0; i < used && (seen[i].texture != texture || seen[i].file != file); i++) ;
+    if (i == used && used < (int)ARRAYSIZE(seen) && file && !IsBadStringPtrA(file, MAX_PATH))
+    {
+        seen[used].texture = texture;
+        seen[used++].file = file;
+        say("first draw of %s: at %g,%g size %gx%g, part %g,%g to %g,%g", file, x, y, width, height, left, top, right, bottom);
+    }
+    game_draw_flat(screen, unused, texture, x, y, width, height, left, top, right, bottom, colour);
+}
+
+static void note_flat_draws(BYTE *cc)
+{
+    enum { DRAW_FUNCTION = 0x44eb0, JUMP = 0xe9, NOP = 0x90, STOLEN = 6 };
+    static const BYTE start[STOLEN] = { 0x81, 0xec, 0xcc, 0x01, 0x00, 0x00 };
+    BYTE *code = cc + DRAW_FUNCTION, *trampoline;
+    DWORD old;
+
+    if (IsBadReadPtr(code, STOLEN) || memcmp(code, start, STOLEN)
+        || !(trampoline = VirtualAlloc(NULL, 16, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE))
+        || !VirtualProtect(code, STOLEN, PAGE_EXECUTE_READWRITE, &old))
+    {
+        say("test run: this is not the known game build; flat draws are not noted");
+        return;
+    }
+    memcpy(trampoline, code, STOLEN);
+    trampoline[STOLEN] = JUMP;
+    *(LONG *)(trampoline + STOLEN + 1) = (code + STOLEN) - (trampoline + STOLEN + 5);
+    game_draw_flat = (void *)trampoline;
+    code[0] = JUMP;
+    *(LONG *)(code + 1) = (BYTE *)noted_draw_flat - (code + 5);
+    code[5] = NOP;
+    VirtualProtect(code, STOLEN, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), code, STOLEN);
+    say("test run: the first flat draw of each picture is noted");
 }
 
 static BOOL give_stored_image_sizes(void)
@@ -1413,6 +1471,7 @@ static void hook_texture_load(void)
     VirtualProtect(code, STOLEN, old, &old);
     FlushInstructionCache(GetCurrentProcess(), code, STOLEN);
     say("the game's texture loader is watched for pictures with 2 or 4 times the pixels");
+    if (test_notes_draws) note_flat_draws(code - LOAD_FUNCTION);
 }
 
 static BOOL CALLBACK note_display(HMONITOR monitor, HDC dc, RECT *rect, LPARAM lp)
@@ -1644,6 +1703,9 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
         full_size = GetEnvironmentVariableA("DOGFIGHTER_FULL_SIZE", NULL, 0) != 0;
         test_saves_full_size = GetEnvironmentVariableA("DOGFIGHTER_TEST_FULL_SIZE_SHOTS", NULL, 0) != 0;
         if (texture_limit != 512 && texture_limit != 1024) texture_limit = 0;
+        test_notes_draws = GetEnvironmentVariableA("DOGFIGHTER_TEST_NOTES_DRAWS", NULL, 0) != 0;
+        if (GetEnvironmentVariableA("DOGFIGHTER_TEST_SHOT_ON", test_shot_on, sizeof(test_shot_on)) >= sizeof(test_shot_on)) test_shot_on[0] = 0;
+        CharLowerA(test_shot_on);
         if (max_client.cx && max_client.cy)
         {
             log_file = fopen("C:\\dogfighter-focushook.log", "w");
