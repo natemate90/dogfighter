@@ -215,14 +215,15 @@ On an M4 Max the frame rate stayed the same, about 30 frames a second.
 The HUD, the menus and all letters keep the size they have without it.
 The game goes on working in its own resolution, 1280x800 in a flight and 640x480 in the menus.
 The helper enlarges the surface the game draws into and moves every corner point the game draws to the larger surface.
-So 3D edges and letters are drawn at the full size, not stretched afterwards.
-Pictures in the menus and the HUD have no more detail than before; they are enlarged while drawing.
+So the edges of 3D shapes are drawn at the full size, not stretched afterwards.
+Letters and the pictures in the menus and the HUD have no more detail than before: they are the same small pictures, enlarged while drawing.
 
 - On an M4 Max a flight ran at 62 to 89 frames a second at 2774x1734, with 4 samples per pixel.
 - It works together with `--hd-textures`.
 - F12 screenshots keep the game's own size.
 - The picture follows the window when it is resized or zoomed, up to the screen's size.
-- Nobody has looked at it on a screen or clicked through the menus with it yet.
+- In a test, clicks on Info, Login and Campaign each landed on the button under the game's cursor.
+- Nobody has looked at it on a screen yet.
 
 `--retina` opens the window with the Retina screen's own pixels and keeps the game's resolution.
 Wine then scales the picture once to those pixels, and macOS does not scale it a second time.
@@ -300,7 +301,8 @@ Then the texture is checked.
 - One that fails all three is not written, and the game uses its own.
 
 The limits are at the top of `tools/upscale-textures.py`, with what each score means.
-They were set with the stand-in programs and are not yet checked against Real-ESRGAN.
+The limits are provisional.
+In the one full run they sent 52 of 1,192 textures to the next way.
 
 `hd-textures/manifest.json` lists every texture with the way it took and its scores.
 The tool prints the count per way at the end.
