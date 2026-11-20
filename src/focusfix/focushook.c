@@ -124,12 +124,12 @@ static void count_scaled(volatile LONG *counter, const char *path, const RECT *c
             game_mode.width, game_mode.height, client->right, client->bottom);
 }
 
-/* macOS sets the OpenGL viewport to the size of the window each time the window
-   gets a new size. wined3d does not know, and sets the viewport only when the
-   game changes it, which is once. The game's picture is then drawn at window
-   size into a surface of the game's size: only its top left part fits, and that
-   part is what gets stretched over the window. Handing wined3d its own viewport
-   again makes it set the OpenGL one before the next frame is drawn. */
+/* After the window gets a new size, the OpenGL viewport is the size of the
+   window, without wined3d having asked for it. wined3d sets the viewport only
+   when the game changes it, which is once. The game's picture is then drawn at
+   window size into a surface of the game's size: only its top left part fits,
+   and that part is what gets stretched over the window. Handing wined3d its own
+   viewport again makes it set the OpenGL one before the next frame is drawn. */
 static void set_viewport_again(void *swapchain)
 {
     struct wined3d_viewport_copy viewports[16];
