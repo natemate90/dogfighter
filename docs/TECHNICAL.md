@@ -136,6 +136,15 @@ With that the game ran at 21 frames a second, so it is off by default.
 Nobody has played a whole mission on Mach9 yet.
 The menus, sound, Ctrl+Option, dragging the window and the hidden pointer were seen working with a real mouse on an M4 Max.
 
+### One game at a time
+
+The launcher refuses a second start while a game runs: "Dogfighter is already running. Stop it with ./dogfighter --stop."
+- The lock is one per installation, not per Wine build, because both builds share `game/`, its settings and the `game/cache` link.
+- The lock is `game/.dogfighter-running`, a link whose target is the launcher's process id. It goes when the launcher ends.
+- A lock whose process is gone, or now runs another program, is taken over. So a crashed launcher does not block the next start.
+- `--stop`, `--doctor` and `--backup` work while a game runs. `--restore` refuses then, as before.
+- The fallback to the Rosetta Wine keeps the same process, so it keeps the lock.
+
 ### Start crashes and restarts
 
 The Rosetta Wine sometimes crashes or hangs while the game starts Direct3D.
@@ -263,14 +272,20 @@ python3 tools/upscale-textures.py --fetch-tools
 python3 tools/upscale-textures.py
 ```
 
-`./setup.sh` runs both after the normal setup. `./setup.sh --no-hd-textures` skips them.
+`./setup.sh` runs both after the normal setup, but only when `hd-textures/` holds no complete set.
+`python3 tools/upscale-textures.py --check` gives that answer; the launcher asks the same question.
+A complete set stays as it is, whatever settings made it, for example `--scale 4`, `--upscaler vimage` or `--allow-other-tools`.
+Setup then fetches nothing either, so upscalers of your own in `upscale-tools/` stay too.
+To make the set again, run the tool yourself, or move `hd-textures/` away and run `./setup.sh`.
+`./setup.sh --no-hd-textures` skips the step.
+
 Setup never fails on this step:
 - When the download fails, the second command uses the macOS filter.
 - When the upscalers do not run, for example without access to the graphics card, setup runs the tool again with `--upscaler vimage`.
 - When that fails too, setup says so and goes on. The game then uses its own textures.
 
-On a Mac without a working graphics card the upscalers stop at the first texture, so each later `./setup.sh` loses only a few seconds there.
-A finished set is not made again: a second run over the full set on an M4 Max took 3 seconds and changed nothing.
+A set made with the macOS filter is complete too. A later `./setup.sh` does not replace it with an upscaled one.
+The tool on its own also skips finished work: a second run over the full set on an M4 Max took 3 seconds and changed nothing.
 
 `--fetch-tools` downloads three archives, about 100 MB, to `downloads/upscale/`.
 - `upscayl-bin` 20251207-174704, which runs the model.
@@ -335,7 +350,9 @@ python3 tools/upscale-textures.py --fetch-tools --generative
 python3 tools/upscale-textures.py
 ```
 
-`./setup.sh --generative` does the same. A failure in this opt-in step stops setup.
+`./setup.sh --generative` does the same when no complete set is there yet.
+With a complete set it only fetches the generative way and prints the second command, because it leaves a complete set alone.
+A failure in this opt-in step stops setup.
 
 - It downloads about 6.6 GB to `upscale-tools/generative/`: a Python environment with the pinned packages of `tools/generative-requirements.txt`, and two models.
 - The models are Stable Diffusion 1.5 (licence CreativeML OpenRAIL-M) and the ControlNet 1.1 tile model (licence OpenRAIL), at pinned revisions with pinned checksums.
@@ -403,7 +420,8 @@ This is meant for textures where an upscaler garbled small lettering.
 ### How the game finds them
 
 - The game opens `cache\<path>` in its folder before it looks in its packs.
-- The launcher links `game/cache` to `hd-textures/cache`, and removes the link when the larger textures are off.
+- The launcher links `game/cache` to `hd-textures/cache`.
+- When the larger textures are off, it removes any link at `game/cache`, wherever it points, and writes that to the log. A link left behind would let the game load those files without the raised size limit and the letter markers, so letters could come out twice as large.
 - If `game/cache` is a real folder, the launcher leaves it alone and keeps the larger textures off.
 - The helper changes the 256-pixel limit in the running game's memory. No game file is changed.
 
@@ -543,7 +561,7 @@ Test runs follow the same picture defaults as a normal start.
 | `--diag-end=SECONDS` | Ends the game this long after its first picture, without the game's own quit. |
 | `--diag-zoom=SECONDS` | Zooms the window this long after the first picture. |
 | `--diag-drag=SECONDS` | Asks for seven window sizes as a drag does, and logs what the window became. |
-| `--diag-hd-dir=FOLDER` | Looks for the larger textures in FOLDER, a full path, in place of `hd-textures/`. An empty folder tests a start without them. |
+| `--diag-hd-dir=FOLDER` | Looks for the larger textures in FOLDER, a full path, in place of `hd-textures/`. An empty folder tests a start without them. The link to FOLDER is removed when the run ends. |
 
 ### Options of setup.sh
 

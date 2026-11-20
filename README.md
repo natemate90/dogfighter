@@ -153,7 +153,7 @@ Setup makes the sharper textures once.
 - The textures take about 180 MB of disk space.
 - One run on an M4 Max took about four and a half minutes.
 - If the upscalers do not run on your Mac, setup uses the Mac's own filter. Those textures are smoother, with less detail.
-- Running setup again does not make them again.
+- Running setup again leaves a finished set as it is.
 
 The textures are made on your Mac from your own game files. Nothing is uploaded.
 Your game files are never changed.
@@ -245,12 +245,14 @@ To get Python 3.12, use one of these:
 - With Homebrew: `brew install python@3.12`
 - Or download the macOS installer of Python 3.12 or later from [python.org](https://www.python.org/downloads/) and run it.
 
-Then run:
+Then run these two lines:
 
 ```
 ./setup.sh --generative
+python3 tools/upscale-textures.py
 ```
 
+The first line downloads the models. The second repaints the surfaces in your texture set.
 Then start the game as usual.
 
 How long: first the download, which depends on your connection.
@@ -328,6 +330,7 @@ It checks the installation and prints a fix for each problem.
 | Problem | What to do |
 | --- | --- |
 | The game hangs, or you cannot reach it | Run `./dogfighter --stop`. |
+| It says `Dogfighter is already running` | Only one game can run at a time. Quit that one, or run `./dogfighter --stop`. |
 | The game starts over by itself | Nothing. On the Rosetta Wine a start sometimes fails. The launcher tries again, up to eight times. |
 | The game does not start on Mach9 | The launcher switches to the Rosetta Wine by itself, if Rosetta is installed. To always use it, start with `./dogfighter --wine=stable`. |
 | The mouse is stuck in the window | Press Ctrl+Option. The game holds the mouse on purpose. |

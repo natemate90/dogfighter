@@ -790,11 +790,15 @@ def main():
     parser.add_argument("--repeat", type=int, default=8, help="textures to make a second time, to see that the result is the same (default 8)")
     parser.add_argument("--sheets", default="", help="folder for PNG sheets that put the plain filter next to the set")
     parser.add_argument("--list", action="store_true", help="show what would be resized, then stop")
+    parser.add_argument("--check", action="store_true",
+                        help="exit 0 when the output folder holds a complete set, else 1; makes nothing")
     args = parser.parse_args()
     for name in ("tools", "game", "out", "overrides", "sheets", "generative_log"):
         if getattr(args, name):
             setattr(args, name, os.path.abspath(getattr(args, name)))
     tools = args.tools
+    if args.check:
+        sys.exit(0 if set_complete(args.out) else 1)
 
     if args.fetch_tools:
         fetch_tools(root, tools)
@@ -894,6 +898,19 @@ def main():
     shutil.rmtree(work, ignore_errors=True)
     if args.sheets:
         sheets(args, setup["scale"], sources, cache)
+
+
+def set_complete(out):
+    """True when a run finished in out: the manifest comes last, so every texture it lists as made is there."""
+    try:
+        with open(os.path.join(out, MARKER)) as f:
+            if f.read().strip() not in ("512", "1024"):
+                return False
+        with open(os.path.join(out, MANIFEST)) as f:
+            made = [record["path"] for record in json.load(f)["textures"] if record["way"] != "none"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    return bool(made) and all(os.path.isfile(os.path.join(out, "cache", *path.split("\\"))) for path in made)
 
 
 def files_under(folder):
