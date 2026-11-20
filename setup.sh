@@ -3,19 +3,42 @@ set -Eeuo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: ./setup.sh [path/to/Dogfighter.bin]
+Usage: ./setup.sh [--language=English|French|German|Italian] [path/to/Dogfighter.bin]
 
 Builds everything the game needs from your own Airfix Dogfighter CD image.
 The image must be a raw .bin (2352-byte sectors); it defaults to ./Dogfighter.bin.
 Run it again after an error: finished steps are skipped.
+
+--language picks the game's language. Without it, setup keeps the installed
+language, or installs English the first time. Saves are kept when you switch.
 EOF
 }
 
-case "${1:-}" in -h|--help) usage; exit 0 ;; esac
-[ $# -le 1 ] || { usage >&2; exit 2; }
+LANGUAGES="English French German Italian"
+
+canonical_language() {
+  case "$1" in
+    [Ee]nglish) echo English ;;
+    [Ff]rench) echo French ;;
+    [Gg]erman) echo German ;;
+    [Ii]talian) echo Italian ;;
+    *) return 1 ;;
+  esac
+}
+
+LANGUAGE=
+IMAGE=
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help) usage; exit 0 ;;
+    --language=*) LANGUAGE="$(canonical_language "${arg#--language=}")" || { usage >&2; exit 2; } ;;
+    -*) usage >&2; exit 2 ;;
+    *) [ -z "$IMAGE" ] || { usage >&2; exit 2; }; IMAGE="$arg" ;;
+  esac
+done
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-IMAGE="${1:-$HERE/Dogfighter.bin}"
+IMAGE="${IMAGE:-$HERE/Dogfighter.bin}"
 DL="$HERE/downloads"
 WORK="$HERE/build/setup-work"
 TOOLCHAIN_NAME=llvm-mingw-20261117-ucrt-macos-universal
@@ -147,11 +170,38 @@ make_cd() {
   rm -rf "$WORK"
 }
 
+installed_language() {
+  [ -f "$HERE/game/system.ini" ] || return 0
+  LC_ALL=C awk '{ sub(/\r$/, "") } index($0, "current_language=") == 1 { print substr($0, 18); exit }' \
+    "$HERE/game/system.ini"
+}
+
+set_language() {
+  local ini="$HERE/game/system.ini" tmp
+  tmp="$(mktemp "$ini.XXXXXX")"
+  LC_ALL=C awk -v v="$LANGUAGE" '
+    { cr = sub(/\r$/, "") ? "\r" : "" }
+    index($0, "current_language=") == 1 { next }
+    { print $0 cr }
+    $0 == "[setup]" { print "current_language=" v cr }' "$ini" >"$tmp"
+  mv "$tmp" "$ini"
+  [ "$(installed_language)" = "$LANGUAGE" ] || die "game/system.ini has no [setup] section."
+}
+
 install_game() {
-  step "Installing the English game files in game/"
-  python3 -I "$HERE/tools/iscab.py" "$HERE/cd" "$HERE/game"
-  [ -f "$HERE/game/Dogfighter.exe" ] && [ -f "$HERE/game/Resource.up" ] ||
+  local was other
+  was="$(canonical_language "$(installed_language)" || true)"
+  LANGUAGE="${LANGUAGE:-${was:-English}}"
+  step "Installing the $LANGUAGE game files in game/"
+  [ "$was" = "$LANGUAGE" ] || rm -f "$HERE/game/readme.txt"
+  python3 -I "$HERE/tools/iscab.py" "$HERE/cd" "$HERE/game" "$LANGUAGE"
+  [ -f "$HERE/game/Dogfighter.exe" ] && [ -f "$HERE/game/Resource.up" ] &&
+    [ -f "$HERE/game/$LANGUAGE.up" ] && [ -f "$HERE/game/$LANGUAGE.loc" ] ||
     die "game/ is incomplete after unpacking the cabs."
+  for other in $LANGUAGES; do
+    [ "$other" = "$LANGUAGE" ] || rm -f "$HERE/game/$other.up" "$HERE/game/$other.loc"
+  done
+  [ "$(installed_language)" = "$LANGUAGE" ] || set_language
   mkdir -p "$HERE/game/User/Rosters" "$HERE/game/User/Save/Levels" "$HERE/game/User/Save/Photos" \
     "$HERE/game/User/Save/Stickers" "$HERE/game/ScreenShots"
 }
@@ -203,6 +253,8 @@ make_cd
 install_game
 rip_music
 build_helpers
+step "Building Dogfighter.app"
+"$HERE/tools/build-app.sh"
 
-printf '\nSetup is done. Start the game with: ./dogfighter\n'
+printf '\nSetup is done. Start the game with ./dogfighter, or double-click Dogfighter.app.\n'
 path_hint

@@ -1,19 +1,26 @@
 """List or extract an InstallShield 6 cabinet set (data1.hdr, data1.cab, data2.cab).
 
-usage: iscab.py <dir with data1.hdr> [<output dir>]
+usage: iscab.py <dir with data1.hdr> [<output dir> [English|French|German|Italian]]
 
-Without an output dir it only lists the files. With one, it extracts the game files,
-English only, and skips any file that already exists there, so it can be run again.
+Without an output dir it only lists the files. With one, it extracts the game files
+for one language (English by default) and skips any file that already exists there,
+so it can be run again.
+A newly extracted user.ini gets x as a second "next weapon" key.
 """
 import sys, struct, os, zlib
-if len(sys.argv) not in (2, 3):
+# The order user.ini, system.ini and readme.txt come in, once per language.
+LANGS = ('English', 'French', 'German', 'Italian')
+if len(sys.argv) not in (2, 3, 4) or sys.argv[3:] not in ([], *([l] for l in LANGS)):
     sys.exit(__doc__)
 srcdir = sys.argv[1]
-outdir = sys.argv[2] if len(sys.argv) == 3 else None
+outdir = sys.argv[2] if len(sys.argv) >= 3 else None
+lang = sys.argv[3] if len(sys.argv) == 4 else 'English'
 extract = outdir is not None
 # Entries before this are InstallShield's own engine and setup files.
 FIRST_GAME_FILE = 35
-OTHER_LANGS = ('French', 'German', 'Italian')
+PER_LANG = ('user.ini', 'system.ini', 'readme.txt')
+MAC_BIND_AFTER = b'bind KP0 "use next"\r\n'
+MAC_BIND = b'bind x "use next"\r\n'
 h = open(os.path.join(srcdir,'data1.hdr'),'rb').read()
 sig, ver, volinfo, cdo, cds = struct.unpack_from('<5I', h, 0)
 if not extract: print('ver %08x major' % ver, (ver>>12)&0xf, 'cdo %x cds %x' % (cdo,cds))
@@ -59,6 +66,7 @@ class Reader:
             out=bytes(b)
         return out
 tot=0
+seen={}
 for i in range(filecount):
     p = base+fto2+i*0x57
     flags, exp, comp, doff = struct.unpack_from('<HQQQ', h, p)
@@ -72,11 +80,13 @@ for i in range(filecount):
         print('%3d fl=%02x vol=%d off=%9d comp=%10d exp=%10d %s' % (i,flags,volno,doff,comp,exp,rel))
         continue
     if i<FIRST_GAME_FILE or exp==0: continue
-    if os.path.splitext(name)[0] in OTHER_LANGS: continue
+    stem=os.path.splitext(name)[0]
+    if stem in LANGS and stem!=lang: continue
+    nth=seen.get(rel,0); seen[rel]=nth+1
+    if rel in PER_LANG and LANGS[nth]!=lang: continue
     parts=[x for x in rel.split('/') if x not in ('','.','..')]
     dst=os.path.join(outdir,*parts)
-    # user.ini, system.ini and readme.txt come once per language, English first.
-    # The game also rewrites the ini files, so an existing file is never replaced.
+    # The game rewrites the ini files, so an existing file is never replaced.
     if os.path.exists(dst): continue
     os.makedirs(os.path.dirname(dst),exist_ok=True)
     r=Reader(i,volno,doff,flags&2)
@@ -93,6 +103,10 @@ for i in range(filecount):
                 k=min(left,1<<20); o.write(r.read(k)); left-=k
     if os.path.getsize(part)!=exp:
         sys.exit('%s: size %d, expected %d' % (rel, os.path.getsize(part), exp))
+    if rel=='user.ini':
+        data=open(part,'rb').read()
+        if MAC_BIND_AFTER in data and b'\nbind x ' not in data:
+            with open(part,'wb') as o: o.write(data.replace(MAC_BIND_AFTER, MAC_BIND_AFTER+MAC_BIND, 1))
     os.replace(part, dst)
     print('extracted', rel)
 if not extract: print('total expanded', tot)

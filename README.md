@@ -3,6 +3,10 @@
 An unofficial launcher for the Windows game Airfix Dogfighter (2000) on Apple Silicon Macs.
 It runs the game through Wine.
 
+[![Airfix Dogfighter for PC, gameplay video](https://img.youtube.com/vi/vuBLQVUCmEY/hqdefault.jpg)](https://www.youtube.com/watch?v=vuBLQVUCmEY)
+
+*Gameplay video by [Highretrogamelord](https://www.youtube.com/@Highretrogamelord) on YouTube.*
+
 You need your own original Airfix Dogfighter CD.
 This repo contains no game data.
 `setup.sh` builds everything from an image of your disc.
@@ -53,6 +57,20 @@ ln -s "$PWD/dogfighter" /opt/homebrew/bin/dogfighter
 
 Setup prints this command when `/opt/homebrew/bin` or `~/.local/bin` is on your PATH.
 
+### Language
+
+The disc has English, French, German and Italian.
+Setup installs English unless you pick another:
+
+```
+./setup.sh --language=German
+```
+
+Run it again with another language to switch.
+Switching swaps the language pack, `game/readme.txt` and one line in `game/system.ini`.
+Your pilots and saves in `game/User` and your key bindings stay as they are.
+Without `--language`, a later run keeps the installed language.
+
 ## Running
 
 ```
@@ -97,6 +115,16 @@ The very first start always shows it.
 `--diag` has test modes that run with nobody at the screen.
 `./dogfighter --help` lists them.
 
+### Dogfighter.app
+
+Setup also builds `Dogfighter.app` in this folder.
+Double-click it to play without a terminal; it runs `./dogfighter` with no options.
+Its icon is made from `cd/Airfix.ico` on your Mac, so the app is not part of this repo.
+
+You can drag the app to `/Applications` or the Dock.
+It remembers where this folder is.
+If you move this folder, run `./setup.sh` again and use the new app.
+
 ## Picture quality
 
 At every start the launcher turns four of the game's settings up.
@@ -134,7 +162,7 @@ To override it, set a number from 0 to 99 in `game/winmm.ini`; 100 means "use th
 ## Saves
 
 Pilots, levels, photos and stickers live in `game/User`.
-Screenshots (F12) go to `game/ScreenShots`.
+Screenshots (Fn + F12) go to `game/ScreenShots`.
 Back up `game/User` to keep your pilots.
 
 ## Online multiplayer
@@ -149,6 +177,11 @@ Back up `game/User` to keep your pilots.
 ## Controls
 
 These are the defaults from `game/user.ini` and `game/readme.txt`.
+Setup adds `x` for "next weapon" to a new `game/user.ini`, because MacBooks have no keypad.
+An existing `game/user.ini` is never changed.
+
+On a Mac keyboard, hold Fn for F1, F2 and F12.
+To use them without Fn, turn on "Use F1, F2, etc. keys as standard function keys" under System Settings > Keyboard > Keyboard Shortcuts > Function Keys.
 
 | Key | Action |
 | --- | --- |
@@ -157,7 +190,7 @@ These are the defaults from `game/user.ini` and `game/readme.txt`.
 | d / c | Throttle up / down |
 | Space | Fire primary weapon (machine guns) |
 | z | Fire secondary weapon |
-| Keypad 0 | Next weapon |
+| x or Keypad 0 | Next weapon |
 | 1 | Cannon |
 | 2 | Rockets |
 | 3 | Bombs |
@@ -168,12 +201,12 @@ These are the defaults from `game/user.ini` and `game/readme.txt`.
 | 8 | A-bomb |
 | Mouse | Look around (on by default, inverted) |
 | Left Shift | Rear view |
-| F1 | Change camera view |
-| F2 | Message window |
+| Fn + F1 | Change camera view |
+| Fn + F2 | Message window |
 | Tab | Mission info / multiplayer info |
 | p | Pause |
 | Esc | Menu |
-| F12 | Screenshot |
+| Fn + F12 | Screenshot |
 
 Joystick input is off by default; turn it on in Options.
 
@@ -204,5 +237,5 @@ They are listed in sections 1.1 and 1.2 of `game/readme.txt`.
 ## Legal
 
 For personal use with a disc you own.
-Never commit or share the game files: `Dogfighter.bin`, `cd/`, `game/` or `music/`.
+Never commit or share the game files: `Dogfighter.bin`, `cd/`, `game/`, `music/` or `Dogfighter.app`.
 `.gitignore` keeps them out of git.
