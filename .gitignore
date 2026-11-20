@@ -15,6 +15,7 @@
 /build/
 /logs/
 /hd-textures/
+/hd-textures-*/
 /backups/
 /Dogfighter.app/
 /src/*.tar.gz

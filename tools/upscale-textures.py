@@ -59,6 +59,18 @@ written, and the game then uses its own.
 hd-textures/manifest.json lists every texture: where it came from, which way
 it took, its scores and the checksums of the tools.
 
+Your own textures: every .gti under texture-overrides/, at the same path as in
+hd-textures/cache/, takes the place of the made texture. It must have the
+size, the pixel format and the number of mipmap levels of the made one, and
+gets no other check. The manifest lists it with way "override" and its
+checksum. The made texture waits in hd-textures/replaced/ and comes back when
+the override is gone.
+
+A run makes only what is missing or changed. With --only the rest of the set
+stays as it is. Files reach the set one by one, each by a rename, and the
+manifest is written last. So a run that stops leaves a set the game can load,
+and the next run finishes it.
+
 Helpers, built with the Xcode Command Line Tools. Both read jobs on stdin as
 fields that each end in a NUL byte, so a path may hold spaces.
   tools/vimage-scale.c    IN OUT WIDTH HEIGHT NEW_WIDTH NEW_HEIGHT, raw RGBA.
@@ -102,6 +114,8 @@ WAIFU2X_MODEL = "models-cunet"
 WAIFU2X_TILE = 400
 LIMITS = {"drift": 20.0, "match": 40.0, "worst": 30.0, "plain": 20.0}
 WAYS = ("ai", "waifu2x", "plain")
+ASIDE = "replaced"
+OWN = ("way", "why", "scores", "failed", "bytes", "file_sha256")
 
 ARCHIVES = (
     {
@@ -414,8 +428,8 @@ def spread(values):
 
 
 def summary(records):
-    counts = {way: sum(1 for record in records if record["way"] == way) for way in WAYS + ("none",)}
-    print("Ways: %d ai, %d waifu2x, %d plain, %d not written." % tuple(counts[way] for way in WAYS + ("none",)))
+    counts = {way: sum(1 for record in records if record["way"] == way) for way in WAYS + ("override", "none")}
+    print("Ways: %d ai, %d waifu2x, %d plain, %d override, %d not written." % tuple(counts[way] for way in WAYS + ("override", "none")))
     for way in WAYS:
         scored = [record["scores"] for record in records if record["way"] == way]
         if scored:
@@ -440,13 +454,18 @@ def main():
     parser.add_argument("--allow-other-tools", action="store_true", help="run upscalers whose checksums are not the pinned ones")
     parser.add_argument("--game", default=os.path.join(root, "game"), help="the installed game (default: game/)")
     parser.add_argument("--out", default=os.path.join(root, "hd-textures"), help="output folder (default: hd-textures/)")
-    parser.add_argument("--only", default="", help="only textures whose path contains this text")
+    parser.add_argument("--overrides", default=os.path.join(root, "texture-overrides"),
+                        help="folder with your own textures, which take the place of the made ones (default: texture-overrides/)")
+    parser.add_argument("--only", default="", help="only textures whose path contains this text; the rest of the set stays as it is")
     parser.add_argument("--jobs", type=int, default=os.cpu_count() or 4, help="worker processes")
     parser.add_argument("--repeat", type=int, default=8, help="textures to make a second time, to see that the result is the same (default 8)")
     parser.add_argument("--sheets", default="", help="folder for PNG sheets that put the plain filter next to the set")
     parser.add_argument("--list", action="store_true", help="show what would be resized, then stop")
     args = parser.parse_args()
-    tools = os.path.abspath(args.tools)
+    for name in ("tools", "game", "out", "overrides", "sheets"):
+        if getattr(args, name):
+            setattr(args, name, os.path.abspath(getattr(args, name)))
+    tools = args.tools
 
     if args.fetch_tools:
         fetch_tools(root, tools)
@@ -505,50 +524,66 @@ def main():
     cache = os.path.join(args.out, "cache")
     if os.path.exists(cache) and not os.path.exists(os.path.join(args.out, MARKER)):
         sys.exit("%s exists and was not made by this tool. Move it away first." % cache)
+    try:
+        with open(os.path.join(args.out, MANIFEST)) as f:
+            old = json.load(f)
+    except (OSError, ValueError):
+        old = {}
+    if old.get("key") != key:
+        old = {}
+        targets = {os.path.join(cache, *up.safe_parts(entry.path)).lower() for _, entry in chosen}
+        if args.only and set(files_under(cache)) - targets:
+            sys.exit("The set in %s was made with other settings, and --only would leave part of it as it is.\n"
+                     "Run once without --only. Nothing was replaced." % args.out)
     os.makedirs(args.out, exist_ok=True)
     work = os.path.join(args.out, "%s-%s" % (WORK, key[:16]))
     for name in os.listdir(args.out):
         if name.startswith(WORK) and os.path.join(args.out, name) != work:
             shutil.rmtree(os.path.join(args.out, name), ignore_errors=True)
     os.makedirs(work, exist_ok=True)
-    setup = {"scale": args.scale, "ways": ways, "tools": tools, "work": work, "helpers": build_helpers(work)}
+    setup = {"scale": args.scale, "ways": ways, "tools": tools, "work": work, "out": args.out}
     sources = [(pack, entry, pack.read(entry)) for pack, entry in chosen]
-    if not complete(args.out, key, sources):
-        build(args, setup, settings, key, sources, cache)
+    records, run = build(args, setup, sources, old)
+    settle(args, setup, settings, key, sources, records, run, old)
     shutil.rmtree(work, ignore_errors=True)
     if args.sheets:
         sheets(args, setup["scale"], sources, cache)
 
 
-def complete(out, key, sources):
-    """True when the set in out was made with these settings from these very textures."""
-    try:
-        with open(os.path.join(out, MANIFEST)) as f:
-            manifest = json.load(f)
-    except (OSError, ValueError):
-        return False
-    known = {record["path"]: record for record in manifest.get("textures", [])}
-    if manifest.get("key") != key or len(known) != len(sources):
-        return False
-    for _, entry, data in sources:
-        record = known.get(entry.path)
-        if not record or record["source_sha256"] != hashlib.sha256(data).hexdigest():
-            return False
-        if record["way"] != "none" and not os.path.isfile(os.path.join(out, "cache", *up.safe_parts(entry.path))):
-            return False
-    print("The set in %s is already complete with these settings. Nothing to do." % out)
-    summary(manifest["textures"])
-    return True
+def files_under(folder):
+    """Lower-case paths, because the pack spells one folder in more than one way and the disk keeps the first."""
+    return {os.path.join(at, name).lower(): os.path.join(at, name) for at, _, names in os.walk(folder) for name in names}
 
 
-def build(args, setup, settings, key, sources, cache):
-    """Makes the whole set in work/cache. The old set is replaced only when every texture is done."""
+def generated(record):
+    """The record of the texture this tool made, also while an override takes its place."""
+    if record["way"] != "override":
+        return record
+    plain = {name: value for name, value in record.items() if name not in OWN + ("generated",)}
+    plain.update(record["generated"])
+    if plain["way"] == "none":
+        del plain["out"]
+    return plain
+
+
+def where(setup, record):
+    """The file of a generated texture: just made, set aside for an override, or in the set."""
+    for folder in (os.path.join(setup["work"], "cache"), os.path.join(setup["out"], ASIDE), os.path.join(setup["out"], "cache")):
+        path = os.path.join(folder, *up.safe_parts(record["path"]))
+        if os.path.isfile(path) and sha256_of(path) == record["file_sha256"]:
+            return path
+    return None
+
+
+def build(args, setup, sources, old):
+    """Makes the textures that are not there yet, in work/cache. Returns every record, and what this run made."""
     work = setup["work"]
     fresh = os.path.join(work, "cache")
     log = os.path.join(work, "done.jsonl")
     started = time.time()
 
-    done = {}
+    done = {record["path"]: generated(record) for record in old.get("textures", [])}
+    stopped = set()
     if os.path.exists(log):
         with open(log) as f:
             for line in f:
@@ -557,18 +592,22 @@ def build(args, setup, settings, key, sources, cache):
                 except ValueError:
                     continue
                 done[record["path"]] = record
+                stopped.add(record["path"])
     todo, records = [], {}
     for number, (pack, entry, data) in enumerate(sources):
         record = done.get(entry.path)
-        target = os.path.join(fresh, *up.safe_parts(entry.path))
         if record and record["source_sha256"] == hashlib.sha256(data).hexdigest() and (
-                record["way"] == "none" or (os.path.isfile(target) and sha256_of(target) == record["file_sha256"])):
+                record["way"] == "none" or where(setup, record)):
             records[entry.path] = record
         else:
             todo.append((number, pack, entry, data))
-    if records:
-        print("%d textures were already done in an earlier run that stopped." % len(records))
+    if stopped & set(records):
+        print("%d textures were already done in an earlier run that stopped." % len(stopped & set(records)))
+    run = {"made": len(todo), "repeat": None, "seconds": 0}
+    if not todo:
+        return records, run
 
+    setup["helpers"] = build_helpers(work)
     with multiprocessing.Pool(max(1, args.jobs)) as pool:
         for at in range(0, len(todo), BATCH):
             made = run_batch(setup, todo[at:at + BATCH], fresh, pool)
@@ -578,38 +617,141 @@ def build(args, setup, settings, key, sources, cache):
                     f.write(json.dumps(record, sort_keys=True) + "\n")
             print("  %d of %d, %.0f seconds" % (min(at + BATCH, len(todo)), len(todo), time.time() - started), flush=True)
 
-        ordered = [records[entry.path] for _, entry, _ in sources]
-        again = [item for item in enumerate(sources) if records[item[1][1].path]["way"] != "none"]
+        again = [item for item in todo if records[item[2].path]["way"] != "none"]
         again = again[::max(1, len(again) // max(1, args.repeat))][:args.repeat] if args.repeat > 0 else []
-        repeat = None
         if again:
-            second = run_batch(setup, [(number, pack, entry, data) for number, (pack, entry, data) in again],
-                               os.path.join(work, "repeat"), pool)
+            second = run_batch(setup, again, os.path.join(work, "repeat"), pool)
             same = sum(1 for record in second if record.get("file_sha256") == records[record["path"]]["file_sha256"])
-            repeat = {"textures": len(second), "identical": same}
+            run["repeat"] = {"textures": len(second), "identical": same}
             print("Made %d textures a second time: %d came out byte for byte the same." % (len(second), same))
             if same != len(second):
                 print("WARNING: the upscaler does not give the same result twice on this Mac.")
+    run["seconds"] = time.time() - started
+    return records, run
 
-    took = time.time() - started
-    counts = summary(ordered)
-    if counts["none"] == len(ordered):
+
+def fitting_overrides(args, sources, records):
+    """{path: (file, checksum, bytes)} for each .gti under --overrides that may take the place of a texture of this run."""
+    by_name = {entry.path.lower(): (entry.path, data) for _, entry, data in sources}
+    found = {}
+    for _, file in sorted(files_under(args.overrides).items()):
+        name = os.path.relpath(file, args.overrides).replace(os.sep, "\\")
+        if not name.lower().endswith(".gti"):
+            continue
+        if name.lower() not in by_name:
+            if not args.only:
+                print("  override refused: %s is not a texture of the set" % name)
+            continue
+        path, data = by_name[name.lower()]
+        best = gti.parse(data).best()
+        width, height = best.width * args.scale, best.height * args.scale
+        wanted = [(8 if best.alpha else 7, width, height, gti.level_count(width, height) if len(best.levels) > 1 else 1)]
+        with open(file, "rb") as f:
+            content = f.read()
+        try:
+            has = [(image.fmt, image.width, image.height, len(image.levels)) for image in gti.parse(content).images]
+        except ValueError as problem:
+            print("  override refused: %s: %s" % (name, problem))
+            continue
+        shape = "format %d, %dx%d, %d levels"
+        if max(width, height) > 1024:
+            print("  override refused: %s would pass 1024 pixels" % name)
+        elif has != wanted:
+            print("  override refused: %s has %s. The set has %s there." % (
+                name, " and ".join(shape % image for image in has) or "no picture", shape % wanted[0]))
+        else:
+            found[path] = (file, hashlib.sha256(content).hexdigest(), len(content))
+    return found
+
+
+def put(source, target):
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    shutil.copyfile(source, target + ".part")
+    os.replace(target + ".part", target)
+
+
+def settle(args, setup, settings, key, sources, records, run, old):
+    """Moves what was made into the set, puts overrides in place and writes the manifest.
+
+    Every file arrives by a rename and the manifest comes last, so a stop at any
+    point leaves a set the game can load, and the next run finishes the rest.
+    """
+    out, scale = setup["out"], setup["scale"]
+    cache, aside = os.path.join(out, "cache"), os.path.join(out, ASIDE)
+    ordered = [records[entry.path] for _, entry, _ in sources]
+    if all(record["way"] == "none" for record in ordered):
+        summary(ordered)
         sys.exit("No texture passed its checks. Nothing was replaced.")
-    largest = max(max(record["out"]) for record in ordered if record["way"] != "none")
-    limit = 512 if largest <= 512 else 1024
+    overrides = fitting_overrides(args, sources, records) if os.path.isdir(args.overrides) else {}
+
+    final = []
+    for record in ordered:
+        if record["path"] in overrides:
+            _, digest, size = overrides[record["path"]]
+            taken = {name: value for name, value in record.items() if name not in OWN}
+            taken.update(way="override", bytes=size, file_sha256=digest, out=[record["size"][0] * scale, record["size"][1] * scale],
+                         generated={name: record[name] for name in OWN if name in record})
+            record = taken
+        final.append(record)
+    with open(os.path.join(out, MARKER), "w") as f:
+        f.write("1024\n")
+
+    changed = 0
+    for record in final:
+        parts = up.safe_parts(record["path"])
+        target, kept = os.path.join(cache, *parts), os.path.join(aside, *parts)
+        made = generated(record)
+        source = where(setup, made) if made["way"] != "none" else None
+        if record["way"] == "override":
+            if source and source != kept:
+                put(source, kept)
+            if not (os.path.isfile(target) and sha256_of(target) == record["file_sha256"]):
+                put(overrides[record["path"]][0], target)
+                changed += 1
+        else:
+            if source and source != target:
+                os.makedirs(os.path.dirname(target), exist_ok=True)
+                os.replace(source, target)
+                changed += 1
+            elif not source and os.path.exists(target):
+                os.remove(target)
+                changed += 1
+            if os.path.exists(kept):
+                os.remove(kept)
+
+    if args.only:
+        now = {record["path"]: record for record in final}
+        final = [now.pop(record["path"], record) for record in old.get("textures", [])] + list(now.values())
+    else:
+        wanted = {os.path.join(cache, *up.safe_parts(record["path"])).lower() for record in final if record["way"] != "none"}
+        wanted |= {os.path.join(aside, *up.safe_parts(record["path"])).lower() for record in final
+                   if record["way"] == "override" and record["generated"]["way"] != "none"}
+        for folder in (cache, aside):
+            for name, file in files_under(folder).items():
+                if name not in wanted:
+                    os.remove(file)
+                    changed += 1
+            for at, _, _ in os.walk(folder, topdown=False):
+                if not os.listdir(at):
+                    os.rmdir(at)
+
+    counts = summary(final)
+    largest = max(max(record["out"]) for record in final if record["way"] != "none")
     manifest = {"key": key, "settings": settings, "tools_are_the_pinned_ones": settings.get("tools", PINNED) == PINNED,
-                "counts": counts, "repeat": repeat, "seconds": round(took), "textures": ordered}
-    with open(os.path.join(work, MANIFEST), "w") as f:
-        json.dump(manifest, f, indent=1, sort_keys=True)
-    old = os.path.join(work, "old")
-    if os.path.exists(cache):
-        os.rename(cache, old)
-    os.rename(fresh, cache)
-    os.replace(os.path.join(work, MANIFEST), os.path.join(args.out, MANIFEST))
-    with open(os.path.join(args.out, MARKER), "w") as f:
-        f.write("%d\n" % limit)
-    written = sum(record.get("bytes", 0) for record in ordered)
-    print("%d textures, %.0f MB, in %s. Took %.0f seconds." % (len(ordered) - counts["none"], written / 1e6, cache, took))
+                "counts": counts, "repeat": run["repeat"] or old.get("repeat"),
+                "seconds": round(old.get("seconds", 0) + run["seconds"]), "textures": final}
+    if manifest != old:
+        with open(os.path.join(out, MANIFEST + ".part"), "w") as f:
+            json.dump(manifest, f, indent=1, sort_keys=True)
+        os.replace(os.path.join(out, MANIFEST + ".part"), os.path.join(out, MANIFEST))
+    with open(os.path.join(out, MARKER), "w") as f:
+        f.write("%d\n" % (512 if largest <= 512 else 1024))
+    if not run["made"] and not changed and manifest == old:
+        print("The set in %s is already complete with these settings. Nothing to do." % out)
+        return
+    written = sum(record.get("bytes", 0) for record in final)
+    print("%d textures, %.0f MB, in %s. Made %d now, in %.0f seconds." % (
+        len(final) - counts["none"], written / 1e6, cache, run["made"], run["seconds"]))
     print("Largest side: %d pixels. Play with: ./dogfighter --hd-textures" % largest)
 
 
@@ -629,7 +771,7 @@ def on_squares(pixels, width, height):
 def sheets(args, scale, sources, cache):
     """One PNG per texture: the plain filter on the left, the set on the right. A tiling texture is laid out 2x2."""
     with open(os.path.join(args.out, MANIFEST)) as f:
-        records = [record for record in json.load(f)["textures"] if record["way"] != "none"]
+        records = [record for record in json.load(f)["textures"] if record["way"] in WAYS]
     groups = (
         ("tiling", 3, lambda r: all(r["tiles"]) and r["kind"] == "opaque" and r["path"].lower().startswith(KEPT[0])),
         ("cutout", 2, lambda r: r["kind"] == "cutout"),
