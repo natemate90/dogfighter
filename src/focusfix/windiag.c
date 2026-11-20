@@ -394,7 +394,7 @@ static void draw_test(void)
 
 int main(int argc, char **argv)
 {
-    BOOL seen = FALSE, window_test = FALSE, start_test = FALSE, press_ok = FALSE;
+    BOOL seen = FALSE, window_test = FALSE, start_test = FALSE, press_ok = FALSE, press_cancel = FALSE;
     DWORD start = GetTickCount(), wait = 10;
     int next_step = 0;
 
@@ -410,6 +410,7 @@ int main(int argc, char **argv)
         if (!strcmp(argv[i], "focus-test")) window_test = TRUE;
         if (!strcmp(argv[i], "start-test")) start_test = TRUE;
         if (!strcmp(argv[i], "press-ok")) press_ok = TRUE;
+        if (!strcmp(argv[i], "press-cancel")) press_cancel = TRUE;
         if (!strncmp(argv[i], "wait=", 5)) wait = atoi(argv[i] + 5);
         if (!strncmp(argv[i], "keys=", 5)) read_keys(argv[i] + 5);
         if (!strncmp(argv[i], "mouse=", 6)) read_moves(argv[i] + 6);
@@ -422,12 +423,12 @@ int main(int argc, char **argv)
         if (game) seen = TRUE;
         else if (seen || GetTickCount() - start > 30000) break;
 
-        HWND setup = press_ok ? FindWindowA("#32770", "Airfix Dogfighter setup") : NULL;
+        HWND setup = press_ok || press_cancel ? FindWindowA("#32770", "Airfix Dogfighter setup") : NULL;
         if (setup && IsWindowVisible(setup))
         {
-            PostMessageA(setup, WM_COMMAND, IDOK, 0);
-            note("pressed OK in the game's setup dialog");
-            press_ok = FALSE;
+            PostMessageA(setup, WM_COMMAND, press_ok ? IDOK : IDCANCEL, 0);
+            note("pressed %s in the game's setup dialog", press_ok ? "OK" : "Cancel");
+            press_ok = press_cancel = FALSE;
         }
 
         DWORD shown = sized_at ? (GetTickCount() - sized_at) / 1000 : 0;

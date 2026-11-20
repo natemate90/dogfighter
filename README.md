@@ -96,7 +96,7 @@ Cmd+Tab also frees the mouse, and the game takes it back when you return.
 | `--res=WxH` | Use this game resolution in flight, e.g. `--res=1440x900`. The menus are always 640x480. Without it, the largest size that fits the screen is used. |
 | `--sharp` | Use Retina pixels: a sharper picture in flight. |
 | `--windowed=WxH` | Start with the picture at most this big, e.g. `--windowed=1024x768`. |
-| `--wide` | Widen the view angle to fit a picture wider than 4:3 (see Picture quality). |
+| `--wide` | Widen the view angle for a 16:10 or 16:9 picture (see Picture quality). |
 | `--hd-textures` | Use the larger textures you made (see Larger textures). |
 | `--original` | Leave the picture settings as the game made them (see Picture quality). |
 | `--join=ADDRESS` | Put a server in the game's Address book, then start the game (see Online multiplayer). |
@@ -212,8 +212,9 @@ A draw distance you set in the game's Options menu is raised again at the next s
 On an M4 Max the frame rate stayed the same, about 30 frames a second.
 
 `--wide` widens the view angle for a 16:10 or 16:9 picture.
-Without it the game cuts off the top and bottom of the 4:3 view.
-It is not the default, because the glow around lamps is not drawn while it is on.
+It shows more at the sides and the top.
+The bottom edge of the picture may show a stretched band in some scenes.
+It stays opt-in until a person has judged it.
 
 ## Larger textures
 
