@@ -90,6 +90,13 @@ gets no other check. The manifest lists it with way "override" and its
 checksum. The made texture waits in hd-textures/replaced/ and comes back when
 the override is gone.
 
+Lettering: the textures in tools/lettering.json get their short words set
+again with real fonts, over the made texture, by tools/lettering.py. The
+manifest lists such a texture with way "lettering", its scores and the fonts'
+checksums. An override in texture-overrides/ wins over it, and --no-lettering
+leaves every texture as made. The fonts that are not on every Mac come with
+--fetch-tools; without them those textures stay as made.
+
 A run makes only what is missing or changed. With --only the rest of the set
 stays as it is. Files reach the set one by one, each by a rename, and the
 manifest is written last. So a run that stops leaves a set the game can load,
@@ -125,6 +132,7 @@ import zipfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import gti  # noqa: E402
+import lettering  # noqa: E402
 import up  # noqa: E402
 
 KEPT = ("graphics\\textures\\", "graphics\\models\\", "graphics\\backdrops\\", "graphics\\effects\\")
@@ -148,7 +156,8 @@ TWICE = ".2x"
 FONT_WAY = "waifu2x"
 OWN = ("way", "why", "scores", "failed", "bytes", "file_sha256")
 GENERATIVE = "generative"
-COUNTED = WAYS + (GENERATIVE, "override", "none")
+REPLACING = ("override", lettering.WAY)
+COUNTED = WAYS + (GENERATIVE,) + REPLACING + ("none",)
 GENERATIVE_LIST = os.path.join(HERE, "generative-surfaces.json")
 GENERATIVE_SCALE = 4
 GENERATIVE_SETTINGS = {
@@ -747,7 +756,8 @@ def spread(values):
 
 def summary(records):
     counts = {way: sum(1 for record in records if record["way"] == way) for way in COUNTED}
-    print("Ways: %d ai, %d waifu2x, %d plain, %d generative, %d override, %d not written." % tuple(counts[way] for way in COUNTED))
+    print("Ways: %d ai, %d waifu2x, %d plain, %d generative, %d override, %d lettering, %d not written." % tuple(
+        counts[way] for way in COUNTED))
     for way in WAYS + (GENERATIVE,):
         scored = [record["scores"] for record in records if record["way"] == way]
         if scored:
@@ -784,6 +794,7 @@ def main():
     parser.add_argument("--overrides", default=os.path.join(root, "texture-overrides"),
                         help="folder with your own textures, which take the place of the made ones (default: texture-overrides/)")
     parser.add_argument("--only", default="", help="only textures whose path contains this text; the rest of the set stays as it is")
+    parser.add_argument("--no-lettering", action="store_true", help="leave the textures of tools/lettering.json as made")
     parser.add_argument("--font-way", choices=WAYS, default="",
                         help="the way the font pictures try first (default: %s)" % FONT_WAY)
     parser.add_argument("--jobs", type=int, default=os.cpu_count() or 4, help="worker processes")
@@ -801,6 +812,7 @@ def main():
         sys.exit(0 if set_complete(args.out) else 1)
 
     if args.fetch_tools:
+        lettering.fetch_fonts(tools)
         fetch_tools(root, tools)
         if args.generative:
             fetch_generative(tools)
@@ -920,9 +932,9 @@ def files_under(folder):
 
 def generated(record):
     """The record of the texture this tool made, also while an override takes its place."""
-    if record["way"] != "override":
+    if record["way"] not in REPLACING:
         return record
-    plain = {name: value for name, value in record.items() if name not in OWN + ("generated",)}
+    plain = {name: value for name, value in record.items() if name not in OWN + ("generated", lettering.WAY)}
     plain.update(record["generated"])
     if plain["way"] == "none":
         del plain["out"]
@@ -1032,6 +1044,37 @@ def fitting_overrides(args, sources, records):
     return found
 
 
+def letter(args, setup, sources, records, skip):
+    """{path: (file, checksum, bytes, note)} for the textures of tools/lettering.json that got their words set again."""
+    by_path = {entry.path: data for _, entry, data in sources}
+    items = []
+    for path, (entry, why) in sorted(lettering.wanted(by_path, skip).items()):
+        source = where(setup, records[path]) if records[path]["way"] != "none" else None
+        if why:
+            print("  lettering left as made: %s (%s)" % (path, why))
+        elif source:
+            items.append((path, entry, by_path[path], source, records[path]["tiles"]))
+    return lettering.draw(items, args.tools, setup["work"], lambda data, scale, tiles: plain_picture(setup, data, scale, tiles))
+
+
+def plain_picture(setup, data, scale, tiles):
+    """RGBA of a texture enlarged by the plain filter alone, for a lettering box taken from it."""
+    width, height, pixels = gti.to_rgba(gti.parse(data).best())
+    if "helpers" not in setup:
+        setup["helpers"] = build_helpers(setup["work"])
+    stem = os.path.join(setup["work"], lettering.WAY, "plain")
+    os.makedirs(os.path.dirname(stem), exist_ok=True)
+    with open(stem + ".in", "wb") as f:
+        f.write(with_border(pixels, width, height, tiles[0], tiles[1]))
+    full_w, full_h = width + 2 * BORDER, height + 2 * BORDER
+    alphas = set(pixels[3::4])
+    if 0 in alphas and len(alphas) > 1:
+        run_jobs(setup["helpers"]["texture-refine"], ["bleed", stem + ".in", stem + ".in", full_w, full_h], True)
+    run_jobs(setup["helpers"]["vimage-scale"], [stem + ".in", stem + ".out", full_w, full_h, full_w * scale, full_h * scale])
+    with open(stem + ".out", "rb") as f:
+        return without_border(f.read(), width * scale, height * scale, BORDER * scale)
+
+
 def put(source, target):
     os.makedirs(os.path.dirname(target), exist_ok=True)
     shutil.copyfile(source, target + ".part")
@@ -1051,14 +1094,19 @@ def settle(args, setup, settings, key, sources, records, run, old):
         summary(ordered)
         sys.exit("No texture passed its checks. Nothing was replaced.")
     overrides = fitting_overrides(args, sources, records) if os.path.isdir(args.overrides) else {}
+    lettered = {} if args.no_lettering else letter(args, setup, sources, records, overrides)
+    replacing = dict(overrides, **{path: done[:3] for path, done in lettered.items()})
 
     final = []
     for record in ordered:
-        if record["path"] in overrides:
-            _, digest, size = overrides[record["path"]]
+        if record["path"] in replacing:
+            _, digest, size = replacing[record["path"]]
             taken = {name: value for name, value in record.items() if name not in OWN}
-            taken.update(way="override", bytes=size, file_sha256=digest, out=record.get("out") or [side * scale for side in record["size"]],
+            taken.update(way="override" if record["path"] in overrides else lettering.WAY, bytes=size, file_sha256=digest,
+                         out=record.get("out") or [side * scale for side in record["size"]],
                          generated={name: record[name] for name in OWN if name in record})
+            if record["path"] in lettered:
+                taken[lettering.WAY] = lettered[record["path"]][3]
             record = taken
         final.append(record)
     with open(os.path.join(out, MARKER), "w") as f:
@@ -1070,11 +1118,11 @@ def settle(args, setup, settings, key, sources, records, run, old):
         target, kept = os.path.join(cache, *parts), os.path.join(aside, *parts)
         made = generated(record)
         source = where(setup, made) if made["way"] != "none" else None
-        if record["way"] == "override":
+        if record["way"] in REPLACING:
             if source and source != kept:
                 put(source, kept)
             if not (os.path.isfile(target) and sha256_of(target) == record["file_sha256"]):
-                put(overrides[record["path"]][0], target)
+                put(replacing[record["path"]][0], target)
                 changed += 1
         else:
             if source and source != target:
@@ -1099,7 +1147,7 @@ def settle(args, setup, settings, key, sources, records, run, old):
         wanted |= {os.path.join(cache, *up.safe_parts(record["path"])).lower() + TWICE for record in final
                    if record.get("kind") == "font" and record["way"] != "none"}
         wanted |= {os.path.join(aside, *up.safe_parts(record["path"])).lower() for record in final
-                   if record["way"] == "override" and record["generated"]["way"] != "none"}
+                   if record["way"] in REPLACING and record["generated"]["way"] != "none"}
         for folder in (cache, aside):
             for name, file in files_under(folder).items():
                 if name not in wanted:

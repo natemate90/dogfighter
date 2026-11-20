@@ -287,7 +287,7 @@ Setup never fails on this step:
 A set made with the macOS filter is complete too. A later `./setup.sh` does not replace it with an upscaled one.
 The tool on its own also skips finished work: a second run over the full set on an M4 Max took 3 seconds and changed nothing.
 
-`--fetch-tools` downloads three archives, about 100 MB, to `downloads/upscale/`.
+`--fetch-tools` downloads three archives, about 100 MB, to `downloads/upscale/`, and three fonts (see [Redrawn labels](#redrawn-labels)).
 - `upscayl-bin` 20251207-174704, which runs the model.
 - The Real-ESRGAN model `realesrgan-x4plus`, from the Real-ESRGAN release v0.2.5.0.
 - `waifu2x-ncnn-vulkan` 20250915 with its `cunet` model, as the second choice.
@@ -403,6 +403,55 @@ The text stood in the same place and its strokes were crisper.
 Other screens were not compared.
 Window frames and other menu pictures do not work this way and are left alone.
 
+### Redrawn labels
+
+An upscaler cannot read. On a label a few pixels high it draws shapes that are almost letters.
+So for 26 textures the tool sets the words again with a font, after the set is made.
+
+- `tools/lettering.json` lists each texture, its words, the boxes and the fitted numbers.
+- `tools/lettering.py` draws them with the helper `tools/lettering-draw.c`, which uses CoreText. No Python packages are needed.
+- In each box the old letters are painted out from the pixels around them. Then the words are laid over in the font.
+- Size, stretch, weight, position and the shift of each letter were fitted once to the original pixels. Each candidate was drawn, shrunk to the original size and compared with the original.
+- Every run draws the same bytes from those numbers. Two runs in a row changed nothing.
+- Nothing is traced and no AI draws letters. Only words that are clear in the original are set.
+
+| Textures | Words | Font |
+| --- | --- | --- |
+| `firecr1`-`3`, `rocket123`, `abomb` (11 files) | PUFF, BANG, BOOM, ATOM | Stardos Stencil Bold |
+| `glue1` | HUMBROL, POLY CEMENT, the three warning lines | Alfa Slab One, Arial Bold |
+| `humbrol1` | HUMBROL, Enamel | Alfa Slab One, Helvetica |
+| `books01` | ADVENTURE SERIES VOL 1 to 4, and 1 to 10 | Bebas Neue, Arial Bold |
+| `books03` | 1 2 3 | Arial Bold |
+| `fridge01` | COOLMAN | Arial Black |
+| `MEDAL` | CHAMPIONS 1942 | Menlo Bold |
+| `particleobj` (2 files) | LASER POINT | Arial Bold |
+| `AirConTower1` (4 files), `AirConTowerD` (2 files) | 23 | Helvetica Bold |
+| `Mailbox` | U.S. MAIL | none: that box comes from the macOS filter, because the upscaler turned MAIL into other shapes |
+
+The small bottom line of `humbrol1`, the two blueprints and about 90 other textures with writing are left as made. Their words are not certain, or the made texture already reads well.
+
+Fonts:
+- Stardos Stencil, Alfa Slab One and Bebas Neue are under the SIL Open Font License 1.1. They come from the Google Fonts repository at commit `06bfe0d62a98375cb09c942fa18e68bd32cff057`.
+- `--fetch-tools` downloads them to `upscale-tools/fonts/`, each checked against a pinned SHA-256 checksum, with its licence `OFL.txt` beside it.
+- Arial Bold, Arial Black, Helvetica and Menlo come with macOS. They are only read to draw pixels on your Mac and are not part of the repository.
+- A missing font leaves its textures as made, and the run says so in one line.
+- A macOS font with another checksum than listed is drawn anyway. The checks below catch letters that moved.
+- For COOLMAN, Arial Black and Archivo Expanded Black looked alike at 4x. Arial Black matched the pixels a little better and needs no download.
+
+Checks, after drawing:
+- No pixel outside the boxes changes, alpha included.
+- The edges of a tiling texture do not change.
+- Each box, shrunk to the original size, must match the original at 10 dB or more. The drawn boxes score 11 to 34 dB. The same words moved by 2 pixels, or drawn 20% smaller, score 6 to 9 dB.
+- A texture that fails keeps its made version.
+
+The manifest lists such a texture with the way `lettering`.
+The made texture's record is under `generated`, and the fonts' checksums and the scores under `lettering`.
+The made texture waits in `hd-textures/replaced/`.
+- `--no-lettering` puts the made textures back. The next run without it draws them again.
+- A file in `texture-overrides/` wins over the lettering.
+- A set made before the lettering existed gets it from `python3 tools/upscale-textures.py --fetch-tools`, then `python3 tools/upscale-textures.py`. `./setup.sh` prints that line.
+- It works at 2x and at 4x. 4x was tested only on enlarged copies, not on a `--scale 4` set.
+
 ### Your own textures
 
 Put a `.gti` file in `texture-overrides/`, under the same path as in `hd-textures/cache/`.
@@ -414,7 +463,7 @@ The next run of the tool puts it in the set in place of the made texture.
 - Change the file and the next run takes the new one.
 - Remove the file and the next run puts the made texture back.
 
-This is meant for textures where an upscaler garbled small lettering.
+Use it for a texture the redrawn labels do not cover.
 `texture-overrides/` is not part of the repository, because it holds game art.
 
 ### How the game finds them
@@ -584,6 +633,7 @@ Collected from the sections above.
 - `--deep-z`: only the first mission was compared.
 - `--scale 4` and the generative textures: longer missions.
 - Sharper letters: only the Pilot Roster was compared.
+- Redrawn labels: not yet looked at in the game.
 - `--join`: whether the Multiplayer screen lists the server.
 
 ## Legal
