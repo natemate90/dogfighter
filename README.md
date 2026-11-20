@@ -168,7 +168,7 @@ They are listed in sections 1.1 and 1.2 of `game/readme.txt`.
 - **The mouse is stuck in the window.** Press Ctrl+Option. The game holds the mouse on purpose while you play.
 - **Cmd+Tab.** The game was not made for task switching. The helper keeps it running after Cmd+Tab and brings it back to the front when you return.
 - **The helper is missing.** If the launcher says `focusfix.exe` or `focushook.dll` is missing, run `./setup.sh` again.
-- **Testing without the helper.** `--no-focusfix` runs the game in a plain Wine desktop window. The picture is not scaled, the window cannot be resized, the game stops when it loses the focus, and you press OK in the setup dialog yourself.
+- **Testing without the helper.** `--no-focusfix` runs the game in a plain Wine desktop window. The picture is not scaled, the window cannot be resized, the game stops when it loses the focus, and you press OK in the setup dialog yourself. A crashed start is started again, a hung one is not: end it with `./dogfighter --stop`.
 - **Tiny text.** Make the window bigger. The picture grows with it.
 - **Game still running.** `./dogfighter --stop` ends a game that hangs or that you cannot reach.
 - **No music.** Check that `music/` holds ten `.ogg` files and that `game/winmm.dll` exists. Run `./setup.sh` again if not.
