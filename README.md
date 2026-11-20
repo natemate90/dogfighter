@@ -102,6 +102,7 @@ Cmd+Tab also frees the mouse, and the game takes it back when you return.
 | `--wide` | Widen the view angle for a 16:10 or 16:9 picture (see Picture quality). |
 | `--hd-textures` | Use the larger textures you made (see Larger textures). |
 | `--original` | Leave the picture settings as the game made them (see Picture quality). |
+| `--mute` | Start the game without sound: no videos, music or effects. Other apps keep their sound, and the next start without it has sound again. |
 | `--join=ADDRESS` | Put a server in the game's Address book, then start the game (see Online multiplayer). |
 | `--setup` | Show the game's setup dialog and wait for OK. |
 | `--no-focusfix` | Start without the helper (see Troubleshooting). |

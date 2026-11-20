@@ -466,11 +466,12 @@ static void draw_test(void)
 int main(int argc, char **argv)
 {
     BOOL seen = FALSE, window_test = FALSE, move_test = FALSE, start_test = FALSE, press_ok = FALSE, press_cancel = FALSE;
-    DWORD start = GetTickCount(), wait = 10;
+    DWORD start = GetTickCount(), wait = 10, end_after = 0;
     int next_step = 0;
 
     logf = fopen("C:\\dogfighter-windiag.log", "w");
     if (!logf) return 1;
+    note("sound: Wine offers %u devices to play on", waveOutGetNumDevs());
     if (GetEnvironmentVariableA("DOGFIGHTER_DRAWTEST", NULL, 0))
     {
         draw_test();
@@ -484,6 +485,7 @@ int main(int argc, char **argv)
         if (!strcmp(argv[i], "press-ok")) press_ok = TRUE;
         if (!strcmp(argv[i], "press-cancel")) press_cancel = TRUE;
         if (!strncmp(argv[i], "wait=", 5)) wait = atoi(argv[i] + 5);
+        if (!strncmp(argv[i], "end=", 4)) end_after = atoi(argv[i] + 4);
         if (!strncmp(argv[i], "keys=", 5)) read_keys(argv[i] + 5);
         if (!strncmp(argv[i], "mouse=", 6)) read_moves(argv[i] + 6);
         if (!strncmp(argv[i], "console=", 8)) read_command(argv[i] + 8);
@@ -508,6 +510,11 @@ int main(int argc, char **argv)
         {
             end_game("start test, the game drew for 8 seconds");
             start_test = FALSE;
+        }
+        if (end_after && shown >= end_after)
+        {
+            end_game("the test run's time is up");
+            end_after = 0;
         }
         while (keys_pressed < key_count && shown >= keys[keys_pressed].second)
             press_key(keys[keys_pressed++].scan);
