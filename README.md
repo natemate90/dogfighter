@@ -96,6 +96,7 @@ Cmd+Tab also frees the mouse, and the game takes it back when you return.
 | `--sharp` | Use Retina pixels: a sharper picture in flight. |
 | `--windowed=WxH` | Start with the picture at most this big, e.g. `--windowed=1024x768`. |
 | `--wide` | Widen the view angle to fit a picture wider than 4:3 (see Picture quality). |
+| `--hd-textures` | Use the larger textures you made (see Larger textures). |
 | `--original` | Leave the picture settings as the game made them (see Picture quality). |
 | `--setup` | Show the game's setup dialog and wait for OK. |
 | `--no-focusfix` | Start without the helper (see Troubleshooting). |
@@ -149,6 +150,50 @@ On an M4 Max the frame rate stayed the same, about 30 frames a second.
 `--wide` widens the view angle for a 16:10 or 16:9 picture.
 Without it the game cuts off the top and bottom of the 4:3 view.
 It is not the default, because the glow around lamps is not drawn while it is on.
+
+## Larger textures
+
+The game shrinks every texture to at most 256 pixels a side.
+`--hd-textures` raises that limit and loads larger copies of the 3D textures.
+You make the copies once, on your Mac, from your own game files.
+Nothing is downloaded or uploaded.
+
+```
+python3 tools/upscale-textures.py
+./dogfighter --hd-textures
+```
+
+- The first command needs only the Xcode Command Line Tools.
+- It writes 1,192 textures to `hd-textures/cache/`, twice as large as the originals.
+- That takes under a minute and about 180 MB of disk space.
+- The packs in `game/` are never changed.
+- Without `--hd-textures` the game uses its own textures, as before.
+
+The resizer is the Lanczos filter that comes with macOS.
+It gives smoother edges up close. It does not add detail.
+
+If `realesrgan-ncnn-vulkan` is on your `PATH`, the tool uses that instead.
+It draws new detail, and it takes much longer.
+The tool never downloads it.
+This path is not tested yet.
+`--upscaler vimage` keeps the macOS filter.
+
+`--scale 4` makes textures four times as large, up to 1024 pixels.
+That needs about 730 MB of disk space.
+It is not tested yet: the game is a 32-bit program and may run out of memory.
+
+Only textures on 3D shapes are resized: walls, floors, models, sky and effects.
+Menus, loading screens, fonts, the HUD and the maps keep their size.
+The game draws those at the size stored in the file, so larger files would break the layout.
+
+How it works:
+- The game opens `cache\<path>` in its folder before it looks in its packs.
+- The launcher links `game/cache` to `hd-textures/cache`, and removes the link without the option.
+- The helper changes the 256-pixel limit in the running game's memory. No game file is changed.
+
+`tools/gti.py` turns one texture into a PNG and back, for your own edits.
+The file format is described at the top of `tools/gti.py`.
+`tools/up.py` lists and unpacks the game's `.up` packs.
 
 ## CD music
 
@@ -237,5 +282,5 @@ They are listed in sections 1.1 and 1.2 of `game/readme.txt`.
 ## Legal
 
 For personal use with a disc you own.
-Never commit or share the game files: `Dogfighter.bin`, `cd/`, `game/`, `music/` or `Dogfighter.app`.
+Never commit or share the game files: `Dogfighter.bin`, `cd/`, `game/`, `music/`, `hd-textures/` or `Dogfighter.app`.
 `.gitignore` keeps them out of git.
