@@ -32,13 +32,15 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
   --no-focusfix     Start without the helper. The picture is not scaled, the window
                     has no title bar and the game stops when it loses the focus.
   --wine=NAME       Run with the Wine build in wine-NAME/ and the prefix prefix-NAME/
-                    in place of wine/ and prefix/. --wine=mach9 is a Wine that needs no
-                    Rosetta. Use the same option with --stop and --winecfg.
+                    in place of wine/ and prefix/. --wine=mach9 is Mach9, a Wine that
+                    needs no Rosetta; the README says how to get it. Use the same
+                    option with --stop, --winecfg and --doctor.
   --wine-rule=KEY=VALUE
-                    Only with a Wine that needs no Rosetta: a Mach9 setting for the
-                    game, e.g. --wine-rule=opengl=cgl for Apple's OpenGL, or
+                    Only with Mach9: a Mach9 setting for the game, e.g.
                     --wine-rule=env=FEX_X87REDUCEDPRECISION= for exact x87 maths.
-                    Can be given more than once.
+                    Can be given more than once. The launcher adds opengl=cgl
+                    (Apple's OpenGL) itself, because the game does not start on
+                    Mach9's own OpenGL. An opengl= rule of your own replaces it.
   --join=ADDRESS    Put a server's IP address or host name in the game's Address book,
                     then start the game. The server shows in the Multiplayer list.
   --doctor          Check the installation and print a fix for each problem.
@@ -172,6 +174,12 @@ WINE="$WINE_DIR/bin/wine"
 WINESERVER="$WINE_DIR/bin/wineserver"
 NATIVE=0
 if [ -d "$WINE_DIR/lib/wine/aarch64-unix" ]; then NATIVE=1; fi
+MACH9=0
+MACH9_LOADER="$WINE_DIR/lib/wine/aarch64-unix/wine.app/Contents/Info.plist"
+if [ -f "$WINE_DIR/lib/wine/aarch64-unix/compatdb.so" ] &&
+  [ "$(/usr/bin/plutil -extract CFBundleIdentifier raw -o - "$MACH9_LOADER" 2>/dev/null || true)" = app.mach9.loader ]; then
+  MACH9=1
+fi
 GAME_DOS='C:\Games\Dogfighter'
 REG="$HERE/dogfighter.reg"
 INI="$HERE/game/system.ini"
@@ -335,8 +343,14 @@ esac
 export WINEDEBUG="${DEBUG:-${WINEDEBUG:-fixme-all}}"
 export WINEDLLOVERRIDES="winmm=n,b;mscoree=;mshtml=;ddraw=b"
 unset WINE_COMPATDB WINE_COMPATDB_FILE WINE_PROF_SERVICE
+if [ -n "$WINE_RULES" ] && [ "$MACH9" = 0 ]; then
+  echo "--wine-rule needs Mach9, the Wine that runs without Rosetta: --wine=mach9." >&2
+  exit 2
+fi
+# Mach9 draws OpenGL through its own Vulkan driver unless told otherwise, and
+# the game ends at start on that driver. Apple's OpenGL works.
+if [ "$MACH9" = 1 ] && [[ "$WINE_RULES;" != *";opengl="* ]]; then WINE_RULES=";opengl=cgl$WINE_RULES"; fi
 if [ -n "$WINE_RULES" ]; then
-  [ "$NATIVE" = 1 ] || { echo "--wine-rule needs a Wine that runs without Rosetta, e.g. --wine=mach9." >&2; exit 2; }
   export WINE_COMPATDB="exe=Dogfighter.exe$WINE_RULES"$'\n'"exe=dogfighter-windiag.exe$WINE_RULES"
 fi
 
