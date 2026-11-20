@@ -285,14 +285,14 @@ static void press_key(DWORD scan)
     note("pressed the key with scan code %02lx", scan);
 }
 
-static struct { DWORD second; char text[200]; } commands[8];
+static struct { DWORD second; char text[200]; } commands[24];
 static int command_count, commands_sent;
 
 static void read_command(const char *arg)
 {
     int used = 0;
 
-    if (command_count == 8 || sscanf(arg, "%lu:%n", &commands[command_count].second, &used) != 1 || !used) return;
+    if (command_count == 24 || sscanf(arg, "%lu:%n", &commands[command_count].second, &used) != 1 || !used) return;
     snprintf(commands[command_count].text, sizeof(commands[0].text), "%s", arg + used);
     for (char *c = commands[command_count].text; *c; c++) if (*c == '+') *c = ' ';
     command_count++;

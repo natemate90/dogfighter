@@ -1,4 +1,5 @@
 #include <windows.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -26,6 +27,7 @@ struct wined3d_swapchain_desc_start
 
 #define WINED3DERR_INVALIDCALL ((HRESULT)0x8876086c)
 #define CONSOLE_COMMAND 0x41664463
+#define WIDEN_VIEW (WM_APP + 0x4466)
 
 static HRESULT (__cdecl *real_present)(void *swapchain, const RECT *src, const RECT *dst,
                                        HWND override, unsigned int interval, uint32_t flags);
@@ -40,26 +42,29 @@ static HRESULT (__cdecl *real_swapchain_create)(void *device, struct wined3d_swa
 static HRESULT (__cdecl *real_get_display_mode)(const void *output, struct wined3d_display_mode_copy *mode,
                                                 int *rotation);
 
-static FILE *logf;
+static void (__cdecl *real_sampler_state)(void *stateblock, UINT sampler, int state, unsigned int value);
+
+static FILE *log_file;
 static HWND game_window;
 static WNDPROC game_proc, next_proc;
 static SIZE max_client, mac_screen, fitted_for, modes[32];
 static unsigned int mode_count;
 static struct wined3d_display_mode_copy game_mode;
-static BOOL mode_set, dinput_wants_mouse, mouse_free;
+static BOOL mode_set, dinput_wants_mouse, mouse_free, widen_view;
 static void *front_swapchain, *front_texture;
 static DWORD front_thread;
+static unsigned int anisotropy;
 static volatile LONG flips, direct_draws, gdi_draws, unscaled_draws, to_announce, dinput_clips, dinput_moves;
 
 static void say(const char *fmt, ...)
 {
     va_list args;
-    if (!logf) return;
+    if (!log_file) return;
     va_start(args, fmt);
-    fprintf(logf, "focushook: ");
-    vfprintf(logf, fmt, args);
-    fprintf(logf, "\n");
-    fflush(logf);
+    fprintf(log_file, "focushook: ");
+    vfprintf(log_file, fmt, args);
+    fprintf(log_file, "\n");
+    fflush(log_file);
     va_end(args);
 }
 
@@ -91,6 +96,17 @@ static BOOL picture_target(RECT *client)
     return game_window && GetClientRect(game_window, client) && client->right > 0 && client->bottom > 0;
 }
 
+static void tell_helper_about_picture(void)
+{
+    static LONG told;
+    HANDLE picture;
+
+    if (InterlockedExchange(&told, 1)) return;
+    if (!(picture = OpenEventA(EVENT_MODIFY_STATE, FALSE, "DogfighterFirstPicture"))) return;
+    SetEvent(picture);
+    CloseHandle(picture);
+}
+
 static void count_scaled(volatile LONG *counter, const char *path, const RECT *client)
 {
     InterlockedIncrement(counter);
@@ -103,13 +119,16 @@ static HRESULT __cdecl scaled_present(void *swapchain, const RECT *src, const RE
                                       HWND override, unsigned int interval, uint32_t flags)
 {
     RECT client;
+    HRESULT hr;
 
     if (picture_target(&client))
     {
         count_scaled(&flips, "flip", &client);
         dst = &client;
     }
-    return real_present(swapchain, src, dst, override, interval, flags);
+    hr = real_present(swapchain, src, dst, override, interval, flags);
+    tell_helper_about_picture();
+    return hr;
 }
 
 static void *__cdecl noted_front_buffer(void *swapchain)
@@ -144,6 +163,7 @@ static HRESULT __cdecl scaled_blt(void *context, void *dst, unsigned int dst_ind
     {
         count_scaled(&direct_draws, "direct draw", &client);
         real_present(front_swapchain, NULL, &client, NULL, 0, 0);
+        tell_helper_about_picture();
     }
     return hr;
 }
@@ -216,6 +236,24 @@ static HRESULT __cdecl listed_mode(void *output, int format_id, int ordering, un
     mode->format_id = format_id;
     if (!mode->refresh_rate) mode->refresh_rate = 60;
     return S_OK;
+}
+
+/* The game asks for linear filtering with the nearest mipmap, which blurs the
+   ground towards the horizon. Where it asks for that, it gets anisotropic
+   filtering blended between mipmaps. Point filtering is left alone: the game
+   picks it on purpose. The numbers are wined3d's sampler states and filters. */
+static void __cdecl sharper_sampler_state(void *stateblock, UINT sampler, int state, unsigned int value)
+{
+    enum { MIN_FILTER = 6, MIP_FILTER = 7, MAX_ANISOTROPY = 10, POINT = 1, LINEAR = 2, ANISOTROPIC = 3 };
+
+    if (state == MIN_FILTER && value == LINEAR)
+    {
+        real_sampler_state(stateblock, sampler, MAX_ANISOTROPY, anisotropy);
+        value = ANISOTROPIC;
+    }
+    else if (state == MIP_FILTER && value == POINT) value = LINEAR;
+    else if (state == MAX_ANISOTROPY) value = anisotropy;
+    real_sampler_state(stateblock, sampler, state, value);
 }
 
 static BOOL WINAPI ddraw_clip_cursor(const RECT *rect)
@@ -298,6 +336,10 @@ static BOOL install_hooks(void)
         say("ddraw.dll does not import %s", ddraw_hooks[i].name);
         if (ddraw_hooks[i].needed) return FALSE;
     }
+    real_sampler_state = (void *)GetProcAddress(wined3d, "wined3d_stateblock_set_sampler_state");
+    if (anisotropy > 1 && real_sampler_state
+        && !patch_import(ddraw, "wined3d.dll", "wined3d_stateblock_set_sampler_state", sharper_sampler_state))
+        say("ddraw.dll does not import wined3d_stateblock_set_sampler_state; textures keep the game's filtering");
     if (!patch_import(dinput, "user32.dll", "ClipCursor", dinput_clip_cursor))
         say("dinput.dll does not import ClipCursor; the mouse is not kept inside the picture");
     if (!patch_import(dinput, "user32.dll", "SetCursorPos", dinput_set_cursor_pos))
@@ -318,8 +360,25 @@ static void run_console_command(const char *command)
     execute(get_console(main), "%s", command);
 }
 
+/* The game's camera takes one horizontal angle, 90 degrees, made for a 4:3
+   picture. A wider picture then loses its top and bottom. This angle keeps the
+   4:3 height and adds to the sides. */
+static void widen_view_for(UINT width, UINT height)
+{
+    char command[32];
+
+    if (!width || !height) return;
+    snprintf(command, sizeof(command), "fov %.1f", atan(width * 3.0 / (height * 4.0)) * 360.0 / 3.14159265358979);
+    run_console_command(command);
+}
+
 static LRESULT CALLBACK hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
+    if (msg == WIDEN_VIEW)
+    {
+        widen_view_for(wp, lp);
+        return 0;
+    }
     if (msg == WM_COPYDATA && ((COPYDATASTRUCT *)lp)->dwData == CONSOLE_COMMAND)
     {
         COPYDATASTRUCT *data = (COPYDATASTRUCT *)lp;
@@ -348,6 +407,47 @@ static LRESULT CALLBACK hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         }
     }
     return result;
+}
+
+/* F12 writes no screenshot in 32-bit colour, for two reasons in the game's own
+   code. Its Direct3D driver cannot name a 32-bit screen without an alpha
+   channel: the first change makes it answer "32-bit with alpha", which has the
+   same bytes per pixel. The game then refuses to turn a picture with alpha into
+   the 24-bit file: the second change sets its "do it anyway" argument. Only
+   builds with these exact bytes are touched. The game unloads and reloads the
+   driver, so this runs on every tick of the watch thread. */
+static void let_screenshots_work_in_32_bit(void)
+{
+    static const struct { const char *module; DWORD at; BYTE before[10], was, now; } changes[] =
+    {
+        { "gtDirect3D.dll", 0x2550, { 0x83, 0xfe, 0x20, 0x75, 0x7e, 0xf6, 0xc2, 0x01, 0x74 }, 0x79, 0x28 },
+        { NULL, 0x12411, { 0x85, 0xc0, 0x74, 0x36, 0x6a }, 0x00, 0x01 },
+    };
+    static BOOL said;
+
+    for (unsigned int i = 0; i < ARRAYSIZE(changes); i++)
+    {
+        BYTE *code = (BYTE *)GetModuleHandleA(changes[i].module), *byte;
+        size_t length = strlen((const char *)changes[i].before);
+        DWORD old;
+
+        if (!code) return;
+        code += changes[i].at;
+        byte = code + length;
+        if (IsBadReadPtr(code, length + 1) || memcmp(code, changes[i].before, length)
+            || (*byte != changes[i].was && *byte != changes[i].now))
+        {
+            if (!said) say("this is not the known game build; F12 screenshots stay off in 32-bit colour");
+            said = TRUE;
+            return;
+        }
+        if (*byte == changes[i].now || !VirtualProtect(byte, 1, PAGE_EXECUTE_READWRITE, &old)) continue;
+        *byte = changes[i].now;
+        VirtualProtect(byte, 1, old, &old);
+        FlushInstructionCache(GetCurrentProcess(), byte, 1);
+        if (i == 0 && !said) say("F12 screenshots made to work in 32-bit colour");
+        if (i == 0) said = TRUE;
+    }
 }
 
 static void make_normal_window(HWND w)
@@ -448,8 +548,9 @@ static void keep_mouse_inside(void)
 
 static DWORD WINAPI watch(void *arg)
 {
-    DWORD pid = GetCurrentProcessId(), owner, ticks = 0;
-    LONG reported = 0;
+    DWORD pid = GetCurrentProcessId(), owner, ticks = 0, reported_at = GetTickCount();
+    LONG reported = 0, reported_flips = 0;
+    SIZE viewed = { 0, 0 };
 
     for (;;)
     {
@@ -466,12 +567,26 @@ static DWORD WINAPI watch(void *arg)
                 SetWindowLongPtrA(w, GWLP_WNDPROC, (LONG_PTR)hook_proc);
             }
             if (max_client.cx && cur == hook_proc) make_normal_window(w);
+            if (widen_view && cur == hook_proc && (viewed.cx != (LONG)game_mode.width || viewed.cy != (LONG)game_mode.height))
+            {
+                viewed.cx = game_mode.width;
+                viewed.cy = game_mode.height;
+                PostMessageA(w, WIDEN_VIEW, viewed.cx, viewed.cy);
+            }
         }
+        let_screenshots_work_in_32_bit();
         if (max_client.cx) keep_mouse_inside();
         if (max_client.cx && ++ticks % 100 == 0 && flips + direct_draws + gdi_draws + unscaled_draws != reported)
         {
             RECT client = { 0 };
             if (game_window) GetClientRect(game_window, &client);
+            DWORD at = GetTickCount();
+            LONG now = flips;
+            say("%.1f flips a second over the last %.1f seconds, picture %ux%u format %d",
+                (now - reported_flips) * 1000.0 / (at - reported_at + 1), (at - reported_at) / 1000.0,
+                game_mode.width, game_mode.height, game_mode.format_id);
+            reported_flips = now;
+            reported_at = at;
             reported = flips + direct_draws + gdi_draws + unscaled_draws;
             say("so far %ld flips and %ld direct draws scaled into client area %ldx%ld; not scaled: %ld through GDI, %ld without a back buffer; DirectInput asked %ld times to hold the mouse and moved the pointer itself %ld times",
                 flips, direct_draws, client.right, client.bottom, gdi_draws, unscaled_draws, dinput_clips, dinput_moves);
@@ -489,9 +604,11 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
         max_client = env_size("DOGFIGHTER_WINDOW");
         mac_screen = env_size("DOGFIGHTER_SCREEN");
         read_mode_list();
+        widen_view = GetEnvironmentVariableA("DOGFIGHTER_WIDEN_VIEW", NULL, 0) != 0;
+        anisotropy = env_size("DOGFIGHTER_ANISOTROPY").cx;
         if (max_client.cx && max_client.cy)
         {
-            logf = fopen("C:\\dogfighter-focushook.log", "w");
+            log_file = fopen("C:\\dogfighter-focushook.log", "w");
             if (mode_count && install_hooks())
                 say("scaling the picture into a window of up to %ldx%ld; %u display modes offered to the game",
                     max_client.cx, max_client.cy, mode_count);
@@ -501,6 +618,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
                 max_client.cx = 0;
             }
         }
+        if (!max_client.cx) tell_helper_about_picture();
         CloseHandle(CreateThread(NULL, 0, watch, NULL, 0, NULL));
     }
     return TRUE;

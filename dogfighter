@@ -3,8 +3,9 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--setup] [--no-focusfix]
-                  [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|start-test|draw-test]]
+Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--original] [--setup]
+                  [--no-focusfix]
+                  [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|start-test|stall-test|draw-test]]
                   [--diag-keys=SECONDS:SCANCODE,...] [--diag-console=SECONDS:COMMAND]
                   [--winecfg] [--stop]
 
@@ -15,6 +16,12 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--setup] [--no-focusfi
                     The menus are always 640x480.
   --sharp           Use Retina pixels: a sharper picture in flight.
   --windowed=WxH    Start with the picture at most this big, e.g. --windowed=1024x768.
+  --wide            Widen the view angle to fit a picture wider than 4:3, so its top
+                    and bottom are not cut off. The glow around lamps is not drawn
+                    with this on.
+  --original        Leave the picture as the game made it: 16-bit colour, the normal
+                    draw distance, no light shafts, blurry ground in the distance.
+                    Without this the launcher turns these up at every start.
   --setup           Show the game's setup dialog (driver, language, advanced settings)
                     and wait for OK. Without this the launcher presses OK itself.
   --no-focusfix     Start without the helper. The picture is not scaled, the window
@@ -26,6 +33,8 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--setup] [--no-focusfi
                     resizes and zooms the window, then ends the game. It starts 10
                     seconds after the first picture, or after SECONDS.
                     --diag=start-test ends the game after 8 seconds of picture.
+                    --diag=stall-test is the same, but treats the first start as one
+                    that never drew, so the launcher has to start the game again.
                     --diag=draw-test runs a small test program in place of the game. It
                     draws straight to the screen surface, which the game never does.
                     It cannot be combined with --diag-keys or --diag-console.
@@ -47,15 +56,21 @@ GAME_RES=
 FOCUSFIX=1
 SHARP=0
 SETUP=accept
+ORIGINAL=0
+WIDE=0
 DEBUG=
 DIAG=
 DIAG_KEYS=
 DIAG_CONSOLE=()
+PICTURE_WAIT_MS=15000
+PICTURE_WAIT_FIRST_TRY=
 for arg in "$@"; do
   case "$arg" in
     --windowed=*) WINDOW_SIZE="${arg#--windowed=}" ;;
     --res=*) GAME_RES="${arg#--res=}" ;;
     --sharp) SHARP=1 ;;
+    --original) ORIGINAL=1 ;;
+    --wide) WIDE=1 ;;
     --setup) SETUP=show ;;
     --no-focusfix) FOCUSFIX=0 ;;
     --debug=*) DEBUG="${arg#--debug=}" ;;
@@ -63,6 +78,7 @@ for arg in "$@"; do
     --diag=focus-test) DIAG=focus-test ;;
     --diag=focus-test:*) DIAG="focus-test wait=${arg#--diag=focus-test:}" ;;
     --diag=start-test) DIAG=start-test ;;
+    --diag=stall-test) DIAG=start-test; PICTURE_WAIT_FIRST_TRY=1 ;;
     --diag=draw-test) DIAG=draw-test ;;
     --diag-keys=*) DIAG_KEYS="${arg#--diag-keys=}" ;;
     --diag-console=*) DIAG_CONSOLE+=("${arg#--diag-console=}") ;;
@@ -105,6 +121,8 @@ WINESERVER="$HERE/wine/bin/wineserver"
 GAME_DOS='C:\Games\Dogfighter'
 REG="$HERE/dogfighter.reg"
 INI="$HERE/game/system.ini"
+USER_INI="$HERE/game/user.ini"
+PICTURE_BEFORE="$HERE/game/dogfighter-picture-before.txt"
 FOCUSFIX_EXE="$HERE/build/focusfix.exe"
 FOCUSHOOK_DLL="$HERE/build/focushook.dll"
 WINDIAG_EXE="$HERE/build/windiag.exe"
@@ -156,6 +174,59 @@ ini_drop_section() {
     line ~ /^\[/ { in_s = (line == s) }
     !in_s { print }' "$1" >"$tmp"
   mv "$tmp" "$1"
+}
+
+user_get() {
+  [ -f "$USER_INI" ] || return 0
+  awk -v k="$1" '
+    { sub(/\r$/, "") }
+    $1 == "sets" && $2 == k { v = $3; gsub(/"/, "", v); print v; exit }' "$USER_INI"
+}
+
+user_set() {
+  local tmp
+  tmp="$(mktemp "$USER_INI.XXXXXX")"
+  awk -v k="$1" -v v="$2" '
+    { line = $0; sub(/\r$/, "", line); split(line, word, " ") }
+    word[1] == "sets" && word[2] == k { if (v != "" && !done) print "sets " k " \"" v "\"\r"; done = 1; next }
+    { print }
+    END { if (v != "" && !done) print "sets " k " \"" v "\"\r" }' "$USER_INI" >"$tmp"
+  mv "$tmp" "$USER_INI"
+}
+
+picture_get() {
+  if [ "$1" = screen_depth ]; then ini_get "$INI" "$SECTION" "$1"; else user_get "$1"; fi
+}
+
+picture_set() {
+  if [ "$1" = screen_depth ]; then ini_set "$INI" "$SECTION" "$1" "$2"; else user_set "$1" "$2"; fi
+}
+
+# The values the settings had before the launcher raised them are kept in
+# $PICTURE_BEFORE, so --original can put them back.
+apply_picture_settings() {
+  local pair key want now
+  for pair in screen_depth=32 view_distance=450 detail_volumetriclight=2 view_portals=5; do
+    key="${pair%=*}" want="${pair#*=}"
+    now="$(picture_get "$key")"
+    if [ "$now" = "$want" ]; then continue; fi
+    grep -q "^$key=" "$PICTURE_BEFORE" 2>/dev/null || echo "$key=$now" >>"$PICTURE_BEFORE"
+    picture_set "$key" "$want"
+    say "Picture setting $key: ${now:-not set} -> $want."
+  done
+}
+
+restore_picture_settings() {
+  local pair key want
+  [ -f "$PICTURE_BEFORE" ] || return 0
+  for pair in screen_depth=32 view_distance=450 detail_volumetriclight=2 view_portals=5; do
+    key="${pair%=*}" want="${pair#*=}"
+    grep -q "^$key=" "$PICTURE_BEFORE" || continue
+    if [ "$(picture_get "$key")" != "$want" ]; then continue; fi
+    picture_set "$key" "$(sed -n "s/^$key=//p" "$PICTURE_BEFORE")"
+    say "Picture setting $key: back to $(picture_get "$key")."
+  done
+  rm -f "$PICTURE_BEFORE"
 }
 
 game_section() {
@@ -301,6 +372,9 @@ elif [ "$(ini_get "$INI" "$SECTION" screen_width)x$(ini_get "$INI" "$SECTION" sc
   ini_set "$INI" "$SECTION" screen_height "${GAME_RES#*x}"
   say "Game resolution set to $GAME_RES."
 fi
+if [ -n "$SECTION" ] && [ -f "$USER_INI" ]; then
+  if [ "$ORIGINAL" = 1 ]; then restore_picture_settings; else apply_picture_settings; fi
+fi
 
 set_user_reg 'Software\Wine\Mac Driver' RetinaMode "$RETINA"
 set_user_reg 'Software\Wine\Mac Driver' CaptureDisplaysForFullscreen n
@@ -327,6 +401,8 @@ if [ "$FOCUSFIX" = 1 ]; then
   export DOGFIGHTER_SCREEN="${LIMIT%x*}x$((${LIMIT#*x} + 28))"
   export DOGFIGHTER_MODES="${SIZES//$'\n'/ } $GAME_RES"
   export DOGFIGHTER_SETUP="$SETUP"
+  if [ "$WIDE" = 1 ]; then export DOGFIGHTER_WIDEN_VIEW=1; fi
+  if [ "$ORIGINAL" = 0 ]; then export DOGFIGHTER_ANISOTROPY=16; fi
   if [ -n "$DIAG" ]; then export DOGFIGHTER_DIAG="$DIAG"; fi
   GAME_CMD=('C:\dogfighter-focusfix.exe' 'C:\dogfighter-focusfix.flag' "$GAME_DOS\\Dogfighter.exe")
   if [ "$DIAG" = draw-test ]; then
@@ -346,7 +422,7 @@ fi
 
 run_wine() {
   say "Starting Airfix Dogfighter. Log: $LOG"
-  "$WINE" "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
+  DOGFIGHTER_PICTURE_WAIT_MS="${PICTURE_WAIT_FIRST_TRY:-$PICTURE_WAIT_MS}" "$WINE" "${GAME_CMD[@]}" >>"$LOG" 2>&1 || true
   "$WINESERVER" -w
   cat "$WINEPREFIX/drive_c/dogfighter-focusfix.log" "$WINEPREFIX/drive_c/dogfighter-focushook.log" \
     "$WINEPREFIX/drive_c/dogfighter-windiag.log" "$WINEPREFIX/drive_c/dogfighter-crash.log" \
@@ -356,9 +432,10 @@ run_wine() {
 
 # Under Rosetta, Wine sometimes runs its 32-to-64-bit switch as 32-bit code
 # while the game starts Direct3D. The game then dies or hangs before its setup
-# dialog shows. The helper reports that, and the next start usually works.
+# dialog shows, or hangs right after it and never draws. The helper reports
+# that, and the next start usually works.
 # Without the helper only Wine's own crash text tells.
-START_CRASH='focusfix: the game (ended before its setup dialog appeared|got stuck while starting)'
+START_CRASH='focusfix: the game (ended before its setup dialog appeared|got stuck while starting|drew nothing after its setup dialog)'
 if [ "$FOCUSFIX" = 0 ]; then
   START_CRASH='Unhandled page fault on read access to 00004DC9|Exception frame is not in stack limits'
 fi
@@ -367,6 +444,7 @@ TRY=1
 while :; do
   LOG_LINES="$(wc -l <"$LOG")"
   run_wine
+  if grep -q 'drew nothing after its setup dialog' "$LOG"; then PICTURE_WAIT_FIRST_TRY=; fi
   [ "$TRY" -lt 8 ] || break
   LC_ALL=C awk -v from="$LOG_LINES" -v crash="$START_CRASH" '
     NR > from && $0 ~ crash { found = 1 } END { exit !found }' "$LOG" || break
