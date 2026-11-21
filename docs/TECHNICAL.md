@@ -653,6 +653,46 @@ The made picture waits in `hd-textures/replaced/`.
 - A later run with the same pictures, numbers, packages and made pictures keeps the pieces and draws nothing.
 - Drawing all 24 takes about 20 seconds on one core. Two runs gave the same bytes.
 
+### The stamps in the mission book
+
+The Axis and US Airforce pages of the mission book carry a round ink stamp, about 60 pixels wide.
+The upscaler turned it to mush. So the tool draws each stamp again over the made 4x pictures, as sharp ink on the page.
+
+| Page | Stamp |
+| --- | --- |
+| Axis, and its highlighted page | the Reichsadler on a wreathed swastika, as in the game |
+| US Airforce | the "Hap Arnold" winged star of the US Army Air Forces |
+
+- The game's US stamp is the seal of the Department of the Air Force, from 1947. That is too late for the war, so the stamp shows the wartime winged star instead.
+- The words in the game's rings cannot be read. The rings are drawn plain, without words.
+- The Allies page's RAF eagle and crown stay as made. Drawn again from the game's 66 by 20 pixels, it looked blotchier than the made picture. No public-domain drawing of that badge in the game's pose was found.
+
+How a stamp is drawn:
+- The old ink is taken off: near the stamp, the paper is drawn again from the game's own paper, without its ink, with the made paper's grain.
+- The rings are circles. The emblems are drawn from their SVG files, each colour standing for full ink or bare paper.
+- Four corners lay the stamp onto the page, so it leans with the book. They were fitted once to the game's rings.
+- The ink gets rough edges, lighter patches and a few bare specks, like a rubber stamp. The noise has a fixed seed.
+
+What it needs:
+- `tools/stamps.json` holds every number: the corners, the rings, where each emblem goes, the ink colours, and the two SVG files with their URL and SHA-256 checksum.
+- `--fetch-tools` or `--fetch-stamps` downloads the two SVG files, about 40 KB, from Wikimedia Commons to `upscale-tools/stamps/references/`. Both are in the public domain.
+- `tools/stamps-draw.py` runs in the desk's Python environment, `upscale-tools/desk/venv`, which `--fetch-stamps` sets up too.
+- Nothing is drawn by AI. The emblems never enter the repository.
+
+Checks:
+- The numbers were fitted to the game's own pixels of each picture. The tool checks those pixels against a list of checksums. The languages differ there by the highlight's brightness and one pixel, so the list holds one checksum for each.
+- Each drawn stamp, shrunk to the original size, must match the original at 14 dB or more. The drawn ones score 17 to 18 dB. The ink is sharper than the game's blurred copy, and the US emblem is another drawing, so the score only catches a drawing gone wrong as a whole.
+- A missing emblem or package, or a failed check, leaves that stamp as made, and the run says why in one line.
+
+The manifest lists such a piece with the way `stamp`.
+The made picture's record is under `generated`, and the target, the emblems' checksums, the package versions and the scores under `stamp`.
+The made picture waits in `hd-textures/replaced/`.
+- 3 pieces change: `mission_sel_02`, `book_hilight_axis` and `mission_sel_18`.
+- `--no-stamps` puts the made pictures back. The next run without it draws them again.
+- `--menus-only` and `--lettering-only` draw the stamps too. `./setup.sh` runs `--fetch-stamps` and `--lettering-only` on a complete set.
+- A later run with the same emblems, numbers, packages and made pictures keeps the pieces and draws nothing.
+- Drawing all three takes under a second. Two runs gave the same bytes.
+
 ### Your own textures
 
 Put a `.gti` file in `texture-overrides/`, under the same path as in `hd-textures/cache/`.
