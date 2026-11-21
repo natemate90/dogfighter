@@ -1,0 +1,58 @@
+{
+ "scale": 4,
+ "fps": 60,
+ "videos": [
+  {"name": "companies", "file": "Video/companies.avi", "level": 1,
+   "sha256": "b4f27509ca66c06e4ef161f28b60878a0c0d82e328bb12a4a52398c0a0e9a66e"},
+  {"name": "airfix", "file": "Video/airfix.avi", "level": 2,
+   "sha256": "58f330ef306ded4da19302275978f38ee79ce71088541603f10f319bd874b6ea"},
+  {"name": "airfix-level3-sample", "file": "Video/airfix.avi", "level": 3, "clip": [31.667, 10], "sample": true,
+   "sha256": "58f330ef306ded4da19302275978f38ee79ce71088541603f10f319bd874b6ea"}
+ ],
+ "levels": {
+  "1": {"what": "faithful: Real-ESRGAN on each frame, pulled back to the original", "way": "esrgan",
+        "model": "RealESRGAN_x4plus.pth", "tile": 256, "passes": 2},
+  "2": {"what": "restored: SeedVR2 3B over whole shots", "way": "seedvr2",
+        "dit": "seedvr2_ema_3b-Q8_0.gguf", "vae": "ema_vae_fp16.safetensors", "batch": 21, "chunk": 61, "overlap": 4,
+        "color": "lab", "seed": 42, "input_noise": 0.0, "latent_noise": 0.0, "tile": 1024, "tile_overlap": 128},
+  "3": {"what": "remaster: SeedVR2 7B sharp over whole shots", "way": "seedvr2",
+        "dit": "seedvr2_ema_7b_sharp-Q4_K_M.gguf", "vae": "ema_vae_fp16.safetensors", "batch": 21, "chunk": 61, "overlap": 4,
+        "color": "lab", "seed": 42, "input_noise": 0.0, "latent_noise": 0.0, "tile": 1024, "tile_overlap": 128}
+ },
+ "cuts": {"reduce": 40, "least": 24, "ratio": 1.95, "black": 8},
+ "interpolate": {"model": "rife-v4.26", "uhd": true},
+ "encode": {"codec": "libx265", "crf": 14, "preset": "medium", "pix_fmt": "yuv420p10le", "tag": "hvc1",
+            "container": "mov", "audio": "pcm_s16le"},
+ "memory": {"stop_free": 15, "abort_free": 8},
+ "seedvr2": {
+  "url": "https://codeload.github.com/numz/ComfyUI-SeedVR2_VideoUpscaler/tar.gz/refs/tags/v2.5.23",
+  "file": "ComfyUI-SeedVR2_VideoUpscaler-v2.5.23.tar.gz",
+  "sha256": "1838948a224a3defaf82adbc7e995f7afd3839b7b94cc4f24a0dfd2283b9d4c4",
+  "licence": "Apache-2.0"
+ },
+ "models": {
+  "RealESRGAN_x4plus.pth": {
+   "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
+   "sha256": "4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1", "bytes": 67040989, "licence": "BSD-3-Clause"},
+  "ema_vae_fp16.safetensors": {
+   "url": "https://huggingface.co/numz/SeedVR2_comfyUI/resolve/09ced71023636e9bc8cdf9cdecfb2625d1e691e8/ema_vae_fp16.safetensors",
+   "sha256": "20678548f420d98d26f11442d3528f8b8c94e57ee046ef93dbb7633da8612ca1", "bytes": 501324814, "licence": "Apache-2.0"},
+  "seedvr2_ema_3b-Q8_0.gguf": {
+   "url": "https://huggingface.co/cmeka/SeedVR2-GGUF/resolve/de058a1261f2fc4bb41f39e9ddf313877e4ebf0d/seedvr2_ema_3b-Q8_0.gguf",
+   "sha256": "be0d60083a2051a265eb4b77f28edf494e6db67ffc250216f32b72292e5cbd96", "bytes": 3660613984, "licence": "Apache-2.0"},
+  "seedvr2_ema_7b_sharp-Q4_K_M.gguf": {
+   "url": "https://huggingface.co/cmeka/SeedVR2-GGUF/resolve/de058a1261f2fc4bb41f39e9ddf313877e4ebf0d/seedvr2_ema_7b_sharp-Q4_K_M.gguf",
+   "sha256": "7aed800ac4eb8e0d18569a954c0ff35f5a1caa3ed5d920e66cc31405f75b6e69", "bytes": 4758306592, "licence": "Apache-2.0"}
+ },
+ "rife": {
+  "url": "https://github.com/TNTwise/rife-ncnn-vulkan/releases/download/20250112/macos.zip",
+  "file": "rife-ncnn-vulkan-20250112-macos.zip",
+  "sha256": "543bf845a6160d8ad29a10c2b7a0713e78781dc2505c62185f7d14c3265bb4c0",
+  "licence": "MIT",
+  "members": {
+   "macos/rife-ncnn-vulkan": ["rife-ncnn-vulkan", "5825ba322ffe754f5ab4b8b5e842b433900fdb0b5720911aac5a2f93d87d1611"],
+   "macos/rife-v4.26/flownet.bin": ["rife-v4.26/flownet.bin", "94d58e30b75d7c7609cfa6f3bdad524deddd14f5f75e85c36d2f827ef5c64731"],
+   "macos/rife-v4.26/flownet.param": ["rife-v4.26/flownet.param", "79f16c28903f93f8308f0c4c947f8c7e0c17d99a57b85473e5f298dd578d137b"]
+  }
+ }
+}

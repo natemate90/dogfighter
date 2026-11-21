@@ -140,6 +140,10 @@ tools/stamps.json, from public-domain SVG emblems pinned by URL and SHA-256.
 environment. The manifest lists such a piece with way "stamp". --no-stamps
 leaves them as made. --menus-only and --lettering-only draw them too.
 
+The intro videos: --fetch-videos and --videos make the two videos the game
+plays at start 4x as large and 60 frames a second, in hd-videos/. That is
+separate from the textures; tools/videos.py says how.
+
 A run makes only what is missing or changed. With --only the rest of the set
 stays as it is. Files reach the set one by one, each by a rename, and the
 manifest is written last. So a run that stops leaves a set the game can load,
@@ -183,6 +187,7 @@ import menus  # noqa: E402
 import paintings  # noqa: E402
 import stamps  # noqa: E402
 import up  # noqa: E402
+import videos  # noqa: E402
 
 KEPT = ("graphics\\textures\\", "graphics\\models\\", "graphics\\backdrops\\", "graphics\\effects\\")
 BORDER = 16
@@ -1021,6 +1026,14 @@ def main():
     parser.add_argument("--repeat", type=int, default=8, help="textures to make a second time, to see that the result is the same (default 8)")
     parser.add_argument("--sheets", default="", help="folder for PNG sheets that put the plain filter next to the set")
     parser.add_argument("--list", action="store_true", help="show what would be resized, then stop")
+    parser.add_argument("--fetch-videos", action="store_true",
+                        help="download the pinned video models and tools to upscale-tools/video/ (about 9.8 GB), then stop")
+    parser.add_argument("--videos", action="store_true",
+                        help="make the intro videos of tools/videos.json 4x and 60 frames a second in --videos-out, then stop")
+    parser.add_argument("--video-only", default="", help="with --videos: only the video of tools/videos.json with this name")
+    parser.add_argument("--video-level", default="", help="with --videos: this level instead of the video's own; goes to clips/")
+    parser.add_argument("--video-clip", default="", help="with --videos: only START,SECONDS of each video, to clips/")
+    parser.add_argument("--videos-out", default=os.path.join(root, "hd-videos"), help="output folder of --videos (default: hd-videos/)")
     parser.add_argument("--check", action="store_true",
                         help="exit 0 when the output folder holds a complete set, else 1; makes nothing")
     args = parser.parse_args()
@@ -1030,6 +1043,11 @@ def main():
     tools = args.tools
     if args.check:
         sys.exit(0 if set_complete(args.out) else 1)
+    if args.fetch_videos:
+        videos.fetch(tools, download, python_env)
+        return
+    if args.videos:
+        sys.exit(videos.make(args, tools))
 
     if args.fetch_fonts or args.fetch_desk or args.fetch_tools:
         fetch_fonts(tools)

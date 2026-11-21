@@ -722,6 +722,52 @@ Use it for a texture the redrawn labels do not cover.
 The file format is described at the top of `tools/gti.py`.
 `tools/up.py` lists and unpacks the game's `.up` packs.
 
+## Intro videos
+
+The game plays two videos at start, from `game/Video/`.
+- `companies.avi`: the company logos, 43.5 seconds.
+- `airfix.avi`: the Airfix intro, 65.5 seconds.
+- Both are 640x480 at 15 frames a second, Indeo 5 video with 22 kHz stereo PCM sound.
+
+The texture tool can make them 4x as large (2560x1920) and 60 frames a second.
+It is optional and separate from the textures.
+The game does not play the new videos yet.
+
+```
+python3 tools/upscale-textures.py --fetch-videos
+python3 tools/upscale-textures.py --videos
+```
+
+`--fetch-videos` downloads about 9.8 GB to `upscale-tools/video/`.
+- A Python environment with the pinned packages of `tools/video-requirements.txt`. It needs Python 3.12 or later.
+- SeedVR2's code, the ComfyUI-SeedVR2_VideoUpscaler release v2.5.23 (Apache-2.0).
+- The SeedVR2 models: the 3B model as GGUF Q8_0, the 7B "sharp" model as GGUF Q4_K_M and the VAE (Apache-2.0).
+- The Real-ESRGAN x4plus weights (BSD-3-Clause).
+- `rife-ncnn-vulkan` 20250112 with the RIFE 4.26 model (MIT).
+- ffmpeg comes with the Python package `imageio-ffmpeg`.
+
+Every file has its URL and SHA-256 in `tools/videos.json`. The tool refuses to run a file that does not match.
+
+`tools/videos.json` gives each video a level.
+- Level 1, the company logos: Real-ESRGAN on each frame, then the pull-back of the textures. Each frame, shrunk again, is the game's frame. It adds sharpness, not detail.
+- Level 2, the Airfix intro: SeedVR2 3B. It redraws whole shots, 21 frames at a time, so the new detail does not flicker. The look is a restored copy of the same film.
+- Level 3, a 10-second sample of the Airfix intro: SeedVR2 7B "sharp", the most the model can add.
+
+Then for every video:
+- Cuts between shots are found on small copies of the frames.
+- RIFE makes three frames between each two, 15 to 60 a second. The frames of the game stay unchanged.
+- At a cut, RIFE would blend two shots. So the last frame of a shot is held until the next shot starts.
+- Every frame of the game keeps its own time, so sound and picture stay in sync.
+- x265 writes 10-bit HEVC. The `.mov` holds the game's sound unchanged.
+
+The videos go to `hd-videos/`, with `manifest.json`: checksums, settings, model checksums, run time and the lowest free memory seen.
+- A video whose source, settings and models did not change is not made again.
+- A run that stops goes on where it stopped. The work files are in `hd-videos/.work/`.
+- `--video-only NAME` makes one video. `--video-clip START,SECONDS` makes only that part, to `hd-videos/clips/`. `--video-level N` tries another level, also to `clips/`.
+- Under 15% free memory no new shot starts. Under 8% the run stops at once.
+
+SeedVR2 needs the Mac's graphics card. RIFE and Real-ESRGAN fall back to the processor without it, much slower.
+
 ## CD music
 
 The game plays its music from the CD's audio tracks.
