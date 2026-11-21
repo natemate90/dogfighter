@@ -5,7 +5,7 @@ usage() {
   cat <<'EOF'
 Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [--windowed=WxH] [--wide]
                   [--hd-textures|--no-hd-textures] [--original]
-                  [--smooth=0|2|4] [--deep-z] [--keep-shape] [--mute]
+                  [--smooth=0|2|4] [--deep-z] [--keep-shape] [--mute] [--no-auto-joystick]
                   [--setup] [--no-focusfix] [--wine=NAME] [--wine-rule=KEY=VALUE]
                   [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|move-test|start-test|stall-test|crash-test|fallback-test|draw-test|press-ok|press-cancel]]
                   [--diag-keys=SECONDS:SCANCODE,...] [--diag-mouse=SECONDS:DX:DY[:c|:o],...]
@@ -64,6 +64,10 @@ Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [-
   --mute            Start the game without sound: no videos, music or effects are
                     heard. Other apps keep their sound, and the next start without
                     this option has sound again. Every --diag run is muted.
+  --no-auto-joystick
+                    Leave the game's Joystick option as it is. Without this the
+                    launcher turns it on when a controller is connected. It never
+                    turns it off.
   --setup           Show the game's setup dialog (driver, language, advanced settings)
                     and wait for OK. Without this the launcher presses OK itself.
   --no-focusfix     Start without the helper. The picture is not scaled, the window
@@ -176,6 +180,7 @@ ORIGINAL=0
 WIDE=0
 HD_TEXTURES=auto
 MUTE=0
+AUTO_JOYSTICK=1
 DEBUG=
 DIAG=
 DIAG_KEYS=
@@ -214,6 +219,7 @@ for arg in "$@"; do
     --hd-textures) HD_TEXTURES=1 ;;
     --no-hd-textures) HD_TEXTURES=0 ;;
     --mute) MUTE=1 ;;
+    --no-auto-joystick) AUTO_JOYSTICK=0 ;;
     --setup) SETUP=show ;;
     --no-focusfix) FOCUSFIX=0 ;;
     --wine=*) WINE_NAME="${arg#--wine=}" ;;
@@ -474,7 +480,7 @@ list_controllers() {
   elif [ "$n" = 0 ]; then
     echo "      Controllers: not checked. Wine did not start the program that lists them."
   elif [ "$(user_get option_joystick)" != true ]; then
-    echo "      Joystick input is off in the game. Turn on Joystick in the game's Options, behind the books in the main menu."
+    echo "      Joystick input is off in the game. The next start turns it on, unless it has --no-auto-joystick."
   fi
 }
 
@@ -714,6 +720,28 @@ address_book_add() {
   say "Added $1 to the game's Address book: address_$n in game/user.ini."
 }
 
+first_controller() {
+  /usr/bin/hidutil list --matching \
+    '[{"DeviceUsagePage":1,"DeviceUsage":4},{"DeviceUsagePage":1,"DeviceUsage":5},{"DeviceUsagePage":1,"DeviceUsage":8}]' \
+    2>/dev/null | LC_ALL=C awk '
+    /^VendorID / { from = index($0, " Product ") + 1; to = index($0, " UserClass ") + 1; next }
+    from > 1 && to > from {
+      name = substr($0, from, to - from); sub(/ +$/, "", name)
+      if (name == "" || name == "(null)") name = "a controller"
+      print name; exit
+    }' || true
+}
+
+joystick_on_for_controller() {
+  local name
+  [ "$AUTO_JOYSTICK" = 1 ] && [ -f "$USER_INI" ] || return 0
+  [ "$(user_get option_joystick)" != true ] || return 0
+  name="$(first_controller)"
+  [ -n "$name" ] || return 0
+  user_set option_joystick true
+  say "Found $name, so Joystick is now on in the game's Options. --no-auto-joystick leaves it as it is."
+}
+
 picture_get() {
   if [ "$1" = screen_depth ]; then ini_get "$INI" "$SECTION" "$1"; else user_get "$1"; fi
 }
@@ -924,6 +952,7 @@ if [ -n "$JOIN" ]; then
   fi
   address_book_add "$JOIN"
 fi
+joystick_on_for_controller
 
 SCREEN="$(screen_info)"
 LIMIT=1024x768
