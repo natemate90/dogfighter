@@ -47,8 +47,9 @@ whole.
 
 A piece whose pixels change is listed in the manifest with way "painting".
 The note under "painting" holds the target, the checksums of its pictures,
-the package versions and the scores, and a key over everything the drawing
-reads. A later run with the same key keeps the pieces as they are.
+the package versions and the scores, and a key over everything the drawing of
+that target reads. A later run keeps the pieces of a target whose key is the
+same, and draws the others.
 """
 import hashlib
 import json
@@ -80,21 +81,7 @@ def reference_file(tools, name, ref):
 
 def fetch(tools, download, python_env):
     """Sets up the desk's Python environment and downloads the box art. Returns False when a part failed."""
-    good = True
-    try:
-        python_env(os.path.join(tools, desk.WAY), desk.REQUIREMENTS, *desk.PYTHONS)
-    except SystemExit as problem:
-        print(problem)
-        good = False
-    except (OSError, subprocess.CalledProcessError):
-        print("The Python packages for the paintings could not be installed.")
-        good = False
-    for name, ref in sorted(load_spec()["references"].items()):
-        try:
-            download(ref["url"], reference_file(tools, name, ref), ref["sha256"])
-        except SystemExit as problem:
-            print(problem)
-            good = False
+    good = desk.fetch_pictures(tools, download, python_env, load_spec()["references"], lambda name, ref: reference_file(tools, name, ref))
     if good:
         print("The box art for the paintings is in %s." % os.path.join(tools, FOLDER))
     else:
@@ -160,24 +147,20 @@ def draw(sources, made_of, tools, work, out, old, skip):
     if not wanted:
         return {}
 
-    def leave(why):
-        print("  paintings left as made: " + why)
-        return {}
-
     python = desk.python_of(tools)
     if not os.access(python, os.X_OK):
-        return leave("the Python environment is missing; --fetch-paintings sets it up")
-    references = {}
-    for name, ref in spec["references"].items():
-        file = reference_file(tools, name, ref)
-        if not os.path.isfile(file):
-            return leave("picture %s is missing; --fetch-paintings fetches it" % name)
-        if up.sha256_of(file) != ref["sha256"]:
-            return leave("picture %s does not match its pinned checksum" % name)
-        references[name] = file
+        print("  paintings left as made: the Python environment is missing; --fetch-paintings sets it up")
+        return {}
+    used = {layer["reference"] for target, _ in wanted for layer in target["layers"]}
+    references, problems = desk.pinned({name: ref for name, ref in spec["references"].items() if name in used},
+                                       lambda name, ref: reference_file(tools, name, ref), "picture", "--fetch-paintings")
 
     originals, made, made_gti, ready = {}, {}, {}, []
     for target, pieces in wanted:
+        why = [problems[layer["reference"]] for layer in target["layers"] if layer["reference"] in problems]
+        if why:
+            print("  painting %s left as made: %s" % (target["name"], why[0]))
+            continue
         if any(made_of(path) is None for path, _, _ in pieces):
             print("  painting %s left as made: a picture of it was not made" % target["name"])
             continue
@@ -201,20 +184,26 @@ def draw(sources, made_of, tools, work, out, old, skip):
 
     with open(SPEC, "rb") as f:
         spec_sum = hashlib.sha256(f.read()).hexdigest()
-    key = hashlib.sha256(json.dumps({"spec": spec_sum, "draw": up.sha256_of(DRAW), "requirements": up.sha256_of(desk.REQUIREMENTS),
-                                     "python": desk.python_version(python),
-                                     "made": {path: made[path][1] for _, pieces, _ in ready for path, _, _ in pieces},
-                                     "references": {name: ref["sha256"] for name, ref in spec["references"].items()}},
-                                    sort_keys=True).encode()).hexdigest()
-    kept = desk.kept_pieces(old, key, out, WAY)
-    if kept is not None:
-        return {path: done for path, done in kept.items() if path not in skip}
+    common = {"spec": spec_sum, "draw": up.sha256_of(DRAW), "requirements": up.sha256_of(desk.REQUIREMENTS),
+              "python": desk.python_version(python)}
+    done, todo = {}, []
+    for target, pieces, own in ready:
+        sums = {layer["reference"]: spec["references"][layer["reference"]]["sha256"] for layer in target["layers"]}
+        key = hashlib.sha256(json.dumps(dict(common, target=target["name"], made={path: made[path][1] for path, _, _ in pieces},
+                                             references=sums), sort_keys=True).encode()).hexdigest()
+        kept = desk.kept_pieces(old, key, out, WAY)
+        if kept is None:
+            todo.append((target, pieces, own, key, sums))
+        else:
+            done.update((path, piece) for path, piece in kept.items() if path not in skip)
+    if not todo:
+        return done
 
     folder = os.path.join(work, WAY)
     os.makedirs(folder, exist_ok=True)
-    big = {path: gti.to_rgba(made_gti[path].best()) for path in made_gti}
+    big = {path: gti.to_rgba(made_gti[path].best()) for _, pieces, _, _, _ in todo for path, _, _ in pieces}
     job = {"spec": SPEC, "times": TIMES, "references": references, "targets": []}
-    for number, (target, pieces, own) in enumerate(ready):
+    for number, (target, pieces, own, _, _) in enumerate(todo):
         x0, y0, x1, y1 = target["box"]
         stem = os.path.join(folder, "%02d" % number)
         for ending, data in ((".made", composed(pieces, big, target["box"], TIMES)), (".original", own)):
@@ -226,24 +215,24 @@ def draw(sources, made_of, tools, work, out, old, skip):
         json.dump(job, f)
     said = subprocess.run([python, "-I", DRAW, os.path.join(folder, "job.json")], stdout=subprocess.PIPE, text=True)
     lines = [json.loads(line) for line in said.stdout.splitlines() if line.startswith("{")]
-    if said.returncode or len(lines) != len(ready) + 1:
-        return leave("tools/paintings-draw.py stopped (exit %d)" % said.returncode)
+    if said.returncode or len(lines) != len(todo) + 1:
+        print("  paintings left as made: tools/paintings-draw.py stopped (exit %d)" % said.returncode)
+        return done
     packages = lines.pop()
-    done = {}
-    for (target, pieces, _), item, line in zip(ready, job["targets"], lines):
+    drawn = {}
+    for (target, pieces, _, key, sums), item, line in zip(todo, job["targets"], lines):
         if line["match"] < LIMIT:
             print("  painting %s left as made: it scores %.1f dB, under %.1f" % (target["name"], line["match"], LIMIT))
             continue
         if not line["changed"]:
             continue
         with open(item["out"], "rb") as f:
-            drawn = f.read()
-        note = {"key": key, "target": target["name"], "spec_sha256": spec_sum, "packages": packages,
-                "references": {layer["reference"]: spec["references"][layer["reference"]]["sha256"] for layer in target["layers"]},
+            painting = f.read()
+        note = {"key": key, "target": target["name"], "spec_sha256": spec_sum, "packages": packages, "references": sums,
                 "scores": {"match": line["match"], "made_match": line["made_match"]}}
         for path, x, y in pieces:
             w, h, pixels = big[path]
-            result = laid_back(drawn, target["box"], TIMES, path, x, y, big[path])
+            result = laid_back(painting, target["box"], TIMES, path, x, y, big[path])
             if result == pixels or path in skip:
                 continue
             data = gti.encode_like(made_gti[path], w, h, result)
@@ -251,6 +240,6 @@ def draw(sources, made_of, tools, work, out, old, skip):
             os.makedirs(os.path.dirname(file), exist_ok=True)
             with open(file, "wb") as f:
                 f.write(data)
-            done[path] = (file, hashlib.sha256(data).hexdigest(), len(data), note)
-    print("  paintings: %d of %d drawn again from box art, %d pieces" % (len({done[path][3]["target"] for path in done}), len(ready), len(done)))
-    return done
+            drawn[path] = (file, hashlib.sha256(data).hexdigest(), len(data), note)
+    print("  paintings: %d of %d drawn again from box art, %d pieces" % (len({drawn[path][3]["target"] for path in drawn}), len(todo), len(drawn)))
+    return dict(done, **drawn)
