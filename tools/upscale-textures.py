@@ -132,6 +132,7 @@ import multiprocessing
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import time
@@ -668,10 +669,10 @@ def prepare_screen(number, name, members, setup, folder, fresh):
         laid = pieces[state]
         canvas = menus.composed((full_w, full_h), base + [(x, y, width, height, pixels) for _, (x, y), width, height, pixels, _, _ in laid if state])
         kind, alphas = kind_of(canvas, any(has_alpha for _, _, _, _, _, has_alpha, _ in pieces[None] + laid))
-        stem = os.path.join(folder, "%06d" % (SCREEN_NUMBERS + number * 32 + count))
+        stem = os.path.join(folder, "%06d" % (SCREEN_NUMBERS + number * 256 + count))
         job = {
             "path": "screen %s%s" % (name, " with " + state if state else ""), "paths": [path for path, _, _, _, _, _, _ in laid],
-            "number": SCREEN_NUMBERS + number * 32 + count, "scale": scale, "width": full_w, "height": full_h,
+            "number": SCREEN_NUMBERS + number * 256 + count, "scale": scale, "width": full_w, "height": full_h,
             "alpha": kind != "opaque", "mipmaps": False, "kind": "opaque" if kind == "opaque" else "alpha",
             "wrap_x": False, "wrap_y": False, "bleed": 0 in alphas and len(alphas) > 1,
             "source": stem + ".in", "plain": stem + ".plain", "stem": stem, "ways": menu_ways(setup, screen),
@@ -1202,8 +1203,11 @@ def build(args, setup, sources, old):
 
         again = [item for item in todo if len(item) == 4 and records[item[2].path]["way"] != "none"]
         again = again[::max(1, len(again) // max(1, args.repeat))][:args.repeat] if args.repeat > 0 else []
+        screens = [item for item in todo if len(item) == 3 and records[item[2][0][1].path]["way"] != "none"]
+        if args.repeat > 0 and screens:
+            again.append(min(screens, key=lambda item: len(item[2])))
         if again:
-            second = run_batch(setup, again, os.path.join(work, "repeat"), pool)
+            second = [record for record in run_batch(setup, again, os.path.join(work, "repeat"), pool) if record["way"] != "none"]
             same = sum(1 for record in second if record.get("file_sha256") == records[record["path"]]["file_sha256"])
             run["repeat"] = {"textures": len(second), "identical": same}
             print("Made %d textures a second time: %d came out byte for byte the same." % (len(second), same))
@@ -1237,35 +1241,39 @@ def marker_of(record):
 
 
 def fitting_overrides(args, sources, records):
-    """{path: (file, checksum, bytes)} for each .gti under --overrides that may take the place of a texture of this run."""
+    """{path: (file, checksum, bytes)} for each .gti or .tga under --overrides that may take the place of a picture of this run."""
     by_name = {entry.path.lower(): (entry.path, data) for _, entry, data in sources}
     found = {}
     for _, file in sorted(files_under(args.overrides).items()):
         name = os.path.relpath(file, args.overrides).replace(os.sep, "\\")
-        if not name.lower().endswith(".gti"):
+        if not name.lower().endswith((".gti", ".tga")):
             continue
         if name.lower() not in by_name:
             if not args.rest_stays:
                 print("  override refused: %s is not a texture of the set" % name)
             continue
         path, data = by_name[name.lower()]
-        best = gti.parse(data).best()
+        own_w, own_h, _, has_alpha, mipmaps = picture_of(path, data)
         times = records[path].get("marked", args.scale)
-        width, height = records[path].get("out") or (best.width * times, best.height * times)
-        wanted = [(8 if best.alpha else 7, width, height, gti.level_count(width, height) if len(best.levels) > 1 else 1)]
+        width, height = records[path].get("out") or (own_w * times, own_h * times)
         with open(file, "rb") as f:
             content = f.read()
         try:
-            has = [(image.fmt, image.width, image.height, len(image.levels)) for image in gti.parse(content).images]
-        except ValueError as problem:
+            if name.lower().endswith(".tga"):
+                wanted = ["%dx%d, %s alpha" % (width, height, "with" if has_alpha else "no")]
+                tga_w, tga_h, _, tga_alpha = menus.read_tga(content)
+                has = ["%dx%d, %s alpha" % (tga_w, tga_h, "with" if tga_alpha else "no")]
+            else:
+                shape = "format %d, %dx%d, %d levels"
+                wanted = [shape % (8 if has_alpha else 7, width, height, gti.level_count(width, height) if mipmaps else 1)]
+                has = [shape % (image.fmt, image.width, image.height, len(image.levels)) for image in gti.parse(content).images]
+        except (ValueError, struct.error) as problem:
             print("  override refused: %s: %s" % (name, problem))
             continue
-        shape = "format %d, %dx%d, %d levels"
         if max(width, height) > 1024:
             print("  override refused: %s would pass 1024 pixels" % name)
         elif has != wanted:
-            print("  override refused: %s has %s. The set has %s there." % (
-                name, " and ".join(shape % image for image in has) or "no picture", shape % wanted[0]))
+            print("  override refused: %s has %s. The set has %s there." % (name, " and ".join(has) or "no picture", wanted[0]))
         else:
             found[path] = (file, hashlib.sha256(content).hexdigest(), len(content))
     return found
