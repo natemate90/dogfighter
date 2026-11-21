@@ -152,6 +152,7 @@ The game starts with the best picture by itself:
 - Window frames, buttons and the mouse arrow have twice the pixels.
 - The gauges in flight have four times the pixels. Their labels, such as FUEL and SPEED, are redrawn with a matching font.
 - Labels with small writing, such as on the bombs, the glue tube and the book spines, are redrawn with matching fonts.
+- The model kit boxes and paint tins on the main menu's desk are drawn again from photos of real 1990s Airfix boxes and a Humbrol tin. Setup downloads the photos once.
 - Every start also turns some of the game's own settings up, such as the draw distance and the colour depth.
 
 Setup makes the sharper textures once.

@@ -289,7 +289,7 @@ Setup never fails on this step:
 A set made with the macOS filter is complete too. A later `./setup.sh` does not replace it with an upscaled one.
 The tool on its own also skips finished work: a second run over the full set on an M4 Max took 3 seconds and changed nothing.
 
-`--fetch-tools` downloads three archives, about 100 MB, to `downloads/upscale/`, and three fonts (see [Redrawn labels](#redrawn-labels)).
+`--fetch-tools` downloads three archives, about 100 MB, to `downloads/upscale/`, three fonts (see [Redrawn labels](#redrawn-labels)), and the photos and Python packages of [the desk](#the-desk-on-the-main-menu).
 - `upscayl-bin` 20251207-174704, which runs the model.
 - The Real-ESRGAN model `realesrgan-x4plus`, from the Real-ESRGAN release v0.2.5.0.
 - `waifu2x-ncnn-vulkan` 20250915 with its `cunet` model, as the second choice.
@@ -566,6 +566,45 @@ The made texture waits in `hd-textures/replaced/`.
 - `./setup.sh` runs `--fetch-fonts` and `--lettering-only` on a complete set. A font that cannot be fetched leaves only its labels as made.
 - It works at 2x and at 4x. On scratch sets made with `--scale 4`, with `--upscaler vimage` and with the defaults, `--lettering-only` drew all 26 and changed no other file; a later run with each set's own settings found it complete.
 
+### The desk on the main menu
+
+The upscaler cannot tell what the few pixels of a kit box or a paint tin show. On the main menu's desk it painted smears.
+So the tool draws those boxes and tins again over the made 4x pictures, from photos of real ones.
+
+- The boxes are 1990s Airfix boxes: the Fiat G50-bis lid, the Spitfire Mk IX lid and end, and the long sides of the Me262, Fw190D and Bf109G-6.
+- The game's pictures are too small to tell which kits three box sides show: the second box on the right and two boxes on the left. They are drawn as a P-51D Mustang, an A6M2 Zero and a Typhoon, kits of the right colours. `tools/desk.json` marks them `invented`.
+- Sides without a photo of their own are laid out on the Typhoon's side and end, with their own title, kit number, a few words and a strip of their lid painting.
+- The nine tins are drawn from the Humbrol Super Enamel tin on Humbrol's 1997 "Colour System" binder. Each lid keeps the game's paint colour.
+- The game's tins are 2 to 28% taller than a real one. The label keeps Humbrol's own proportions and starts under the rim; the height left over shows bare tin below it.
+- The Airfix badge above the desk stays as made.
+- The highlights of Credits, Options and Paint Room lie over boxes or tins. Each is drawn again with the highlight laid in, and cut out with its own edge.
+
+How a box face is drawn:
+- It is straightened out of the photo and warped onto the face's four corners in the menu.
+- Its colours are mapped onto the made picture's pixels there. The paper becomes the game's paper, the darks move half way to the game's darks, and the game's light across the face replaces the photo's.
+- The edges are softened, so the made picture's own edge pixels stay.
+
+What it needs:
+- `tools/desk.json` holds every number: the corners, the crops, the words, the tins, and the photos with their URL and SHA-256 checksum.
+- `--fetch-tools` or `--fetch-desk` downloads the 12 photos, about 5 MB, to `upscale-tools/desk/references/`, each checked against its checksum. Most are pictures of eBay listings, which can disappear.
+- It also makes a Python environment in `upscale-tools/desk/venv` with numpy and Pillow, at the versions of `tools/desk-requirements.txt`. `tools/desk-draw.py` runs in it.
+- The titles use Oswald, from the Google Fonts repository at the same commit as the label fonts, under the SIL Open Font License 1.1. The small words use Arial, which comes with macOS.
+- Nothing is drawn by AI. The photos never enter the repository; the drawn pictures stay in `hd-textures/`.
+
+Checks:
+- The numbers were fitted to the game's own pixels under the boxes and tins. The tool checks those pixels against a checksum. All four languages of the disc have the same pixels there.
+- Each drawn piece, shrunk to the original size, must match the original at 15 dB or more. The drawn pieces score 20 to 32 dB. This only catches a drawing gone wrong as a whole.
+- A missing photo, font or package, or a failed check, leaves the desk as made, and the run says why in one line.
+
+The manifest lists such a piece with the way `desk`.
+The made picture's record is under `generated`, and the photos' checksums, the package versions and the scores under `desk`.
+The made picture waits in `hd-textures/replaced/`.
+- 11 pieces change: six main menu tiles and the five highlights.
+- `--no-desk` puts the made pictures back. The next run without it draws them again.
+- `--menus-only` and `--lettering-only` draw the desk too. `./setup.sh` runs `--fetch-desk` and `--lettering-only` on a complete set.
+- A later run with the same photos, numbers, packages and made pictures keeps the pieces and draws nothing.
+- Drawing takes about 4 seconds on an M4 Max. Two runs gave the same bytes.
+
 ### Your own textures
 
 Put a `.gti` file in `texture-overrides/`, under the same path as in `hd-textures/cache/`.
@@ -800,6 +839,7 @@ Collected from the sections above.
 - Letters drawn from the fonts: the multiplayer screens, and `--font-times 2` in the game.
 - Sharper letters at 2x: `system8` (the console) and `aeroplane` (window titles) were seen in test runs but not compared. `digital_large` and `digital_small` were never loaded in a test run.
 - Redrawn labels: not yet looked at in the game.
+- The desk on the main menu: not yet looked at in the game.
 - `--join`: whether the Multiplayer screen lists the server.
 - Controllers: none was ever connected. Open points are whether the game gets its input, the direction of pitch, the triggers as throttle, Xbox over USB, and whether the Key configuration screen takes controller buttons.
 - Joystick throttle: no joystick was connected. A lever that is not the third axis is read wrongly through SDL.
