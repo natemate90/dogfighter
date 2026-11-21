@@ -738,18 +738,26 @@ python3 tools/upscale-textures.py --fetch-videos
 python3 tools/upscale-textures.py --videos
 ```
 
-`--fetch-videos` downloads about 9.8 GB to `upscale-tools/video/`.
-- A Python environment with the pinned packages of `tools/video-requirements.txt`. It needs Python 3.12 or later.
+`--fetch-videos` first fetches the texture tool's upscalers, as `--fetch-tools` does.
+Then it downloads about 9.8 GB to `upscale-tools/video/`.
+- A Python environment with the packages of `tools/video-requirements.txt`. It needs Python 3.12 or later.
 - SeedVR2's code, the ComfyUI-SeedVR2_VideoUpscaler release v2.5.23 (Apache-2.0).
 - The SeedVR2 models: the 3B model as GGUF Q8_0, the 7B "sharp" model as GGUF Q4_K_M and the VAE (Apache-2.0).
-- The Real-ESRGAN x4plus weights (BSD-3-Clause).
 - `rife-ncnn-vulkan` 20250112 with the RIFE 4.26 model (MIT).
 - ffmpeg comes with the Python package `imageio-ffmpeg`.
 
-Every file has its URL and SHA-256 in `tools/videos.json`. The tool refuses to run a file that does not match.
+What is checked differs per kind of file.
+- SeedVR2's code, its models and RIFE have their URL and SHA-256 in `tools/videos.json`.
+- `upscayl-bin` and the Real-ESRGAN model have theirs in `tools/upscale-textures.py`.
+- A download that does not match is refused, and the tool stops.
+- Before each run the models, RIFE and `upscayl-bin` are checked again. One that does not match stops the run.
+- SeedVR2's unpacked code is not checked again. Only a note of the archive it came from is.
+- The Python packages are pinned by version only (`==`), without a checksum. That includes `imageio-ffmpeg` and the ffmpeg inside it.
+- The manifest records ffmpeg's SHA-256, but nothing checks it.
 
 `tools/videos.json` gives each video a level.
-- Level 1, the company logos: Real-ESRGAN on each frame, then the pull-back of the textures. Each frame, shrunk again, is the game's frame. It adds sharpness, not detail.
+- Level 1, the company logos: Real-ESRGAN on each frame, by the texture tool's `upscayl-bin`, then the textures' pull-back in `tools/texture-refine.c`. It adds sharpness, not detail.
+  Each frame, shrunk again by averaging each 4x4 block and rounding, is the game's frame. In a test on six frames every pixel matched, with a sharpened Lanczos picture in place of Real-ESRGAN.
 - Level 2, the Airfix intro: SeedVR2 3B. It redraws whole shots, 21 frames at a time, so the new detail does not flicker. The look is a restored copy of the same film.
 - Level 3, a 10-second sample of the Airfix intro: SeedVR2 7B "sharp", the most the model can add.
 
@@ -764,9 +772,9 @@ The videos go to `hd-videos/`, with `manifest.json`: checksums, settings, model 
 - A video whose source, settings and models did not change is not made again.
 - A run that stops goes on where it stopped. The work files are in `hd-videos/.work/`.
 - `--video-only NAME` makes one video. `--video-clip START,SECONDS` makes only that part, to `hd-videos/clips/`. `--video-level N` tries another level, also to `clips/`.
-- Under 15% free memory no new shot starts. Under 8% the run stops at once.
+- Under 15% free memory no new shot or batch of frames starts. Under 8% the run stops at once.
 
-SeedVR2 needs the Mac's graphics card. RIFE and Real-ESRGAN fall back to the processor without it, much slower.
+SeedVR2 and `upscayl-bin` need the Mac's graphics card. Without it, levels 1 to 3 are left out. RIFE alone falls back to the processor, much slower.
 
 ## CD music
 

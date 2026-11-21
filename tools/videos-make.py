@@ -5,8 +5,9 @@ Each video goes through these steps in its work folder, and each step that
 finished is kept, so a run that stopped goes on where it stopped:
   src/      the frames of the game's video as PNG, and audio.wav
   cuts      where one shot ends and the next starts
-  up/       every frame 4x: level 1 by Real-ESRGAN with the pull-back of the
-            textures, levels 2 and 3 by SeedVR2, one shot at a time
+  up/       every frame 4x: level 1 by the texture tool's Real-ESRGAN and its
+            pull-back in tools/texture-refine.c, a batch of frames at a time,
+            levels 2 and 3 by SeedVR2, one shot at a time
   seg/      per shot: RIFE makes three frames between each two, the frames of
             the shot itself are put back unchanged, and x265 encodes them
   the .mov  the shots joined with the original audio
@@ -15,10 +16,9 @@ At a cut RIFE would blend two shots, so the last frame of a shot is held
 until the next shot starts. That also keeps every original frame at its own
 time, so picture and sound stay in sync.
 
-Memory: under stop_free percent free no new shot is started; under
+Memory: under stop_free percent free no new shot or batch is started; under
 abort_free the running tool is stopped at once and the run ends.
 """
-import hashlib
 import json
 import os
 import shutil
@@ -34,9 +34,13 @@ import psutil
 import torch
 from PIL import Image
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import up as packs  # noqa: E402
+
 FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 RATE = 15
 SAMPLES = 22050
+BATCH = 32
 
 
 class Watch:
@@ -88,12 +92,12 @@ class Watch:
                 else:
                     os._exit(3)
 
-    def run(self, command, quiet=False):
+    def run(self, command, quiet=False, feed=None):
         if self.aborted:
             sys.exit(3)
         self.child = subprocess.Popen(command, start_new_session=True, stdout=subprocess.PIPE if quiet else None,
-                                      stderr=subprocess.STDOUT if quiet else None)
-        said = self.child.communicate()[0]
+                                      stderr=subprocess.STDOUT if quiet else None, stdin=subprocess.PIPE if feed else None)
+        said = self.child.communicate(feed)[0]
         if self.aborted:
             sys.exit("Stopped: free memory went under %d%%. Run again to go on." % self.limits["abort_free"])
         if self.child.returncode:
@@ -108,14 +112,6 @@ class Watch:
                 return
             time.sleep(60)
         sys.exit("Stopped before %s: under %d%% memory free for ten minutes. Run again to go on." % (what, self.limits["stop_free"]))
-
-
-def sha256_of(path):
-    digest = hashlib.sha256()
-    with open(path, "rb") as f:
-        for block in iter(lambda: f.read(1 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def stage(folder, key):
@@ -193,93 +189,52 @@ def psnr(a, b):
     return 99.0 if mse == 0 else 10 * np.log10(255.0 ** 2 / mse)
 
 
-def pull_back(original, detail, scale, passes):
-    """Adds the enlarged difference between the original and the shrunk result, so colours and shapes cannot drift."""
-    for _ in range(passes):
-        detail = detail + torch.nn.functional.interpolate(original - shrink(detail, scale), scale_factor=scale,
-                                                          mode="bicubic", align_corners=False)
-    return detail.clamp(0, 255)
-
-
-class Dense(torch.nn.Module):
-    def __init__(self, feat=64, grow=32):
-        super().__init__()
-        for n in range(5):
-            setattr(self, "conv%d" % (n + 1), torch.nn.Conv2d(feat + n * grow, grow if n < 4 else feat, 3, 1, 1))
-
-    def forward(self, x):
-        found = [x]
-        for n in range(1, 5):
-            found.append(torch.nn.functional.leaky_relu(getattr(self, "conv%d" % n)(torch.cat(found, 1)), 0.2))
-        return self.conv5(torch.cat(found, 1)) * 0.2 + x
-
-
-class Block(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.rdb1, self.rdb2, self.rdb3 = Dense(), Dense(), Dense()
-
-    def forward(self, x):
-        return self.rdb3(self.rdb2(self.rdb1(x))) * 0.2 + x
-
-
-class RRDBNet(torch.nn.Module):
-    """The network of Real-ESRGAN x4plus (BasicSR's RRDBNet), so its published weights load as they are."""
-
-    def __init__(self, blocks=23):
-        super().__init__()
-        conv = lambda a, b: torch.nn.Conv2d(a, b, 3, 1, 1)
-        self.conv_first, self.conv_body, self.conv_up1, self.conv_up2, self.conv_hr = (conv(3, 64), conv(64, 64), conv(64, 64),
-                                                                                      conv(64, 64), conv(64, 64))
-        self.conv_last = conv(64, 3)
-        self.body = torch.nn.Sequential(*[Block() for _ in range(blocks)])
-
-    def forward(self, x):
-        act = lambda y: torch.nn.functional.leaky_relu(y, 0.2)
-        feat = self.conv_first(x)
-        feat = feat + self.conv_body(self.body(feat))
-        feat = act(self.conv_up1(torch.nn.functional.interpolate(feat, scale_factor=2, mode="nearest")))
-        feat = act(self.conv_up2(torch.nn.functional.interpolate(feat, scale_factor=2, mode="nearest")))
-        return self.conv_last(act(self.conv_hr(feat)))
-
-
-def esrgan(net, picture, tile, pad, device):
-    """Runs the network tile by tile with a margin, so memory stays small and the seams do not show."""
-    _, _, height, width = picture.shape
-    out = torch.zeros(1, 3, height * 4, width * 4)
-    for y in range(0, height, tile):
-        for x in range(0, width, tile):
-            top, left = max(0, y - pad), max(0, x - pad)
-            bottom, right = min(height, y + tile + pad), min(width, x + tile + pad)
-            with torch.no_grad():
-                made = net(picture[:, :, top:bottom, left:right].to(device) / 255.0).float().cpu() * 255.0
-            h, w = min(tile, height - y), min(tile, width - x)
-            out[:, :, y * 4:(y + h) * 4, x * 4:(x + w) * 4] = made[:, :, (y - top) * 4:(y - top + h) * 4, (x - left) * 4:(x - left + w) * 4]
-    return out
-
-
 def upscale_esrgan(watch, job, video, level, src, up):
-    device = "mps" if torch.backends.mps.is_available() else "cpu"
-    torch.set_num_threads(job["threads"])
-    net = RRDBNet()
-    net.load_state_dict(torch.load(os.path.join(job["models"], level["model"]), map_location="cpu", weights_only=True)["params_ema"])
-    net = net.eval().to(device)
+    """Real-ESRGAN by the texture tool's upscayl-bin, then its pull-back in tools/texture-refine.c, a batch of frames at a time."""
+    ai, scale = video["esrgan"], job["scale"]
+    for name in os.listdir(up):
+        if ".part" in name:
+            os.remove(os.path.join(up, name))
     missing = [name for name in pictures(src) if not os.path.isfile(os.path.join(up, name))]
-    watch.log("esrgan", "%d frames on %s" % (len(missing), device))
+    if not missing:
+        return
+    width, height = Image.open(os.path.join(src, missing[0])).size
+    raw = up + "-raw"
+    watch.log("esrgan", "%d frames" % len(missing))
     started = time.time()
-    for number, name in enumerate(missing):
-        if watch.aborted:
-            sys.exit(3)
-        original = tensor(os.path.join(src, name))
-        detail = esrgan(net, original, level["tile"], 16, device)
-        save(pull_back(original, detail, job["scale"], level["passes"]), os.path.join(up, name))
-        if number % 50 == 49:
-            watch.log("esrgan", "%d of %d, %.1f s a frame" % (number + 1, len(missing), (time.time() - started) / (number + 1)))
+    for at in range(0, len(missing), BATCH):
+        batch = missing[at:at + BATCH]
+        watch.room("frames %d to %d of %d" % (at + 1, at + len(batch), len(missing)))
+        for folder in (ai["feed"], ai["made"], raw):
+            shutil.rmtree(folder, ignore_errors=True)
+            os.makedirs(folder)
+        blank = os.path.join(raw, "blank")
+        with open(blank, "wb") as f:
+            f.truncate(width * scale * height * scale * 4)
+        fields = []
+        for name in batch:
+            os.link(os.path.join(src, name), os.path.join(ai["feed"], name))
+            with open(os.path.join(raw, name + ".in"), "wb") as f:
+                f.write(Image.open(os.path.join(src, name)).convert("RGBA").tobytes())
+            fields += [level["refine"], os.path.join(raw, name + ".in"), blank, os.path.join(ai["made"], name),
+                       os.path.join(raw, name + ".out"), width, height, scale, 0, level["passes"]]
+        watch.run(ai["command"], quiet=True)
+        lines = watch.run([job["refine"]], quiet=True, feed=b"".join(str(field).encode() + b"\0" for field in fields)).splitlines()
+        for name, line in zip(batch, lines + [""] * len(batch)):
+            if not line.startswith("ok "):
+                sys.exit("tools/texture-refine.c did not take frame %s: %s" % (name, line or "no answer"))
+            with open(os.path.join(raw, name + ".out"), "rb") as f:
+                picture = Image.frombytes("RGBA", (width * scale, height * scale), f.read()).convert("RGB")
+            save(picture, os.path.join(up, name))
+        watch.log("esrgan", "%d of %d, %.1f s a frame" % (at + len(batch), len(missing), (time.time() - started) / (at + len(batch))))
+    for folder in (ai["feed"], ai["made"], raw):
+        shutil.rmtree(folder, ignore_errors=True)
 
 
 def save(picture, path):
-    Image.fromarray(picture[0].permute(1, 2, 0).round().clamp(0, 255).to(torch.uint8).numpy()).save(path + ".part.png")
-    os.replace(path + ".part.png", path)
+    """Writes through a name pictures() does not list, so a frame stopped mid-save is not taken for a frame."""
+    picture.save(path + ".part", format="PNG")
+    os.replace(path + ".part", path)
 
 
 def upscale_seedvr2(watch, job, video, level, src, up, shots):
@@ -396,8 +351,9 @@ def main():
     for video in job["videos"]:
         started = time.time()
         work, level = video["work"], video["level"]
-        if level["way"] == "seedvr2" and not torch.backends.mps.is_available():
-            print("%s is left out: SeedVR2 needs the Mac's graphics card (Metal), and this process cannot reach it." % video["name"])
+        if not torch.backends.mps.is_available():
+            print("%s is left out: %s needs the Mac's graphics card (Metal), and this process cannot reach it." % (
+                video["name"], "SeedVR2" if level["way"] == "seedvr2" else "upscayl-bin"))
             left.append(video["name"])
             continue
         os.makedirs(work, exist_ok=True)
@@ -420,10 +376,10 @@ def main():
         interpolate_and_encode(watch, job, video, up, seg, shots)
         frames = join(watch, job, video, src, seg, count)
         result = {
-            "name": video["name"], "file": os.path.basename(video["target"]), "sha256": sha256_of(video["target"]),
+            "name": video["name"], "file": os.path.basename(video["target"]), "sha256": packs.sha256_of(video["target"]),
             "bytes": os.path.getsize(video["target"]), "frames": frames, "source_frames": count, "cuts": cuts,
             "match_db": {"least": round(min(scores), 1), "mean": round(float(np.mean(scores)), 1)},
-            "seconds": round(time.time() - started), "ffmpeg_sha256": sha256_of(FFMPEG),
+            "seconds": round(time.time() - started), "ffmpeg_sha256": packs.sha256_of(FFMPEG),
             "least_free_percent": watch.least_free, "most_used_gb": round(watch.most_used / 1e9, 1),
             "most_tool_gb": round(watch.most_child / 1e9, 1),
         }

@@ -4,11 +4,15 @@ The game plays two videos at start, Video/companies.avi (the company logos)
 and Video/airfix.avi (the Airfix intro): 640x480, 15 frames a second, Indeo 5
 video with 22 kHz PCM sound. tools/videos.json says what is made of each:
   levels       1 keeps the picture as it is and only adds sharpness:
-               Real-ESRGAN on each frame, then the pull-back of the textures,
-               so each frame shrunk again is the game's frame. 2 and 3 redraw
+               Real-ESRGAN on each frame, by the texture tool's upscayl-bin,
+               then its pull-back in tools/texture-refine.c, so each frame
+               shrunk again and rounded is the game's frame. 2 and 3 redraw
                whole shots with SeedVR2, a video model that sees 21 frames at
                once, so new detail stays put from frame to frame. 2 uses the
-               3B model, 3 the 7B "sharp" one.
+               3B model, 3 the 7B "sharp" one. refine is the job of
+               tools/texture-refine.c: glyphs repeats the last pull-back until
+               values cut off at 0 or 255 no longer keep a block from its
+               original.
   videos       name, file in the game folder, level, the SHA-256 the settings
                were checked on (another file is made too, with a note), and
                clip: start and length in seconds, for a sample.
@@ -19,8 +23,10 @@ video with 22 kHz PCM sound. tools/videos.json says what is made of each:
                run stops.
   seedvr2, models, rife
                the pinned downloads: URL, SHA-256 and licence. --fetch-videos
-               fetches them (about 9.8 GB) and sets up the Python packages of
-               tools/video-requirements.txt in upscale-tools/video/venv.
+               fetches them (about 9.8 GB), the texture tool's upscalers, and
+               the Python packages of tools/video-requirements.txt in
+               upscale-tools/video/venv. Those packages, ffmpeg among them, are
+               pinned by version only, without a checksum.
 
 The videos go to hd-videos/<name>.mov, a clip asked with --video-clip to
 hd-videos/clips/. hd-videos/manifest.json lists each with its checksum, the
@@ -49,6 +55,8 @@ PYTHON = (3, 12)
 MANIFEST = "manifest.json"
 RATE = 15
 UNPACKED = ".unpacked-from"
+REFINE = os.path.join(HERE, "texture-refine.c")
+AI = ("upscayl/upscayl-bin", "realesrgan-models/realesrgan-x4plus.bin", "realesrgan-models/realesrgan-x4plus.param")
 
 
 def load_spec():
@@ -108,7 +116,12 @@ def fetch(tools, download, python_env):
     print("The video tools are in %s. Their checksums match." % folder)
 
 
-def stack(tools, levels):
+def needs(level):
+    """The pinned files a level runs: SeedVR2's models, or the texture tool's Real-ESRGAN."""
+    return (level["dit"], level["vae"]) if level["way"] == "seedvr2" else AI
+
+
+def stack(tools, levels, pinned):
     """Paths of what the asked levels need, and a list of what is missing or not the pinned file."""
     spec, folder = load_spec(), os.path.join(tools, FOLDER)
     found = {"python": os.path.join(folder, "venv", "bin", "python"), "seedvr2": os.path.join(folder, "seedvr2"),
@@ -124,8 +137,11 @@ def stack(tools, levels):
     files = {name: os.path.join(folder, "rife", *target.split("/")) for name, (target, _) in spec["rife"]["members"].items()}
     pins = {name: digest for name, (_, digest) in spec["rife"]["members"].items()}
     for level in levels:
-        for name in (level["dit"], level["vae"]) if level["way"] == "seedvr2" else (level["model"],):
-            files[name], pins[name] = os.path.join(found["models"], name), spec["models"][name]["sha256"]
+        for name in needs(level):
+            if level["way"] == "seedvr2":
+                files[name], pins[name] = os.path.join(found["models"], name), spec["models"][name]["sha256"]
+            else:
+                files[name], pins[name] = os.path.join(tools, *name.split("/")), pinned[name]
     for name, path in sorted(files.items()):
         checksums[name] = up.sha256_of(path) if os.path.isfile(path) else None
         if checksums[name] != pins[name]:
@@ -148,7 +164,7 @@ def key_of(*parts):
     return hashlib.sha256(json.dumps(parts, sort_keys=True).encode()).hexdigest()
 
 
-def make(args, tools):
+def make(args, tools, pinned, upscaler_command, build_helpers):
     """Makes the videos of tools/videos.json (or the one of --video-only) and writes the manifest. Returns an exit message or None."""
     spec = load_spec()
     picked = [video for video in spec["videos"] if not args.video_only or video["name"] == args.video_only]
@@ -165,7 +181,7 @@ def make(args, tools):
             clip = [float(start), float(seconds or 3)]
         jobs.append((video, level_name, clip))
     levels = [spec["levels"][name] for _, name, _ in jobs]
-    found, problems, checksums = stack(tools, levels)
+    found, problems, checksums = stack(tools, levels, pinned)
     if problems:
         return "The videos cannot be made: %s. Run: python3 tools/upscale-textures.py --fetch-videos" % "; ".join(problems)
 
@@ -189,14 +205,21 @@ def make(args, tools):
         stem = "%s-level%s-%d-%d" % (video["name"], level_name, first, count) if args.video_clip else (
             "%s-level%s" % (video["name"], level_name) if sample else video["name"])
         target = os.path.join(out, "clips" if sample else "", stem + "." + spec["encode"]["container"])
+        work = os.path.join(out, ".work", stem)
         used = {name: checksums[name] for name in checksums
-                if name not in spec["models"] or name in (level.get("dit"), level.get("vae"), level.get("model"))}
+                if name not in spec["models"] and name not in AI or name in needs(level)}
+        esrgan = None
+        if level["way"] == "esrgan":
+            used["texture-refine.c"] = up.sha256_of(REFINE)
+            feed, made = os.path.join(work, "up-feed"), os.path.join(work, "up-made")
+            esrgan = {"command": upscaler_command("ai", tools, feed, made, spec["scale"]), "feed": feed, "made": made}
+        upscaler = [part for part in esrgan["command"] if not os.path.isabs(part)] if esrgan else None
         keys = {"src": key_of(digest, first, count)}
-        keys["up"] = key_of(keys["src"], spec["scale"], level, used)
-        keys["seg"] = key_of(keys["up"], spec["fps"], spec["interpolate"], spec["encode"])
+        keys["up"] = key_of(keys["src"], spec["scale"], level, used, upscaler, spec["cuts"] if level["way"] == "seedvr2" else None)
+        keys["seg"] = key_of(keys["up"], spec["cuts"], spec["fps"], spec["interpolate"], spec["encode"])
         shelf = "clips" if sample else "videos"
-        entry = {"source": video["file"], "source_sha256": digest, "level": level_name, "settings": level,
-                 "clip_frames": [first, count] if clip else None, "scale": spec["scale"], "fps": spec["fps"],
+        entry = {"source": video["file"], "source_sha256": digest, "level": level_name, "settings": level, "upscaler": upscaler,
+                 "clip_frames": [first, count] if clip else None, "scale": spec["scale"], "fps": spec["fps"], "cuts": spec["cuts"],
                  "interpolate": spec["interpolate"], "encode": spec["encode"], "checksums": used, "key": keys["seg"]}
         old = manifest.get(shelf, {}).get(stem)
         if old and old.get("key") == keys["seg"] and os.path.isfile(target) and up.sha256_of(target) == old.get("sha256"):
@@ -204,13 +227,15 @@ def make(args, tools):
             continue
         entries[stem] = (shelf, entry)
         todo.append({"name": stem, "source": source, "first": first, "count": count, "clip": bool(clip), "keys": keys,
-                     "level": level, "level_name": level_name, "target": target, "work": os.path.join(out, ".work", stem)})
+                     "level": level, "level_name": level_name, "target": target, "work": work, "esrgan": esrgan})
     if not todo:
         return None
 
-    os.makedirs(os.path.join(out, ".work"), exist_ok=True)
-    job = dict(found, spec=spec, scale=spec["scale"], videos=todo, log=os.path.join(out, "videos.log"),
-               threads=max(1, (os.cpu_count() or 4) - 2))
+    helpers = os.path.join(out, ".work", "helpers")
+    os.makedirs(helpers, exist_ok=True)
+    if any(video["esrgan"] for video in todo):
+        found["refine"] = build_helpers(helpers)["texture-refine"]
+    job = dict(found, spec=spec, scale=spec["scale"], videos=todo, log=os.path.join(out, "videos.log"))
     job_file = os.path.join(out, ".work", "job.json")
     with open(job_file, "w") as f:
         json.dump(job, f, indent=1)
