@@ -105,6 +105,14 @@ leaves every texture as made. The fonts that are not on every Mac come with
 settings stored in its manifest, so a set made with --scale 4 or the plain
 filter alone is not made again.
 
+Font letters: the six pictures of the fonts typewriter, typewriter_small,
+system and system12 get each glyph drawn again from the macOS typeface it
+came from, 4x (--font-times 2 for 2x), by tools/fonts.py with the values in
+tools/fonts.json. The picture gets the marker <name>.gti.4x instead of .2x.
+Glyphs that do not match well enough keep the made pixels. The manifest
+lists such a picture with way "font". --no-font-redraw leaves them as made,
+and --lettering-only redraws them too.
+
 A run makes only what is missing or changed. With --only the rest of the set
 stays as it is. Files reach the set one by one, each by a rename, and the
 manifest is written last. So a run that stops leaves a set the game can load,
@@ -140,6 +148,7 @@ import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+import fonts  # noqa: E402
 import gti  # noqa: E402
 import lettering  # noqa: E402
 import menus  # noqa: E402
@@ -167,7 +176,7 @@ SCREEN_NUMBERS = 100000
 FONT_WAY = "waifu2x"
 OWN = ("way", "why", "scores", "failed", "bytes", "file_sha256")
 GENERATIVE = "generative"
-REPLACING = ("override", lettering.WAY)
+REPLACING = ("override", lettering.WAY, fonts.WAY)
 COUNTED = WAYS + (GENERATIVE,) + REPLACING + ("none",)
 GENERATIVE_LIST = os.path.join(HERE, "generative-surfaces.json")
 GENERATIVE_SCALE = 4
@@ -887,7 +896,7 @@ def spread(values):
 
 def summary(records):
     counts = {way: sum(1 for record in records if record["way"] == way) for way in COUNTED}
-    print("Ways: %d ai, %d waifu2x, %d plain, %d generative, %d override, %d lettering, %d not written." % tuple(
+    print("Ways: %d ai, %d waifu2x, %d plain, %d generative, %d override, %d lettering, %d font, %d not written." % tuple(
         counts[way] for way in COUNTED))
     for way in WAYS + (GENERATIVE,):
         scored = [record["scores"] for record in records if record["way"] == way]
@@ -900,10 +909,18 @@ def summary(records):
     marked = [record.get("marked") for record in records if record["way"] != "none"]
     if marked.count(2) + marked.count(4):
         print("  menu, loading screen and HUD pictures: %d with 2 times the pixels a side, %d with 4 times" % (marked.count(2), marked.count(4)))
-    fonts = [generated(record) for record in records if record.get("kind") == "font"]
-    if fonts:
-        print("  font pictures: " + ", ".join("%s %s" % (os.path.splitext(record["path"].split("\\")[-1])[0], record["way"])
-                                                for record in fonts))
+    pictures = [record for record in records if record.get("kind") == "font"]
+    if pictures:
+        print("  font pictures: " + ", ".join("%s %s" % (
+            os.path.splitext(record["path"].split("\\")[-1])[0],
+            "redrawn %dx" % record[fonts.WAY]["times"] if record["way"] == fonts.WAY else generated(record)["way"])
+            for record in pictures))
+    for record in pictures:
+        if record["way"] == fonts.WAY:
+            note = record[fonts.WAY]
+            print("    %s: %d glyphs drawn from %s, %d kept as made%s" % (
+                os.path.splitext(record["path"].split("\\")[-1])[0], note["drawn"], note["font"], len(note["kept"]),
+                " (%s)" % ", ".join(kept["char"] for kept in note["kept"]) if note["kept"] else ""))
     for record in records:
         if record["way"] == "none":
             print("  not written: %s (%s)" % (record["path"], record["why"]))
@@ -931,7 +948,12 @@ def main():
     parser.add_argument("--no-lettering", action="store_true", help="leave the textures of tools/lettering.json as made")
     parser.add_argument("--fetch-fonts", action="store_true", help="download the pinned lettering fonts to upscale-tools/fonts/, then stop")
     parser.add_argument("--lettering-only", action="store_true",
-                        help="redraw only the lettering of the complete set in the output folder, keeping the settings that made it")
+                        help="redraw only the lettering and the font letters of the complete set in the output folder, "
+                             "keeping the settings that made it")
+    parser.add_argument("--no-font-redraw", action="store_true",
+                        help="leave the font pictures of tools/fonts.json as made instead of drawing their letters from the typefaces")
+    parser.add_argument("--font-times", type=int, choices=(2, 4), default=fonts.TIMES,
+                        help="how many times the pixels a side the redrawn font pictures get (default %d)" % fonts.TIMES)
     parser.add_argument("--no-menus", action="store_true",
                         help="leave the menus, the loading screens and the HUD as the game has them")
     parser.add_argument("--menus-only", action="store_true",
@@ -1135,7 +1157,7 @@ def generated(record):
     """The record of the texture this tool made, also while an override takes its place."""
     if record["way"] not in REPLACING:
         return record
-    plain = {name: value for name, value in record.items() if name not in OWN + ("generated", lettering.WAY)}
+    plain = {name: value for name, value in record.items() if name not in OWN + ("generated",) + REPLACING}
     plain.update(record["generated"])
     if plain["way"] == "none":
         del plain["out"]
@@ -1236,6 +1258,8 @@ def marker_of(record):
     """The ending of the empty file that tells the launcher's helper how many times the pixels a flat picture has."""
     if record["way"] == "none":
         return None
+    if record["way"] == fonts.WAY:
+        return ".%dx" % record[fonts.WAY]["times"]
     if record.get("kind") == "font":
         return TWICE
     return ".%dx" % record["marked"] if record.get("marked") else None
@@ -1293,6 +1317,19 @@ def letter(args, setup, sources, records, skip):
     return lettering.draw(items, lettering_fonts(args.tools), setup["work"], lambda data, scale, tiles: plain_picture(setup, data, scale, tiles))
 
 
+def redraw_fonts(args, setup, sources, records, skip):
+    """{path: (file, checksum, bytes, note)} for the font pictures of tools/fonts.json whose glyphs were drawn again."""
+    by_path = {entry.path: data for _, entry, data in sources}
+    items = []
+    for path, (name, why) in sorted(fonts.wanted(by_path, skip).items()):
+        source = where(setup, records[path]) if records[path]["way"] != "none" else None
+        if why:
+            print("  font picture left as made: %s (%s)" % (path, why))
+        elif source:
+            items.append((path, name, by_path[path], source))
+    return fonts.draw(items, setup["work"], args.font_times)
+
+
 def plain_picture(setup, data, scale, tiles):
     """RGBA of a texture enlarged by the plain filter alone, for a lettering box taken from it."""
     width, height, pixels = gti.to_rgba(gti.parse(data).best())
@@ -1331,18 +1368,24 @@ def settle(args, setup, settings, key, sources, records, run, old):
         sys.exit("No texture passed its checks. Nothing was replaced.")
     overrides = fitting_overrides(args, sources, records) if os.path.isdir(args.overrides) else {}
     lettered = {} if args.no_lettering else letter(args, setup, sources, records, overrides)
-    replacing = dict(overrides, **{path: done[:3] for path, done in lettered.items()})
+    fonted = {} if args.no_font_redraw else redraw_fonts(args, setup, sources, records, set(overrides) | set(lettered))
+    replacing = dict(overrides, **{path: done[:3] for path, done in list(lettered.items()) + list(fonted.items())})
 
     final = []
     for record in ordered:
         if record["path"] in replacing:
             _, digest, size = replacing[record["path"]]
+            way = "override" if record["path"] in overrides else lettering.WAY if record["path"] in lettered else fonts.WAY
             taken = {name: value for name, value in record.items() if name not in OWN}
-            taken.update(way="override" if record["path"] in overrides else lettering.WAY, bytes=size, file_sha256=digest,
+            taken.update(way=way, bytes=size, file_sha256=digest,
                          out=record.get("out") or [side * record.get("marked", scale) for side in record["size"]],
                          generated={name: record[name] for name in OWN if name in record})
             if record["path"] in lettered:
                 taken[lettering.WAY] = lettered[record["path"]][3]
+            if record["path"] in fonted:
+                taken[fonts.WAY] = fonted[record["path"]][3]
+                taken["out"] = [side * taken[fonts.WAY]["times"] for side in record["size"]]
+                taken["generated"]["out"] = record["out"]
             record = taken
         final.append(record)
     with open(os.path.join(out, MARKER), "w") as f:
