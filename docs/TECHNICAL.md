@@ -758,7 +758,7 @@ What is checked differs per kind of file.
 `tools/videos.json` gives each video a level.
 - Level 1, the company logos: Real-ESRGAN on each frame, by the texture tool's `upscayl-bin`, then the textures' pull-back in `tools/texture-refine.c`. It adds sharpness, not detail.
   Each frame, shrunk again by averaging each 4x4 block and rounding, is the game's frame. In a test on six frames every pixel matched, with a sharpened Lanczos picture in place of Real-ESRGAN.
-- Level 2, the Airfix intro: SeedVR2 3B. It redraws whole shots, 21 frames at a time, so the new detail does not flicker. The look is a restored copy of the same film.
+- Level 2, the Airfix intro: SeedVR2 3B. It redraws whole shots, 9 frames at a time, so the new detail does not flicker. The look is a restored copy of the same film.
 - Level 3, a 10-second sample of the Airfix intro: SeedVR2 7B "sharp", the most the model can add.
 
 Then for every video:
@@ -774,6 +774,7 @@ The videos go to `hd-videos/`, with `manifest.json`: checksums, settings, model 
 - `--video-only NAME` makes one video. `--video-clip START,SECONDS` makes only that part, to `hd-videos/clips/`. `--video-level N` tries another level, also to `clips/`.
 - Under 15% free memory no new shot or batch of frames starts. Under 8% the run stops at once.
 - SeedVR2 gets a long shot in chunks of at most 47 frames, so its memory does not grow with the shot. Each chunk also sees 4 frames of its neighbours, and the 4 frames where two chunks meet are faded from one to the other.
+- SeedVR2 keeps freed graphics memory for reuse. Above 6 GB it gives some back, and 20 GB is its hard limit (22 GB for level 3). Without these limits it reached 29 GB. Changing them does not make the video again.
 - A stopped run of level 2 or 3 goes on from the chunk where it stopped. SeedVR2's own output goes to `seedvr2.log` in the work folder.
 - While a tool runs, `videos.log` gets a line each minute with its memory (`tool=`), graphics memory included.
 

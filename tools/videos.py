@@ -218,7 +218,8 @@ def make(args, tools, pinned, upscaler_command, build_helpers):
             esrgan = {"command": upscaler_command("ai", tools, feed, made, spec["scale"]), "feed": feed, "made": made}
         upscaler = [part for part in esrgan["command"] if not os.path.isabs(part)] if esrgan else None
         keys = {"src": key_of(digest, first, count)}
-        keys["up"] = key_of(keys["src"], spec["scale"], level, used, upscaler, spec["cuts"] if level["way"] == "seedvr2" else None)
+        pixels = {name: value for name, value in level.items() if not name.startswith("mps_")}
+        keys["up"] = key_of(keys["src"], spec["scale"], pixels, used, upscaler, spec["cuts"] if level["way"] == "seedvr2" else None)
         keys["seg"] = key_of(keys["up"], spec["cuts"], spec["fps"], spec["interpolate"], spec["encode"])
         shelf = "clips" if sample else "videos"
         entry = {"source": video["file"], "source_sha256": digest, "level": level_name, "settings": level, "upscaler": upscaler,
