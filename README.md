@@ -241,8 +241,9 @@ Use Bluetooth for an Xbox controller. macOS may not see one on a USB cable.
 To set it up:
 1. Connect the controller before you start the game. Pair it in System Settings > Bluetooth, or plug it in.
 2. Run `./dogfighter --doctor`. Its last lines list the controllers the game can see.
-3. Start the game. In the main menu, click the books for Options.
-4. Turn on Joystick there. It is off by default.
+3. Start the game. When a controller is connected, the launcher turns on Joystick in the game's Options.
+
+The launcher never turns Joystick off. You can do that in Options, behind the books in the main menu.
 
 The game uses one controller: the first in that list.
 
@@ -299,7 +300,7 @@ What the button does, and where that switch is, are from memory. Nobody has chec
 - Check that macOS sees it. It should be listed in System Settings > Game Controllers (place not checked).
 - Quit the game, connect the controller, then start the game again.
 - Disconnect other controllers. The game only uses the first one.
-- If the plane steers by itself, the stick does not rest in the middle. Turn Joystick off in Options.
+- If the plane steers by itself, the stick does not rest in the middle. Turn Joystick off in Options, and start with `./dogfighter --no-auto-joystick` from then on.
 
 ## Extra detail for walls and floors (optional)
 
@@ -411,7 +412,7 @@ It also lists the controllers the game can see.
 | The mouse is stuck in the window | Press Ctrl+Option. The game holds the mouse on purpose. |
 | The window cannot be dragged | Press Ctrl+Option first, then drag the title bar. |
 | The text is tiny | Make the window bigger. The picture grows with it. |
-| The controller does nothing | See "Controllers and joysticks" above. Joystick is off in the game's Options by default. |
+| The controller does nothing | See "Controllers and joysticks" above. Connect it before you start the game. |
 | No music | Check that the `music` folder holds ten `.ogg` files. If not, run `./setup.sh` again. |
 | The disc is not found | Delete the `cd` folder and run `./setup.sh` again. |
 | It says `focusfix.exe` or `focushook.dll` is missing | Run `./setup.sh` again. |
@@ -430,6 +431,7 @@ Add these after `./dogfighter`, for example `./dogfighter --mute`.
 | `--no-full-res` | Draw the picture with fewer pixels and scale it to the window. |
 | `--no-hd-textures` | Use the game's own textures. |
 | `--mute` | Play without any sound. The next start without it has sound again. |
+| `--no-auto-joystick` | Do not turn on Joystick in the game's Options when a controller is connected. |
 | `--res=WxH` | Picture size in flight, for example `--res=1440x900`. Without it, the largest size that fits is used. |
 | `--windowed=WxH` | Start with the picture at most this big, for example `--windowed=1024x768`. |
 | `--keep-shape` | Keep the window in the shape of the picture when you resize it. Not tried by hand yet. |

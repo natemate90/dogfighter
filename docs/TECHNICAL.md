@@ -768,10 +768,15 @@ What the launcher sets:
 - With it they go through SDL and behave like an Xbox pad.
 - The launcher exports `SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS=1`. Wine reads controllers in `winedevice.exe`, which is never the app in front. Mach9's SDL can read a pad through Apple's GameController, and that only serves the app in front unless this is set.
 - Wine's own settings stay at their defaults: `Enable SDL` 1, `Map Controllers` 1, `DisableHidraw` 0.
+- At each start it writes `sets option_joystick "true"` to `game/user.ini` when a controller is connected and the option is not on yet. It never writes `false`. `--no-auto-joystick` turns this off.
+- It finds a controller with `hidutil list`, matching HID devices that have Generic Desktop usage 4, 5 or 8: joystick, gamepad, multi-axis controller. These are the usages SDL's macOS joystick code matches. The check takes about 10 ms.
+- An Xbox controller on a USB cable may not show as a HID device. Then the option stays as it was.
 
 How the game reads a joystick, from the code of `Dogfighter.exe`:
 - It only reads one when `option_joystick` in `game/user.ini` is true. Options in the game sets that.
-- At start it takes the first joystick DirectInput lists (`EnumDevices`, `DIDEVTYPE_JOYSTICK`, attached only). So connect before starting.
+- At start it takes the first joystick DirectInput lists (`EnumDevices`, `DIDEVTYPE_JOYSTICK`, attached only). So connect before starting. It does that whatever the option says.
+- Each time it polls, it first checks that it has a joystick, then reads the option. So the option works at once when changed in the game.
+- With no joystick found at start it never polls one. The option being on then does nothing.
 - It asks for a range of 0 to 10000 on X, Y and Z. If there is no Z axis it takes the first slider.
 - X is bank and Y is pitch. Moves under 8% of the way count as the middle.
 - Z or the slider is the throttle, as a position: the lowest value is full throttle.
@@ -786,6 +791,7 @@ Wine adds a controller a moment after its first program starts. So the tool asks
 What was run, on an M4 Max with no controller connected:
 - Both builds start the SDL and the IOHID reader and read the two `Hidraw` settings. One start of each build with `--debug=+hid` showed it: the log has "main loop started" for SDL and for IOHID, and "disabling hidraw" for `054c` and `057e`.
 - `--doctor` prints `no controller found` on both builds.
+- `hidutil` finds no controller either, so the launcher leaves `option_joystick` as it is.
 - Keyboard and mouse still reach the game in a flight on both builds. An F12 press and a click bound to `screenshot` each made a screenshot.
 
 Not done for controllers:
@@ -820,6 +826,7 @@ Not done for controllers:
 | `--keep-shape` | Keep the window in the shape of the game's picture when you resize or zoom it. |
 | `--original` | Leave the picture as the game made it: its settings, its resolution, its textures. |
 | `--mute` | Start the game without sound. |
+| `--no-auto-joystick` | Do not turn on Joystick in the game's Options when a controller is connected. |
 | `--join=ADDRESS` | Put a server in the game's Address book, then start the game. |
 | `--setup` | Show the game's setup dialog and wait for OK. |
 | `--no-focusfix` | Start without the helper (see Troubleshooting). |
@@ -890,6 +897,7 @@ Collected from the sections above.
 - The desk on the main menu: not yet looked at in the game.
 - `--join`: whether the Multiplayer screen lists the server.
 - Controllers: none was ever connected. Open points are whether the game gets its input, the direction of pitch, the triggers as throttle, Xbox over USB, and whether the Key configuration screen takes controller buttons.
+- Turning Joystick on by itself: no controller was connected. The write was tried on a copy of `game/user.ini`, with a pretend controller name in place of `hidutil`.
 - Joystick throttle: no joystick was connected. A lever that is not the third axis is read wrongly through SDL.
 - The macOS side of controllers: that the Home, PS or Xbox button opens Launchpad or the Games overlay, and that System Settings > Game Controllers lists a controller and turns that off. Both are from memory.
 
