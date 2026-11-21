@@ -95,6 +95,16 @@ def reference_file(tools, name):
 
 def fetch(tools, download, python_env):
     """Sets up the Python environment and downloads the photos. Returns False when a part failed."""
+    good = fetch_pictures(tools, download, python_env, load_spec()["references"], lambda name, ref: reference_file(tools, name))
+    if good:
+        print("The desk's photos and Python packages are in %s." % os.path.join(tools, WAY))
+    else:
+        print("The desk stays as made until the missing parts are there.")
+    return good
+
+
+def fetch_pictures(tools, download, python_env, references, file_of):
+    """Sets up the desk's Python environment and downloads the pinned pictures to file_of(name, ref). Returns False when a part failed."""
     good = True
     try:
         python_env(os.path.join(tools, WAY), REQUIREMENTS, *PYTHONS)
@@ -102,19 +112,29 @@ def fetch(tools, download, python_env):
         print(problem)
         good = False
     except (OSError, subprocess.CalledProcessError):
-        print("The desk's Python packages could not be installed.")
+        print("The Python packages in %s could not be installed." % os.path.join(tools, WAY))
         good = False
-    for name, ref in sorted(load_spec()["references"].items()):
+    for name, ref in sorted(references.items()):
         try:
-            download(ref["url"], reference_file(tools, name), ref["sha256"])
+            download(ref["url"], file_of(name, ref), ref["sha256"])
         except SystemExit as problem:
             print(problem)
             good = False
-    if good:
-        print("The desk's photos and Python packages are in %s." % os.path.join(tools, WAY))
-    else:
-        print("The desk stays as made until the missing parts are there.")
     return good
+
+
+def pinned(references, file_of, what, flag):
+    """({name: file} of the pictures that are there with their pinned checksum, {name: why} of the others)."""
+    found, problems = {}, {}
+    for name, ref in references.items():
+        file = file_of(name, ref)
+        if not os.path.isfile(file):
+            problems[name] = "%s %s is missing; %s fetches it" % (what, name, flag)
+        elif up.sha256_of(file) != ref["sha256"]:
+            problems[name] = "%s %s does not match its pinned checksum" % (what, name)
+        else:
+            found[name] = file
+    return found, problems
 
 
 def item_areas(spec, times):
@@ -177,14 +197,9 @@ def draw(sources, made_of, fonts, tools, work, out, old, skip):
     python = python_of(tools)
     if not os.access(python, os.X_OK):
         return leave("its Python environment is missing; --fetch-desk sets it up")
-    references = {}
-    for name, ref in spec["references"].items():
-        file = reference_file(tools, name)
-        if not os.path.isfile(file):
-            return leave("photo %s is missing; --fetch-desk fetches it" % name)
-        if up.sha256_of(file) != ref["sha256"]:
-            return leave("photo %s does not match its pinned checksum" % name)
-        references[name] = file
+    references, problems = pinned(spec["references"], lambda name, ref: reference_file(tools, name), "photo", "--fetch-desk")
+    if problems:
+        return leave(next(iter(problems.values())))
     for name in spec["fonts"]:
         if fonts[name][0] is None:
             return leave(fonts[name][2])

@@ -1377,23 +1377,25 @@ def redraw_fonts(args, setup, sources, records, skip):
     return fonts.draw(items, setup["work"], args.font_times)
 
 
-def draw_desk(args, setup, sources, records, old, skip):
-    """{path: (file, checksum, bytes, note)} for the pieces of the main menu whose kit boxes and paint tins were drawn again."""
-    def made_of(path):
+def made_of(setup, records):
+    """A function that gives (made file, its checksum) of a path, or None for a picture that was not made."""
+    def found(path):
         record = records[path]
         file = where(setup, record) if record["way"] != "none" else None
         return (file, record["file_sha256"]) if file else None
-    return desk.draw({entry.path: data for _, entry, data in sources}, made_of, lettering_fonts(args.tools), args.tools, setup["work"],
-                     setup["out"], old, skip)
+    return found
+
+
+def draw_desk(args, setup, sources, records, old, skip):
+    """{path: (file, checksum, bytes, note)} for the pieces of the main menu whose kit boxes and paint tins were drawn again."""
+    return desk.draw({entry.path: data for _, entry, data in sources}, made_of(setup, records), lettering_fonts(args.tools), args.tools,
+                     setup["work"], setup["out"], old, skip)
 
 
 def draw_paintings(args, setup, sources, records, old, skip):
     """{path: (file, checksum, bytes, note)} for the pieces whose plane painting was drawn again from box art."""
-    def made_of(path):
-        record = records[path]
-        file = where(setup, record) if record["way"] != "none" else None
-        return (file, record["file_sha256"]) if file else None
-    return paintings.draw({entry.path: data for _, entry, data in sources}, made_of, args.tools, setup["work"], setup["out"], old, skip)
+    return paintings.draw({entry.path: data for _, entry, data in sources}, made_of(setup, records), args.tools, setup["work"],
+                          setup["out"], old, skip)
 
 
 def plain_picture(setup, data, scale, tiles):
