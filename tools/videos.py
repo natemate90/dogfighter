@@ -7,7 +7,7 @@ video with 22 kHz PCM sound. tools/videos.json says what is made of each:
                Real-ESRGAN on each frame, by the texture tool's upscayl-bin,
                then its pull-back in tools/texture-refine.c, so each frame
                shrunk again and rounded is the game's frame. 2 and 3 redraw
-               whole shots with SeedVR2, a video model that sees 21 frames at
+               whole shots with SeedVR2, a video model that sees 9 frames at
                once, so new detail stays put from frame to frame. 2 uses the
                3B model, 3 the 7B "sharp" one. refine is the job of
                tools/texture-refine.c: glyphs repeats the last pull-back until
