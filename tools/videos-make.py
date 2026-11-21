@@ -21,7 +21,7 @@ Memory: the run follows macOS's memory pressure, so compressed memory and idle
 apps swapped to the SSD do not stop it. At stop_level or worse no new shot,
 chunk or batch is started; it checks again every 30 s for up to wait_s, then
 the run ends. At abort_level for abort_after_s in a row, or with more than
-abort_swap_gb of swap used, the running tool is stopped at once and the run
+abort_swap_gb more swap used than at the start, the running tool is stopped and the run
 ends. When the pressure cannot be read, the old rule holds: nothing starts
 under stop_free percent free, and the run ends under abort_free. While a tool
 runs, a "during" line is logged each minute with the memory of the tool and
@@ -71,8 +71,10 @@ def pressure():
 
 
 def swap_used():
-    """xsu_used of struct xsw_usage in <sys/sysctl.h>, after the 64-bit xsu_total and xsu_avail."""
-    return struct.unpack_from("<Q", sysctl("vm.swapusage", 32), 16)[0]
+    try:
+        return psutil.swap_memory().used
+    except psutil.Error as error:
+        raise OSError("psutil.swap_memory: %r" % error) from error
 
 
 def footprint(pid):
@@ -95,6 +97,7 @@ class Watch:
         self.child, self.label, self.aborted, self.why, self.unread = None, "", False, "", None
         self.least_free, self.most_used, self.most_child, self.run_peak = 100, 0, 0, 0
         self.worst_level, self.most_swap, self.red_since, self.notes, self.noted = 0, 0, None, [], set()
+        self.swap_base = None
         self.logged = time.time()
         threading.Thread(target=self.loop, daemon=True).start()
 
@@ -160,8 +163,10 @@ class Watch:
 
     def danger(self, free, level, swap):
         """Why the run must end now, or "". Pressure must stay at abort_level for abort_after_s, not one sample."""
-        if swap is not None and swap > self.limits["abort_swap_gb"] * 1e9:
-            return "swap used went over %s GB" % self.limits["abort_swap_gb"]
+        if swap is not None:
+            self.swap_base = swap if self.swap_base is None else min(self.swap_base, swap)
+            if swap - self.swap_base > self.limits["abort_swap_gb"] * 1e9:
+                return "swap used grew by more than %s GB during the run" % self.limits["abort_swap_gb"]
         if level is None:
             return "free memory went under %d%%" % self.limits["abort_free"] if 0 <= free < self.limits["abort_free"] else ""
         if level < self.abort_level:
@@ -180,14 +185,13 @@ class Watch:
             time.sleep(self.TICK)
             free, _, _, level, swap = self.sample()
             running = self.child and self.child.poll() is None
-            why = "" if self.aborted else self.danger(free, level, swap)
+            if not running:
+                self.red_since = None
+            why = "" if self.aborted or not running else self.danger(free, level, swap)
             if why:
                 self.aborted, self.why = True, why
                 self.log("ABORT", why + ", the running tool is stopped")
-                if running:
-                    os.killpg(self.child.pid, signal.SIGKILL)
-                else:
-                    os._exit(3)
+                os.killpg(self.child.pid, signal.SIGKILL)
             elif running and time.time() - self.logged >= 60:
                 self.log("during", "%s, tool peak %.1fGB" % (self.label, self.run_peak / 1e9))
 

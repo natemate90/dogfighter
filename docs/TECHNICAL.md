@@ -781,8 +781,8 @@ The videos go to `hd-videos/`, with `manifest.json`: checksums, settings, model 
 The run follows macOS's memory pressure, the green, yellow and red of Activity Monitor.
 So compressed memory and idle apps swapped to the SSD do not stop it.
 - At yellow or red no new shot, chunk or batch of frames starts. The tool checks again every 30 seconds. After 10 minutes the run stops.
-- Red for 20 seconds in a row stops the running tool, and the run ends.
-- Over 16 GB of swap in use ends the run at once, so the SSD does not fill.
+- Red for 20 seconds in a row while a tool runs stops it, and the run ends. Between tools, red only makes the run wait.
+- Swap growing by more than 16 GB during the run ends it at once, so the SSD does not fill. Swap in use before the run does not count.
 - When the pressure cannot be read, the old rule holds. Nothing starts under 15% free memory, and the run ends under 8%. `videos.log` says so once.
 - Each line of `videos.log` shows `free=`, `used=`, `pressure=` and `swap=`.
 - The limits are under `"memory"` in `tools/videos.json`.
