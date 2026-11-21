@@ -339,7 +339,7 @@ Longer missions are not tested: the game is a 32-bit program and may run out of 
 
 The game draws a flat picture at the size stored in its file.
 So the font pictures and the menu pictures get a marker file, and the helper keeps their size (see [Markers](#markers-for-flat-pictures-with-more-pixels)).
-The briefing and the other screens not listed in `tools/menu-pictures.json` keep the game's own files.
+Flat pictures that `tools/menu-pictures.json` does not list keep the game's own files.
 
 ### Generative detail for some surfaces
 
@@ -412,7 +412,7 @@ Other screens were not compared.
 | Main menu (12 tiles) and its 13 highlights | 4x | Real-ESRGAN, on the whole screen |
 | 25 loading screens (12 tiles each) | 4x | Real-ESRGAN, on the whole screen |
 | Mission selection: 16 tiles, the three other book tiles, the paper, 10 mission rows, 9 highlights | 4x | Real-ESRGAN, on the whole screen |
-| Mission briefing: 6 tiles, the paper, 6 highlights, 40 photos of rooms, units and pickups | 4x | Real-ESRGAN, on the whole screen |
+| Mission briefing: 6 tiles, the paper, 6 highlights, 37 photos of rooms, units and pickups | 4x | Real-ESRGAN, on the whole screen |
 | Credits: the 12 tiles of the frame | 4x | Real-ESRGAN, on the whole screen |
 | Credits: the 6 pictures of the scrolling text | 2x | waifu2x |
 | Window frames, buttons, sliders, the mouse arrow | 2x | waifu2x |
@@ -431,7 +431,7 @@ The same is done for every piece the game lays over a screen: the rows of the mi
 Where each piece lies is in the JSON file. The places come from two sources.
 - `./dogfighter --diag-draws` writes the place of each picture's first draw to the log. The tiles of all five screens, four highlights, two mission rows and one briefing photo were read from that.
 - The other highlights, rows and paper tiles were laid over the composed screen at every place, and the best fit was taken. Where both sources had a piece, they agreed.
-- All 40 briefing photos are taken to lie where the one that was logged lies, at 350,65. A wrong place would not move a picture in the game. It would only make its edge fit the paper less well.
+- All 37 briefing photos are taken to lie where the one that was logged lies, at 350,65. A wrong place would not move a picture in the game. It would only make its edge fit the paper less well.
 
 - Each picture gets its marker, `.2x` or `.4x`.
 - The manifest lists each with its way, its scores, `marked` (2 or 4) and, for a piece of a screen, `screen`.
@@ -449,7 +449,7 @@ Left out:
 - The photos and the noise behind the credits. The photos show the people who made the game, and an upscaler repaints faces.
 
 One run on an M4 Max made the 640 pictures in about six and a half minutes. Each state of a screen costs one more pass over the whole screen, and the two mission screens have 67 states.
-Two runs into two folders gave the same bytes. The tool also makes one screen a second time in every run and compares.
+Every run makes eight pictures and one screen a second time and compares the bytes. In the last run all 20 files were the same, the 12 tiles of the credits frame among them.
 The set grows from about 200 MB to about 980 MB. The 25 loading screens take most of that.
 
 In the game, with full resolution: the login window, the Pilot Roster, the main menu with two highlights, the mission selection, the briefing, the model window, the credits, a loading screen, a flight and the map in the Mission Info window.
