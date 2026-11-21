@@ -11,6 +11,7 @@ The repo contains no game data. `setup.sh` builds everything from a raw image of
 - `setup.sh` checks the Mac, downloads the pinned tools, unpacks the game from the disc image, rips the music, builds the helpers and `Dogfighter.app`, and makes the larger textures.
 - `dogfighter` is the launcher. It picks a Wine build, sets the game's settings and starts the game through the helper.
 - The helper is `focusfix.exe` and `focushook.dll`. It puts the game in a normal Mac window, scales the picture, holds the mouse and does the picture work below.
+- `build/intro-player` plays the sharper intro videos before the game starts. Setup builds it from `tools/intro-player.m` with `cc`.
 - `tools/upscale-textures.py` makes the larger textures.
 
 ## Setup
@@ -731,7 +732,7 @@ The game plays two videos at start, from `game/Video/`.
 
 The texture tool can make them 4x as large (2560x1920) and 60 frames a second.
 It is optional and separate from the textures.
-The game does not play the new videos yet.
+The launcher plays them before the game starts (see [How the launcher plays them](#how-the-launcher-plays-them)).
 
 ```
 python3 tools/upscale-textures.py --fetch-videos
@@ -780,6 +781,36 @@ The videos go to `hd-videos/`, with `manifest.json`: checksums, settings, model 
 
 SeedVR2 and `upscayl-bin` need the Mac's graphics card. Without it, levels 1 to 3 are left out. RIFE alone falls back to the processor, much slower.
 
+### How the launcher plays them
+
+The game plays `companies.avi`, then `airfix.avi`.
+The launcher plays `hd-videos/companies.mov` and `hd-videos/airfix.mov` before it starts Wine.
+- It plays them with `build/intro-player`, a small AVFoundation program. macOS decodes the HEVC; nothing is downloaded.
+- The window is as large as the game's first window and opens at the top left of the main screen, where the game's opens. The game always runs in a window, so the videos do too.
+- Esc, a click or any key skips one video. Closing the window skips the rest.
+- `--mute` plays them without sound.
+- A `--diag` run leaves them out, so test runs are as before.
+
+The game must then leave out its own copies.
+Its file has no setting or switch for that.
+It plays the names in a list in its data, in order, until an empty entry.
+- The launcher sets `DOGFIGHTER_SKIP_INTROS` to the number of videos it showed.
+- The helper takes that many names off the front of the list in the game's memory, before the game runs.
+- With both shown, the list holds one name of a file that does not exist. The game always opens the first entry, and a file it cannot open ends its intro, as when a video ends.
+- Only a build with exactly this list is touched. The launcher checks the same bytes in `game/Dogfighter.exe` before it plays anything, so an unknown build plays only its own intros.
+- No file is changed. The `.avi` files stay where they are. A start without the variable plays the game's own intros.
+
+So only an unbroken run from the first video can be replaced.
+- `companies.mov` alone: it plays, then the game plays its own `airfix.avi`.
+- `airfix.mov` alone: the game plays both of its own, and the launcher says why.
+- A video that does not play: the player stops there, and the game plays its own from that video on. The launcher says why in one line.
+
+The player's exit status is the number of videos shown or skipped. A higher status, such as a crash, counts as none shown.
+If Mach9 does not start and the launcher starts the Rosetta Wine, the videos are not played again.
+`build/intro-player` and the helper must be newer than their sources; if not, the game plays its own and the launcher says to run `./setup.sh`.
+
+`--no-hd-videos` lets the game play its own intros. `--original` does too, unless `--hd-videos` is given.
+
 ## CD music
 
 The game plays its music from the CD's audio tracks.
@@ -818,6 +849,7 @@ It checks these things.
 - macOS does not hold Wine in quarantine.
 - The game files, the CD label and the ten music tracks are in place.
 - The helper and the controller lister `build/joylist.exe` are built, and the helper is newer than its source.
+- When `hd-videos/` holds an intro video: the intro player is built, `game/Dogfighter.exe` is the build whose intros the helper can leave out, and the first frame of each video decodes.
 - The save folders in `game/User` exist.
 
 After the checks it lists the controllers the game can see, or says `no controller found`.
@@ -922,10 +954,12 @@ Not done for controllers:
 | `--wide` | Widen the view angle for a 16:10 or 16:9 picture. |
 | `--hd-textures` | On by default. Use the larger textures when a complete set is there. Keeps them on with `--original`. |
 | `--no-hd-textures` | Use the game's own textures. |
+| `--hd-videos` | On by default. Play the sharper intro videos from `hd-videos/` before the game starts, and let the game leave out its own copies. Keeps them on with `--original`. |
+| `--no-hd-videos` | Let the game play its own intro videos. |
 | `--smooth=N` | Smooth jagged edges with N samples per pixel: 0, 2 or 4. Without it the launcher uses 4. |
 | `--deep-z` | Give the game a 24-bit depth buffer where it asks for 16 bits. |
 | `--keep-shape` | Keep the window in the shape of the game's picture when you resize or zoom it. |
-| `--original` | Leave the picture as the game made it: its settings, its resolution, its textures. |
+| `--original` | Leave the picture as the game made it: its settings, its resolution, its textures, its intro videos. |
 | `--mute` | Start the game without sound. |
 | `--no-auto-joystick` | Do not turn on Joystick in the game's Options when a controller is connected. |
 | `--join=ADDRESS` | Put a server in the game's Address book, then start the game. |
@@ -997,6 +1031,7 @@ Collected from the sections above.
 - Redrawn labels: not yet looked at in the game.
 - The desk on the main menu: not yet looked at in the game.
 - `--join`: whether the Multiplayer screen lists the server.
+- The sharper intro videos: the player window, the skipping and the game leaving out its own copies were never run.
 - Controllers: none was ever connected. Open points are whether the game gets its input, the direction of pitch, the triggers as throttle, Xbox over USB, and whether the Key configuration screen takes controller buttons.
 - Turning Joystick on by itself: no controller was connected. The write was tried on a copy of `game/user.ini`, with a pretend controller name in place of `hidutil`.
 - Joystick throttle: no joystick was connected. A lever that is not the third axis is read wrongly through SDL.

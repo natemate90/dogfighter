@@ -1236,6 +1236,36 @@ static void let_screenshots_work_in_32_bit(void)
     }
 }
 
+static void skip_intros(void)
+{
+    enum { INTRO_LIST = 0x4256c, COMPANIES = 0x42544, AIRFIX = 0x42558, INTROS = 2 };
+    static const char missing_file_that_ends_the_intro[] = "video\\shown-by-the-launcher.avi";
+    BYTE *game = (BYTE *)GetModuleHandleA(NULL);
+    const char **list = (const char **)(game + INTRO_LIST);
+    int skip = env_size("DOGFIGHTER_SKIP_INTROS").cx;
+    DWORD old;
+
+    if (skip <= 0) return;
+    if (skip > INTROS) skip = INTROS;
+    if (!game || IsBadReadPtr(list, (INTROS + 1) * sizeof(*list))
+        || list[0] != (const char *)game + COMPANIES || list[1] != (const char *)game + AIRFIX || list[INTROS]
+        || strcmp(list[0], "video\\companies.avi") || strcmp(list[1], "video\\airfix.avi"))
+    {
+        say("this is not the known game build; the game plays its own intro videos as well");
+        return;
+    }
+    if (!VirtualProtect(list, (INTROS + 1) * sizeof(*list), PAGE_READWRITE, &old))
+    {
+        say("could not change the list of intro videos; the game plays its own as well");
+        return;
+    }
+    for (int i = 0; i < INTROS; i++) list[i] = i + skip < INTROS ? list[i + skip] : NULL;
+    if (!list[0]) list[0] = missing_file_that_ends_the_intro;
+    VirtualProtect(list, (INTROS + 1) * sizeof(*list), old, &old);
+    say("the launcher showed the first %d intro video%s; the game leaves %s out", skip, skip > 1 ? "s" : "",
+        skip > 1 ? "them" : "it");
+}
+
 static void raise_texture_size_limit(void)
 {
     enum { MAX_TEXTURE_SIDE_FUNCTION = 0x70f0, ORIGINAL_LIMIT = 256 };
@@ -1721,6 +1751,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
             }
         }
         if (!max_client.cx) tell_helper_about_picture();
+        skip_intros();
         CloseHandle(CreateThread(NULL, 0, watch, NULL, 0, NULL));
     }
     return TRUE;
