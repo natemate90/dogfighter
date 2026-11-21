@@ -378,7 +378,9 @@ def upscale_seedvr2(watch, job, video, level, src, up, shots):
     unless they are set already. That turns off PyTorch's release of cached Metal
     memory, so freed memory is never given back and reached 29 GB in the VAE
     encode alone. level["mps_low_gb"] and level["mps_high_gb"] set them again:
-    above the low one PyTorch releases cached memory, the high one is a hard cap."""
+    above the low one PyTorch releases cached memory, the high one is a hard cap.
+    The cap alone did not hold: the CLI runs through tools/seedvr2-run.py, which
+    empties that cache before each phase and after each batch (see there)."""
     names = pictures(src)
     width, height = Image.open(os.path.join(src, names[0])).size
     feed, out, tail = up + "-shots", up + "-out", os.path.join(up, "tail")
@@ -387,6 +389,7 @@ def upscale_seedvr2(watch, job, video, level, src, up, shots):
     most = torch.mps.recommended_max_memory()
     env = dict(os.environ, PYTORCH_MPS_LOW_WATERMARK_RATIO="%.3f" % min(2.0, level["mps_low_gb"] * 1e9 / most),
                PYTORCH_MPS_HIGH_WATERMARK_RATIO="%.3f" % min(2.0, level["mps_high_gb"] * 1e9 / most))
+    wrapper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "seedvr2-run.py")
 
     def there(folder, part):
         return all(os.path.isfile(os.path.join(folder, name)) for name in part)
@@ -411,7 +414,7 @@ def upscale_seedvr2(watch, job, video, level, src, up, shots):
             watch.run([FFMPEG, "-nostdin", "-loglevel", "error", "-framerate", str(RATE), "-start_number", str(low + 1),
                        "-i", os.path.join(src, "%05d.png"), "-frames:v", str(high - low), "-c:v", "ffv1", "-pix_fmt", "bgr0",
                        clip])
-            command = [sys.executable, "-I", os.path.join(job["seedvr2"], "inference_cli.py"), clip, "--output", out,
+            command = [sys.executable, "-I", wrapper, os.path.join(job["seedvr2"], "inference_cli.py"), clip, "--output", out,
                        "--output_format", "png", "--model_dir", job["models"], "--dit_model", level["dit"],
                        "--resolution", str(height * job["scale"]), "--max_resolution", str(width * job["scale"]),
                        "--batch_size", str(level["batch"]), "--temporal_overlap", str(overlap),
