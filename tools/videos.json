@@ -13,11 +13,11 @@
   "1": {"what": "faithful: the texture tool's Real-ESRGAN on each frame, pulled back to the original", "way": "esrgan",
         "refine": "glyphs", "passes": 2},
   "2": {"what": "restored: SeedVR2 3B over whole shots", "way": "seedvr2",
-        "dit": "seedvr2_ema_3b-Q8_0.gguf", "vae": "ema_vae_fp16.safetensors", "batch": 21, "chunk": 61, "overlap": 4,
-        "color": "lab", "seed": 42, "input_noise": 0.0, "latent_noise": 0.0, "tile": 1024, "tile_overlap": 128},
+        "dit": "seedvr2_ema_3b-Q8_0.gguf", "vae": "ema_vae_fp16.safetensors", "batch": 21, "chunk": 47, "overlap": 4,
+        "color": "lab", "seed": 42, "input_noise": 0.0, "latent_noise": 0.0, "tile": 512, "tile_overlap": 128},
   "3": {"what": "remaster: SeedVR2 7B sharp over whole shots", "way": "seedvr2",
-        "dit": "seedvr2_ema_7b_sharp-Q4_K_M.gguf", "vae": "ema_vae_fp16.safetensors", "batch": 21, "chunk": 61, "overlap": 4,
-        "color": "lab", "seed": 42, "input_noise": 0.0, "latent_noise": 0.0, "tile": 1024, "tile_overlap": 128}
+        "dit": "seedvr2_ema_7b_sharp-Q4_K_M.gguf", "vae": "ema_vae_fp16.safetensors", "batch": 21, "chunk": 47, "overlap": 4,
+        "color": "lab", "seed": 42, "input_noise": 0.0, "latent_noise": 0.0, "tile": 512, "tile_overlap": 128}
  },
  "cuts": {"reduce": 40, "least": 24, "ratio": 1.95, "black": 8},
  "interpolate": {"model": "rife-v4.26", "uhd": true},

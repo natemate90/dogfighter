@@ -7,7 +7,8 @@ finished is kept, so a run that stopped goes on where it stopped:
   cuts      where one shot ends and the next starts
   up/       every frame 4x: level 1 by the texture tool's Real-ESRGAN and its
             pull-back in tools/texture-refine.c, a batch of frames at a time,
-            levels 2 and 3 by SeedVR2, one shot at a time
+            levels 2 and 3 by SeedVR2, one chunk of a shot at a time, so its
+            memory does not grow with the shot (see upscale_seedvr2)
   seg/      per shot: RIFE makes three frames between each two, the frames of
             the shot itself are put back unchanged, and x265 encodes them
   the .mov  the shots joined with the original audio
@@ -17,12 +18,16 @@ until the next shot starts. That also keeps every original frame at its own
 time, so picture and sound stay in sync.
 
 Memory: under stop_free percent free no new shot or batch is started; under
-abort_free the running tool is stopped at once and the run ends.
+abort_free the running tool is stopped at once and the run ends. While a tool
+runs, a "during" line is logged each minute with the memory of the tool and
+its children (tool=).
 """
+import ctypes
 import json
 import os
 import shutil
 import signal
+import struct
 import subprocess
 import sys
 import threading
@@ -41,6 +46,17 @@ FFMPEG = imageio_ffmpeg.get_ffmpeg_exe()
 RATE = 15
 SAMPLES = 22050
 BATCH = 32
+LIBC = ctypes.CDLL("/usr/lib/libSystem.B.dylib", use_errno=True)
+
+
+def footprint(pid):
+    """What Activity Monitor shows as a process's memory. Unlike RSS it counts what the process holds on the graphics
+    card (Metal), which on Apple Silicon is the same memory and is most of what SeedVR2 uses. Byte 72 is
+    ri_phys_footprint of struct rusage_info_v0 in <sys/resource.h>, after a 16-byte uuid and seven 64-bit fields."""
+    info = ctypes.create_string_buffer(256)
+    if LIBC.proc_pid_rusage(pid, 0, info):
+        raise OSError(ctypes.get_errno(), "proc_pid_rusage of %d" % pid)
+    return struct.unpack_from("<Q", info.raw, 72)[0]
 
 
 class Watch:
@@ -48,62 +64,92 @@ class Watch:
 
     def __init__(self, log, limits):
         self.log_file, self.limits = log, limits
-        self.child, self.aborted = None, False
-        self.least_free, self.most_used, self.most_child = 100, 0, 0
+        self.child, self.label, self.aborted, self.unread = None, "", False, None
+        self.least_free, self.most_used, self.most_child, self.run_peak = 100, 0, 0, 0
+        self.logged = time.time()
         threading.Thread(target=self.loop, daemon=True).start()
 
     def free(self):
         said = subprocess.run(["/usr/bin/memory_pressure"], capture_output=True, text=True).stdout
         return next((int(line.split(":")[1].strip().rstrip("%")) for line in said.splitlines() if "free percentage" in line), -1)
 
+    def tool_memory(self, pid):
+        try:
+            pids = [pid] + [p.pid for p in psutil.Process(pid).children(recursive=True)]
+        except psutil.Error as error:
+            self.unread = repr(error)
+            return 0
+        total = 0
+        for each in pids:
+            try:
+                total += footprint(each)
+            except OSError as error:
+                try:
+                    total += psutil.Process(each).memory_info().rss
+                except psutil.Error:
+                    self.unread = repr(error)
+        return total
+
     def sample(self):
         free = self.free()
         used = psutil.virtual_memory().total - psutil.virtual_memory().available
-        child = 0
-        if self.child and self.child.poll() is None:
-            try:
-                top = psutil.Process(self.child.pid)
-                child = sum(p.memory_info().rss for p in [top] + top.children(recursive=True))
-            except psutil.Error:
-                pass
+        child = self.tool_memory(self.child.pid) if self.child and self.child.poll() is None else 0
         if free >= 0:
             self.least_free = min(self.least_free, free)
         self.most_used, self.most_child = max(self.most_used, used), max(self.most_child, child)
+        self.run_peak = max(self.run_peak, child)
         return free, used, child
 
     def log(self, tag, text=""):
         free, used, child = self.sample()
+        if self.unread:
+            text, self.unread = "%s (tool memory not read: %s)" % (text, self.unread), None
         line = "%s load1=%.1f free=%d%% used=%.1fGB tool=%.1fGB %s %s" % (
             time.strftime("%Y-%m-%d %H:%M:%S"), os.getloadavg()[0], free, used / 1e9, child / 1e9, tag, text)
         with open(self.log_file, "a") as f:
             f.write(line + "\n")
         print(line, flush=True)
+        self.logged = time.time()
         return free
 
     def loop(self):
         while True:
             time.sleep(5)
             free, _, _ = self.sample()
+            running = self.child and self.child.poll() is None
             if 0 <= free < self.limits["abort_free"] and not self.aborted:
                 self.aborted = True
                 self.log("ABORT", "free memory under %d%%, the running tool is stopped" % self.limits["abort_free"])
-                if self.child and self.child.poll() is None:
+                if running:
                     os.killpg(self.child.pid, signal.SIGKILL)
                 else:
                     os._exit(3)
+            elif running and time.time() - self.logged >= 60:
+                self.log("during", "%s, tool peak %.1fGB" % (self.label, self.run_peak / 1e9))
 
-    def run(self, command, quiet=False, feed=None):
+    def run(self, command, quiet=False, feed=None, log=None):
+        """Runs command and ends the run when it fails. With log, its output goes to the end of that file instead."""
         if self.aborted:
             sys.exit(3)
-        self.child = subprocess.Popen(command, start_new_session=True, stdout=subprocess.PIPE if quiet else None,
-                                      stderr=subprocess.STDOUT if quiet else None, stdin=subprocess.PIPE if feed else None)
+        self.label = os.path.basename(next((part for part in command if part.endswith(".py")), command[0]))
+        self.run_peak = 0
+        output = open(log, "ab") if log else subprocess.PIPE if quiet else None
+        self.child = subprocess.Popen(command, start_new_session=True, stdout=output,
+                                      stderr=subprocess.STDOUT if quiet or log else None,
+                                      stdin=subprocess.PIPE if feed else None)
         said = self.child.communicate(feed)[0]
+        if log:
+            output.close()
+            if self.child.returncode:
+                with open(log, "rb") as f:
+                    f.seek(max(0, os.path.getsize(log) - 4000))
+                    said = f.read()
         if self.aborted:
             sys.exit("Stopped: free memory went under %d%%. Run again to go on." % self.limits["abort_free"])
         if self.child.returncode:
             tail = said.decode(errors="replace").strip().splitlines()[-8:] if said else []
             sys.exit("%s ended with exit code %d\n%s" % (os.path.basename(command[0]), self.child.returncode, "\n".join(tail)))
-        return said.decode(errors="replace") if said else ""
+        return "" if log else said.decode(errors="replace") if said else ""
 
     def room(self, what):
         for _ in range(10):
@@ -237,42 +283,86 @@ def save(picture, path):
     os.replace(path + ".part", path)
 
 
+def spans(start, end, most):
+    """Frames start to end split into nearly equal chunks of at most `most` frames."""
+    parts = -(-(end - start) // most)
+    edges = [start + (end - start) * k // parts for k in range(parts + 1)]
+    return list(zip(edges, edges[1:]))
+
+
 def upscale_seedvr2(watch, job, video, level, src, up, shots):
+    """SeedVR2 on one chunk of a shot at a time, in a process of its own.
+
+    SeedVR2's memory grows with the frames of one call (its output is held at
+    full size until the call ends), so a call gets at most level["chunk"]
+    frames, plus level["overlap"] frames of the same shot on either side. Those
+    before the chunk only steer the model and are dropped. Those after it are
+    kept in up/tail and faded into the first frames of the next chunk, so no
+    step shows where one chunk ends. A chunk counts as made when all its frames
+    are in up/ and the tail the next chunk needs is there too."""
     names = pictures(src)
     width, height = Image.open(os.path.join(src, names[0])).size
-    feed, out = up + "-shots", up + "-out"
+    feed, out, tail = up + "-shots", up + "-out", os.path.join(up, "tail")
+    os.makedirs(tail, exist_ok=True)
+    overlap, log = level["overlap"], os.path.join(os.path.dirname(up), "seedvr2.log")
+
+    def there(folder, part):
+        return all(os.path.isfile(os.path.join(folder, name)) for name in part)
+
     for number, (start, end) in enumerate(shots):
-        if all(os.path.isfile(os.path.join(up, name)) for name in names[start:end]):
-            continue
-        watch.room("shot %d of %d (frames %d to %d)" % (number + 1, len(shots), start, end - 1))
-        for folder in (feed, out):
-            shutil.rmtree(folder, ignore_errors=True)
-            os.makedirs(folder)
-        clip = os.path.join(feed, "shot.mkv")
-        watch.run([FFMPEG, "-nostdin", "-loglevel", "error", "-framerate", str(RATE), "-start_number", str(start + 1),
-                   "-i", os.path.join(src, "%05d.png"), "-frames:v", str(end - start), "-c:v", "ffv1", "-pix_fmt", "bgr0", clip])
-        command = [sys.executable, "-I", os.path.join(job["seedvr2"], "inference_cli.py"), clip, "--output", out,
-                   "--output_format", "png", "--model_dir", job["models"], "--dit_model", level["dit"],
-                   "--resolution", str(height * job["scale"]), "--max_resolution", str(width * job["scale"]),
-                   "--batch_size", str(level["batch"]), "--chunk_size", str(level["chunk"]),
-                   "--temporal_overlap", str(level["overlap"]), "--color_correction", level["color"],
-                   "--seed", str(level["seed"]), "--input_noise_scale", str(level["input_noise"]),
-                   "--latent_noise_scale", str(level["latent_noise"]),
-                   "--vae_encode_tiled", "--vae_decode_tiled", "--vae_encode_tile_size", str(level["tile"]),
-                   "--vae_decode_tile_size", str(level["tile"]), "--vae_encode_tile_overlap", str(level["tile_overlap"]),
-                   "--vae_decode_tile_overlap", str(level["tile_overlap"])]
-        started = time.time()
-        watch.run(command, quiet=True)
-        made = sorted(os.path.join(root, name) for root, _, files in os.walk(out) for name in files if name.endswith(".png"))
-        if len(made) != end - start:
-            sys.exit("SeedVR2 made %d frames for shot %d, which has %d" % (len(made), number + 1, end - start))
-        for path, name in zip(made, names[start:end]):
-            if Image.open(path).size != (width * job["scale"], height * job["scale"]):
-                sys.exit("SeedVR2 made %s at %dx%d" % (name, *Image.open(path).size))
-            os.replace(path, os.path.join(up, name))
-        watch.log("shot", "%d frames in %.0f s, %.1f s a frame" % (end - start, time.time() - started,
-                                                                  (time.time() - started) / (end - start)))
-    for folder in (feed, out):
+        chunks = spans(start, end, level["chunk"])
+        made_already = [there(up, names[first:last]) for first, last in chunks]
+        for k in reversed(range(len(chunks) - 1)):
+            last = chunks[k][1]
+            made_already[k] = made_already[k] and (made_already[k + 1] or there(tail, names[last:min(end, last + overlap)]))
+        for part, (first, last) in enumerate(chunks):
+            if made_already[part]:
+                continue
+            low, high = max(start, first - overlap), min(end, last + overlap)
+            fade = names[first:min(last, first + overlap)] if part else []
+            watch.room("shot %d of %d, chunk %d of %d (frames %d to %d)" % (
+                number + 1, len(shots), part + 1, len(chunks), first, last - 1))
+            for folder in (feed, out):
+                shutil.rmtree(folder, ignore_errors=True)
+                os.makedirs(folder)
+            clip = os.path.join(feed, "chunk.mkv")
+            watch.run([FFMPEG, "-nostdin", "-loglevel", "error", "-framerate", str(RATE), "-start_number", str(low + 1),
+                       "-i", os.path.join(src, "%05d.png"), "-frames:v", str(high - low), "-c:v", "ffv1", "-pix_fmt", "bgr0",
+                       clip])
+            command = [sys.executable, "-I", os.path.join(job["seedvr2"], "inference_cli.py"), clip, "--output", out,
+                       "--output_format", "png", "--model_dir", job["models"], "--dit_model", level["dit"],
+                       "--resolution", str(height * job["scale"]), "--max_resolution", str(width * job["scale"]),
+                       "--batch_size", str(level["batch"]), "--temporal_overlap", str(overlap),
+                       "--color_correction", level["color"], "--seed", str(level["seed"]),
+                       "--input_noise_scale", str(level["input_noise"]), "--latent_noise_scale", str(level["latent_noise"]),
+                       "--vae_encode_tiled", "--vae_decode_tiled", "--vae_encode_tile_size", str(level["tile"]),
+                       "--vae_decode_tile_size", str(level["tile"]), "--vae_encode_tile_overlap", str(level["tile_overlap"]),
+                       "--vae_decode_tile_overlap", str(level["tile_overlap"]), "--debug"]
+            with open(log, "a") as f:
+                f.write("\n=== %s shot %d chunk %d: frames %d to %d, with %d to %d\n" % (
+                    time.strftime("%Y-%m-%d %H:%M:%S"), number + 1, part + 1, first, last - 1, low, high - 1))
+            started = time.time()
+            watch.run(command, log=log)
+            made = sorted(os.path.join(root, name) for root, _, files in os.walk(out) for name in files if name.endswith(".png"))
+            if len(made) != high - low:
+                sys.exit("SeedVR2 made %d frames for frames %d to %d, which are %d" % (len(made), low, high - 1, high - low))
+            for path in made:
+                if Image.open(path).size != (width * job["scale"], height * job["scale"]):
+                    sys.exit("SeedVR2 made %s at %dx%d" % (path, *Image.open(path).size))
+            for path, name in zip(made[last - low:], names[last:high]):
+                os.replace(path, os.path.join(tail, name))
+            for at, (path, name) in enumerate(zip(made[first - low:last - low], names[first:last])):
+                if at < len(fade):
+                    weight = (overlap - at) / (overlap + 1)
+                    before = np.asarray(Image.open(os.path.join(tail, name)).convert("RGB"), dtype=np.float32)
+                    now = np.asarray(Image.open(path).convert("RGB"), dtype=np.float32)
+                    save(Image.fromarray(np.rint(before * weight + now * (1 - weight)).astype(np.uint8)), os.path.join(up, name))
+                else:
+                    os.replace(path, os.path.join(up, name))
+            spent = time.time() - started
+            watch.log("chunk", "%d of %d of shot %d: %d frames (%d made) in %.0f s, %.1f s a frame, tool peak %.1fGB" % (
+                part + 1, len(chunks), number + 1, last - first, high - low, spent, spent / (last - first), watch.run_peak / 1e9))
+    for folder in (feed, out, tail):
         shutil.rmtree(folder, ignore_errors=True)
 
 
