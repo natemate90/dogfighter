@@ -179,11 +179,12 @@ cdrdao read-cd --read-raw --datafile Dogfighter.bin --driver generic-mmc:0x20000
         <g class="bar"><rect x="46" y="84" width="20" height="14"/><rect x="70" y="84" width="20" height="14"/><rect x="94" y="84" width="20" height="14"/><rect x="118" y="84" width="20" height="14"/><rect x="142" y="84" width="20" height="14"/><rect x="166" y="84" width="20" height="14" class="empty"/><rect x="190" y="84" width="20" height="14" class="empty"/><rect x="214" y="84" width="20" height="14" class="empty"/></g>
       </svg>
       <h3>Get the project and run setup</h3>
-      <p>Setup downloads what it needs and checks each download. It copies the game and its music from your disc file, then makes the sharper textures.</p>
+      <p>Setup downloads what it needs and checks each download. It copies the game and its music from your disc file, then makes the sharper textures. The second line installs Rosetta 2. Skip it on macOS 26.4 or later.</p>
 <pre><code>xcode-select --install
+softwareupdate --install-rosetta --agree-to-license
 git clone https://github.com/natemate90/dogfighter.git
 cd dogfighter
-./setup.sh</code></pre>
+./setup.sh ../Dogfighter.bin</code></pre>
     </li>
     <li class="step">
       <span class="stepnum" aria-hidden="true">3</span>
@@ -204,7 +205,7 @@ cd dogfighter
 <section class="blueprint" id="extras" aria-labelledby="extras-h">
   <div class="wrap">
     <h2 id="extras-h">What the kit adds</h2>
-    <p class="intro">The game as it was in 2000, with these on top. <code>--original</code> turns them all off.</p>
+    <p class="intro">The game as it was in 2000, with these on top. <code>--original</code> keeps the game's own picture: 16-bit colour, the normal draw distance, its own resolution and textures.</p>
     <div class="bp-grid">
       <svg class="exploded" viewBox="90 8 800 436" role="img" aria-labelledby="exploded-title">
         <title id="exploded-title">Exploded side view of a fighter plane, with letters A to F pointing at its parts.</title>
@@ -234,7 +235,7 @@ cd dogfighter
       </svg>
       <dl class="legend">
         <div><dt><span>A</span> Speed</dt><dd>On macOS 26.4 or later, about 100 frames a second in flight. Missions load in 2 to 5 seconds. Measured on an M4 Max.</dd></div>
-        <div><dt><span>B</span> A sharper picture</dt><dd>The 3D world uses every pixel of a Retina screen. Textures get twice the pixels, menus and loading screens four times. Your Mac makes them from your own disc.</dd></div>
+        <div><dt><span>B</span> A sharper picture</dt><dd>The 3D world uses every pixel of a Retina screen. Textures get twice the pixels, menus and loading screens four times. Your Mac makes them from your own disc. The plane paintings and the kit boxes and paint tins on the main menu are drawn from photos of real model-kit boxes and a paint tin, which setup downloads.</dd></div>
         <div><dt><span>C</span> Clear letters</dt><dd>The pilot screens, the mission book and the briefing are redrawn from matching fonts, so text stays crisp in a big window.</dd></div>
         <div><dt><span>D</span> Controllers</dt><dd>Xbox, PlayStation and Switch Pro controllers and USB joysticks should work. Nobody has tried a real one yet.</dd></div>
         <div><dt><span>E</span> Music and saves</dt><dd>The music comes from the disc's audio tracks. One command backs up your pilots and saves.</dd></div>
