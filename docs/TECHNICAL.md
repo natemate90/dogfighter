@@ -388,7 +388,7 @@ Longer missions were not tested.
 
 ### Sharper letters
 
-The game cuts its letters out of 11 font pictures in `Graphics\Fonts`.
+The game cuts its letters out of 11 font pictures in `Graphics\Fonts`, with the boxes of 8 `.fnt` tables.
 The tool makes those twice as large and puts an empty file `<name>.gti.2x` next to each.
 The helper draws a picture with that marker at its old size.
 So letters keep their place and size, and get twice the pixels.
@@ -400,9 +400,51 @@ So letters keep their place and size, and get twice the pixels.
 - A pixel that was empty stays empty, so no letter grows into its neighbour.
 - This is not made with `--scale 4`.
 
-One test run opened the Pilot Roster with `--full-res --hd-textures`.
-The text stood in the same place and its strokes were crisper.
-Other screens were not compared.
+#### Letters drawn from the fonts
+
+Four of the fonts are typefaces that come with macOS.
+For those, every glyph is then drawn again from the typeface, with four times the pixels, by `tools/fonts.py`.
+The picture gets the marker `<name>.gti.4x` in place of `.2x`.
+No upscaler and no AI is involved, and nothing is downloaded.
+
+| Font | Typeface | Seen in the game | Glyphs drawn | Kept as made |
+| --- | --- | --- | --- | --- |
+| `typewriter` (2 pictures) | American Typewriter | Pilot Login, Pilot Roster, Mission Info, the message line in flight, the version label | 104 | 4: `-` `=` `#` `ß` |
+| `typewriter_small` (2 pictures) | American Typewriter | the mission book and the briefing papers | 103 | 3: `%`, the check mark `¤`, `ß` |
+| `system` | Arial | the console after `console_changefont system` | 70 | none |
+| `system12` | Helvetica | the console after `console_changefont system12` | 91 | 2: `~` `¤` |
+
+`system8`, `aeroplane`, `digital_large` and `digital_small` keep the waifu2x way. They are drawn by hand or their typeface was not found. `system8` is the console's own font.
+
+How it works:
+- `tools/fonts.json` holds the fitted numbers. Per font: the face, size, stretch and weight. Per glyph box: the character drawn, the left edge of its ink and its baseline.
+- They were fitted once against the game's own glyphs. Each candidate was drawn with the CoreText helper `tools/lettering-draw.c`, shrunk to the original size and compared. A run only draws from the stored numbers.
+- Regular fits both typewriter fonts best; Apple's Semibold and Bold score lower.
+- The `.fnt` tables do not change. Each glyph is drawn into its own box, and is cut at the box's edge as the game's own glyph is. Pixels outside the drawn boxes come from the made picture.
+- Where several characters share a box, the one that fits best is drawn. So `system` draws Y where its table says Ü, as the game does.
+- Alpha is the glyph's coverage. The colour is the one the original picture has at that alpha, so a font whose colour follows its alpha keeps doing so.
+- The made 2x picture stays in `hd-textures/replaced/`, and the manifest lists the picture with the way `font`.
+
+Checks, for each glyph:
+- Its box, shrunk to the original size, is compared with the original alpha as a match from 0 to 100: 100 × (1 − sum of differences / sum of both).
+- It must reach 75. Else that box keeps the made pixels.
+- The drawn glyphs score 75.7 to 99.7, middle 91 to 95. The same glyphs moved by one pixel score 11 to 90, middle 51 to 56. Drawn 15% smaller, middle 56 to 60.
+- No pixel outside the drawn boxes changes.
+- The kept glyphs scored under 75 in the fit. The check mark is drawn by hand; the game's `ß`, `#`, `%`, `=`, `-` and `~` are drawn differently from the typeface.
+
+Options and runs:
+- `--no-font-redraw` puts the made 2x pictures back.
+- `--font-times 2` draws them with twice the pixels instead of four times.
+- `--lettering-only` redraws the fonts as well, so `./setup.sh` applies them to an existing set.
+- A typeface missing on a Mac leaves its font as made, and the run says so in one line.
+- Two runs in a row gave the same bytes. `--no-font-redraw` gave back the old set byte for byte, manifest records included.
+- Drawing the six pictures takes about 1.5 seconds.
+
+In the game, with full resolution:
+- The Pilot Login, the Pilot Roster, the mission book, the briefing, the message line in flight, Mission Info and the console in `system12` and `system` were compared against the 2x set.
+- Every text stood in the same place. The letters were sharp, and shapes that waifu2x had bent, such as `w` and `W`, were right.
+- The strokes look thinner than in the 2x set, though they carry the same amount of ink: the soft edge of the 2x letters made them look heavier.
+- The pictures are in `logs/shots/fonts-final/`.
 ### Menus and loading screens
 
 `tools/menu-pictures.json` lists the flat pictures the tool enlarges. `tools/menus.py` reads it.
@@ -519,7 +561,7 @@ The made texture's record is under `generated`, and the fonts' checksums and the
 The made texture waits in `hd-textures/replaced/`.
 - `--no-lettering` puts the made textures back. The next run without it draws them again.
 - A file in `texture-overrides/` wins over the lettering.
-- `--lettering-only` redraws just the labels of a complete set, with the settings stored in its manifest. Nothing else is made again, and the set keeps its key, so a set made with `--scale 4` or `--upscaler vimage` stays that set.
+- `--lettering-only` redraws just the labels and the font letters of a complete set, with the settings stored in its manifest. Nothing else is made again, and the set keeps its key, so a set made with `--scale 4` or `--upscaler vimage` stays that set.
 - `./setup.sh` runs `--fetch-fonts` and `--lettering-only` on a complete set. A font that cannot be fetched leaves only its labels as made.
 - It works at 2x and at 4x. On scratch sets made with `--scale 4`, with `--upscaler vimage` and with the defaults, `--lettering-only` drew all 26 and changed no other file; a later run with each set's own settings found it complete.
 
@@ -705,7 +747,7 @@ Collected from the sections above.
 - `--wide`: not judged by a person.
 - `--deep-z`: only the first mission was compared.
 - `--scale 4` and the generative textures: longer missions.
-- Sharper letters: only the Pilot Roster was compared.
+- Letters drawn from the fonts: the multiplayer screens, and `--font-times 2` in the game.
 - Redrawn labels: not yet looked at in the game.
 - `--join`: whether the Multiplayer screen lists the server.
 
