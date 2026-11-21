@@ -611,15 +611,18 @@ def run_jobs(helper, fields, lines=False):
     return done.stdout.decode().splitlines() if lines else []
 
 
-def run_upscaler(way, tools, source, target, scale, work):
+def upscaler_command(way, tools, source, target, scale):
     if way == "ai":
-        command = [os.path.join(tools, "upscayl", "upscayl-bin"), "-i", source, "-o", target,
-                   "-m", os.path.join(tools, "realesrgan-models"), "-n", MODEL,
-                   "-z", str(MODEL_SCALE), "-s", str(MODEL_SCALE), "-t", str(TILE), "-f", "png"]
-    else:
-        command = [os.path.join(tools, "waifu2x", "waifu2x-ncnn-vulkan"), "-i", source, "-o", target,
-                   "-m", os.path.join(tools, "waifu2x", WAIFU2X_MODEL), "-n", "-1",
-                   "-s", str(scale), "-t", str(WAIFU2X_TILE), "-f", "png"]
+        return [os.path.join(tools, "upscayl", "upscayl-bin"), "-i", source, "-o", target,
+                "-m", os.path.join(tools, "realesrgan-models"), "-n", MODEL,
+                "-z", str(MODEL_SCALE), "-s", str(MODEL_SCALE), "-t", str(TILE), "-f", "png"]
+    return [os.path.join(tools, "waifu2x", "waifu2x-ncnn-vulkan"), "-i", source, "-o", target,
+            "-m", os.path.join(tools, "waifu2x", WAIFU2X_MODEL), "-n", "-1",
+            "-s", str(scale), "-t", str(WAIFU2X_TILE), "-f", "png"]
+
+
+def run_upscaler(way, tools, source, target, scale, work):
+    command = upscaler_command(way, tools, source, target, scale)
     done = subprocess.run(command, cwd=work, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     if not os.listdir(target):
         said = done.stderr.decode(errors="replace").strip().splitlines()[-6:]
@@ -1027,7 +1030,8 @@ def main():
     parser.add_argument("--sheets", default="", help="folder for PNG sheets that put the plain filter next to the set")
     parser.add_argument("--list", action="store_true", help="show what would be resized, then stop")
     parser.add_argument("--fetch-videos", action="store_true",
-                        help="download the pinned video models and tools to upscale-tools/video/ (about 9.8 GB), then stop")
+                        help="download the pinned upscalers of --fetch-tools and the pinned video models and tools to "
+                             "upscale-tools/video/ (about 9.8 GB), then stop")
     parser.add_argument("--videos", action="store_true",
                         help="make the intro videos of tools/videos.json 4x and 60 frames a second in --videos-out, then stop")
     parser.add_argument("--video-only", default="", help="with --videos: only the video of tools/videos.json with this name")
@@ -1044,10 +1048,11 @@ def main():
     if args.check:
         sys.exit(0 if set_complete(args.out) else 1)
     if args.fetch_videos:
+        fetch_tools(root, tools)
         videos.fetch(tools, download, python_env)
         return
     if args.videos:
-        sys.exit(videos.make(args, tools))
+        sys.exit(videos.make(args, tools, PINNED, upscaler_command, build_helpers))
 
     if args.fetch_fonts or args.fetch_desk or args.fetch_tools:
         fetch_fonts(tools)

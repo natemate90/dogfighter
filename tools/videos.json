@@ -10,8 +10,8 @@
    "sha256": "58f330ef306ded4da19302275978f38ee79ce71088541603f10f319bd874b6ea"}
  ],
  "levels": {
-  "1": {"what": "faithful: Real-ESRGAN on each frame, pulled back to the original", "way": "esrgan",
-        "model": "RealESRGAN_x4plus.pth", "tile": 256, "passes": 2},
+  "1": {"what": "faithful: the texture tool's Real-ESRGAN on each frame, pulled back to the original", "way": "esrgan",
+        "refine": "glyphs", "passes": 2},
   "2": {"what": "restored: SeedVR2 3B over whole shots", "way": "seedvr2",
         "dit": "seedvr2_ema_3b-Q8_0.gguf", "vae": "ema_vae_fp16.safetensors", "batch": 21, "chunk": 61, "overlap": 4,
         "color": "lab", "seed": 42, "input_noise": 0.0, "latent_noise": 0.0, "tile": 1024, "tile_overlap": 128},
@@ -31,9 +31,6 @@
   "licence": "Apache-2.0"
  },
  "models": {
-  "RealESRGAN_x4plus.pth": {
-   "url": "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
-   "sha256": "4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1", "bytes": 67040989, "licence": "BSD-3-Clause"},
   "ema_vae_fp16.safetensors": {
    "url": "https://huggingface.co/numz/SeedVR2_comfyUI/resolve/09ced71023636e9bc8cdf9cdecfb2625d1e691e8/ema_vae_fp16.safetensors",
    "sha256": "20678548f420d98d26f11442d3528f8b8c94e57ee046ef93dbb7633da8612ca1", "bytes": 501324814, "licence": "Apache-2.0"},
