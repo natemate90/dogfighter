@@ -257,7 +257,9 @@ The game uses one controller: the first in that list.
 - With both triggers released the plane flies at half speed, once you have touched a trigger.
 - The right stick and the D-pad do nothing. The game does not read them.
 - The keyboard and the mouse keep working next to the controller.
-- On a joystick with a throttle lever, the lever sets the speed.
+- On a joystick with a throttle lever, the lever should set the speed. Not checked yet.
+- On some joysticks the twist of the stick comes before the lever. Then the twist changes the speed.
+- The fix for that is in [docs/TECHNICAL.md](docs/TECHNICAL.md), under Controllers.
 
 **Other buttons.** The game's Options have a Key configuration screen.
 Nobody has checked yet whether it takes controller buttons.
@@ -283,13 +285,14 @@ bind jbutton5 "+thrustinc"
 The actions are the words in quotes in that file, such as `+primattack`, `use next` or `pause_toggle`.
 
 **The Xbox, PS or Home button.** macOS uses it for itself.
-It can open Launchpad or the Games overlay. That puts another app in front of the game.
+It may open Launchpad or the Games overlay. That would put another app in front of the game.
 Do not press it while you play.
-To turn it off, connect the controller and open System Settings > Game Controllers.
+The switch for it should be in System Settings > Game Controllers, with the controller connected.
+What the button does, and where that switch is, are from memory. Nobody has checked them on a Mac.
 
 **If the controller is not found:**
 - Run `./dogfighter --doctor`. It says `no controller found` when Wine sees none.
-- Check that macOS sees it: it is listed in System Settings > Game Controllers.
+- Check that macOS sees it. It should be listed in System Settings > Game Controllers (place not checked).
 - Quit the game, connect the controller, then start the game again.
 - Disconnect other controllers. The game only uses the first one.
 - If the plane steers by itself, the stick does not rest in the middle. Turn Joystick off in Options.

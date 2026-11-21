@@ -697,7 +697,7 @@ How the game reads a joystick, from the code of `Dogfighter.exe`:
 Wine adds a controller a moment after its first program starts. So the tool asks again for up to five seconds before it says `no controller found`.
 
 What was run, on an M4 Max with no controller connected:
-- Both builds start the SDL and the IOHID reader and read the two `Hidraw` settings. `--debug=+hid` shows it: `run-20261121-021428.log` (Mach9) and `run-20261121-021558.log` (Rosetta Wine).
+- Both builds start the SDL and the IOHID reader and read the two `Hidraw` settings. One start of each build with `--debug=+hid` showed it: the log has "main loop started" for SDL and for IOHID, and "disabling hidraw" for `054c` and `057e`.
 - `--doctor` prints `no controller found` on both builds.
 - Keyboard and mouse still reach the game in a flight on both builds. An F12 press and a click bound to `screenshot` each made a screenshot.
 
@@ -802,6 +802,8 @@ Collected from the sections above.
 - Redrawn labels: not yet looked at in the game.
 - `--join`: whether the Multiplayer screen lists the server.
 - Controllers: none was ever connected. Open points are whether the game gets its input, the direction of pitch, the triggers as throttle, Xbox over USB, and whether the Key configuration screen takes controller buttons.
+- Joystick throttle: no joystick was connected. A lever that is not the third axis is read wrongly through SDL.
+- The macOS side of controllers: that the Home, PS or Xbox button opens Launchpad or the Games overlay, and that System Settings > Game Controllers lists a controller and turns that off. Both are from memory.
 
 ## Legal
 
