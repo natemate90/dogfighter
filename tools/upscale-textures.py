@@ -123,6 +123,15 @@ the desk stays as made. The manifest lists such a piece with way "desk".
 --no-desk leaves the desk as made. --menus-only and --lettering-only draw it
 too.
 
+The paintings: the twelve plane paintings with box art, on the loading
+screens and in the model window, are drawn again over the made 4x pictures
+from Airfix's box art, by tools/paintings.py and tools/paintings-draw.py with
+the numbers in tools/paintings.json. The pictures are pinned by URL and
+SHA-256; --fetch-tools or --fetch-paintings downloads them and sets up the
+desk's Python environment. Without them the paintings stay as made. The
+manifest lists such a piece with way "painting". --no-paintings leaves them
+as made. --menus-only and --lettering-only draw them too.
+
 A run makes only what is missing or changed. With --only the rest of the set
 stays as it is. Files reach the set one by one, each by a rename, and the
 manifest is written last. So a run that stops leaves a set the game can load,
@@ -163,6 +172,7 @@ import fonts  # noqa: E402
 import gti  # noqa: E402
 import lettering  # noqa: E402
 import menus  # noqa: E402
+import paintings  # noqa: E402
 import up  # noqa: E402
 
 KEPT = ("graphics\\textures\\", "graphics\\models\\", "graphics\\backdrops\\", "graphics\\effects\\")
@@ -187,7 +197,7 @@ SCREEN_NUMBERS = 100000
 FONT_WAY = "waifu2x"
 OWN = ("way", "why", "scores", "failed", "bytes", "file_sha256")
 GENERATIVE = "generative"
-REPLACING = ("override", lettering.WAY, fonts.WAY, desk.WAY)
+REPLACING = ("override", lettering.WAY, fonts.WAY, desk.WAY, paintings.WAY)
 COUNTED = WAYS + (GENERATIVE,) + REPLACING + ("none",)
 GENERATIVE_LIST = os.path.join(HERE, "generative-surfaces.json")
 GENERATIVE_SCALE = 4
@@ -918,7 +928,7 @@ def spread(values):
 
 def summary(records):
     counts = {way: sum(1 for record in records if record["way"] == way) for way in COUNTED}
-    print("Ways: %d ai, %d waifu2x, %d plain, %d generative, %d override, %d lettering, %d font, %d desk, %d not written." % tuple(
+    print("Ways: %d ai, %d waifu2x, %d plain, %d generative, %d override, %d lettering, %d font, %d desk, %d painting, %d not written." % tuple(
         counts[way] for way in COUNTED))
     for way in WAYS + (GENERATIVE,):
         scored = [record["scores"] for record in records if record["way"] == way]
@@ -970,7 +980,7 @@ def main():
     parser.add_argument("--no-lettering", action="store_true", help="leave the textures of tools/lettering.json as made")
     parser.add_argument("--fetch-fonts", action="store_true", help="download the pinned lettering fonts to upscale-tools/fonts/, then stop")
     parser.add_argument("--lettering-only", action="store_true",
-                        help="redraw only the lettering, the font letters and the desk of the complete set in the output folder, "
+                        help="redraw only the lettering, the font letters, the desk and the paintings of the complete set in the output folder, "
                              "keeping the settings that made it")
     parser.add_argument("--no-font-redraw", action="store_true",
                         help="leave the font pictures of tools/fonts.json as made instead of drawing their letters from the typefaces")
@@ -981,6 +991,12 @@ def main():
     parser.add_argument("--fetch-desk", action="store_true",
                         help="download the lettering fonts and the desk's pinned photos and set up its Python packages in "
                              "upscale-tools/desk/, then stop")
+    parser.add_argument("--no-paintings", action="store_true",
+                        help="leave the plane paintings of the loading screens and the model window as made instead of drawing "
+                             "them from box art")
+    parser.add_argument("--fetch-paintings", action="store_true",
+                        help="download the pinned box art for the paintings to upscale-tools/paintings/ and set up its Python "
+                             "packages, then stop")
     parser.add_argument("--no-menus", action="store_true",
                         help="leave the menus, the loading screens and the HUD as the game has them")
     parser.add_argument("--menus-only", action="store_true",
@@ -1005,7 +1021,9 @@ def main():
         fetch_fonts(tools)
     if args.fetch_desk or args.fetch_tools:
         desk.fetch(tools, download, python_env)
-    if args.fetch_fonts or args.fetch_desk:
+    if args.fetch_paintings or args.fetch_tools:
+        paintings.fetch(tools, download, python_env)
+    if args.fetch_fonts or args.fetch_desk or args.fetch_paintings:
         return
     if args.fetch_tools:
         fetch_tools(root, tools)
@@ -1369,6 +1387,15 @@ def draw_desk(args, setup, sources, records, old, skip):
                      setup["out"], old, skip)
 
 
+def draw_paintings(args, setup, sources, records, old, skip):
+    """{path: (file, checksum, bytes, note)} for the pieces whose plane painting was drawn again from box art."""
+    def made_of(path):
+        record = records[path]
+        file = where(setup, record) if record["way"] != "none" else None
+        return (file, record["file_sha256"]) if file else None
+    return paintings.draw({entry.path: data for _, entry, data in sources}, made_of, args.tools, setup["work"], setup["out"], old, skip)
+
+
 def plain_picture(setup, data, scale, tiles):
     """RGBA of a texture enlarged by the plain filter alone, for a lettering box taken from it."""
     width, height, pixels = gti.to_rgba(gti.parse(data).best())
@@ -1409,14 +1436,17 @@ def settle(args, setup, settings, key, sources, records, run, old):
     lettered = {} if args.no_lettering else letter(args, setup, sources, records, overrides)
     fonted = {} if args.no_font_redraw else redraw_fonts(args, setup, sources, records, set(overrides) | set(lettered))
     desked = {} if args.no_desk else draw_desk(args, setup, sources, records, old, set(overrides) | set(lettered) | set(fonted))
-    replacing = dict(overrides, **{path: done[:3] for path, done in list(lettered.items()) + list(fonted.items()) + list(desked.items())})
+    painted = {} if args.no_paintings else draw_paintings(args, setup, sources, records, old,
+                                                           set(overrides) | set(lettered) | set(fonted) | set(desked))
+    replacing = dict(overrides, **{path: done[:3] for path, done in list(lettered.items()) + list(fonted.items()) + list(desked.items())
+                                   + list(painted.items())})
 
     final = []
     for record in ordered:
         if record["path"] in replacing:
             _, digest, size = replacing[record["path"]]
             way = ("override" if record["path"] in overrides else lettering.WAY if record["path"] in lettered
-                   else fonts.WAY if record["path"] in fonted else desk.WAY)
+                   else fonts.WAY if record["path"] in fonted else desk.WAY if record["path"] in desked else paintings.WAY)
             taken = {name: value for name, value in record.items() if name not in OWN}
             taken.update(way=way, bytes=size, file_sha256=digest,
                          out=record.get("out") or [side * record.get("marked", scale) for side in record["size"]],
@@ -1425,6 +1455,8 @@ def settle(args, setup, settings, key, sources, records, run, old):
                 taken[lettering.WAY] = lettered[record["path"]][3]
             if record["path"] in desked:
                 taken[desk.WAY] = desked[record["path"]][3]
+            if record["path"] in painted:
+                taken[paintings.WAY] = painted[record["path"]][3]
             if record["path"] in fonted:
                 taken[fonts.WAY] = fonted[record["path"]][3]
                 taken["out"] = [side * taken[fonts.WAY]["times"] for side in record["size"]]
