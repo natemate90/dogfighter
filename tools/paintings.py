@@ -149,7 +149,8 @@ def draw_targets(step, sources, made_of, tools, work, out, old, skip):
     of them. sources is {path: the game's data} of this run, made_of(path)
     gives (made file, its checksum), or None for a picture that was not made,
     old is the previous manifest, skip the paths something else replaces.
-    work is a folder for this run, out the folder of the set.
+    work is a folder for this run, out the folder of the set. A target whose
+    line from the drawing script carries why stays as made, with that reason.
     """
     with open(step["spec"]) as f:
         spec = json.load(f)
@@ -237,6 +238,9 @@ def draw_targets(step, sources, made_of, tools, work, out, old, skip):
     for (target, pieces, _, key, sums), item, line in zip(todo, job["targets"], lines):
         if line["match"] < step["limit"]:
             print("  %s %s left as made: it scores %.1f dB, under %.1f" % (word, target["name"], line["match"], step["limit"]))
+            continue
+        if line.get("why"):
+            print("  %s %s left as made: %s" % (word, target["name"], line["why"]))
             continue
         if not line["changed"]:
             continue

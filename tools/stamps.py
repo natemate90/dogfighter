@@ -22,7 +22,9 @@ tools/stamps.json
               upscale-tools/stamps/references/<name>.svg.
   look        how the stamps are printed: the seed of the noise, how the
               game's ink is found and the paper under it drawn again (in the
-              game's pixels and the stamp's units), and how rough the ink's
+              game's pixels and the stamp's units), how far from the box's
+              edges the new paper fades out and the largest step in
+              brightness allowed there (in levels of 255), how rough the ink's
               edges, how patchy and how specked it is (sizes in the made
               picture's pixels).
   stamps      each stamp: the colour of its ink on white paper, and its
@@ -41,9 +43,10 @@ tools/stamps.json
 
 A target is left as made, and the run says why in one line, when the game's
 pixels in its box are not the fitted ones, its picture was not made 4x, the
-Python environment or an emblem is missing, or the drawn stamp scores under
+Python environment or an emblem is missing, the drawn stamp scores under
 LIMIT: its PSNR in the box against the game's own picture, after shrinking by
-block average.
+block average, or its paper steps in brightness against the made picture
+near an edge of the box by more than edge_step.
 
 A piece whose pixels change is listed in the manifest with way "stamp", with
 a note as tools/paintings.py describes.

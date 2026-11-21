@@ -669,6 +669,8 @@ The upscaler turned it to mush. So the tool draws each stamp again over the made
 
 How a stamp is drawn:
 - The old ink is taken off: near the stamp, the paper is drawn again from the game's own paper, without its ink, with the made paper's grain.
+- That paper follows the page's shadow toward the spine. Each pixel's paper is a plane fitted to the paper around it.
+- The new paper fades into the made picture before the edges of the drawn box, so no line shows there.
 - The rings are circles. The emblems are drawn from their SVG files, each colour standing for full ink or bare paper.
 - Four corners lay the stamp onto the page, so it leans with the book. They were fitted once to the game's rings.
 - The ink gets rough edges, lighter patches and a few bare specks, like a rubber stamp. The noise has a fixed seed.
@@ -682,6 +684,7 @@ What it needs:
 Checks:
 - The numbers were fitted to the game's own pixels of each picture. The tool checks those pixels against a list of checksums. The languages differ there by the highlight's brightness and one pixel, so the list holds one checksum for each.
 - Each drawn stamp, shrunk to the original size, must match the original at 14 dB or more. The drawn ones score 17 to 18 dB. The ink is sharper than the game's blurred copy, and the US emblem is another drawing, so the score only catches a drawing gone wrong as a whole.
+- Near each edge of the drawn box, the new paper may differ from the made picture by at most 3 levels of 255 in mean brightness. The drawn ones differ by under 2.
 - A missing emblem or package, or a failed check, leaves that stamp as made, and the run says why in one line.
 
 The manifest lists such a piece with the way `stamp`.
