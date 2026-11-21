@@ -409,28 +409,28 @@ No upscaler and no AI is involved, and nothing is downloaded.
 
 | Font | Typeface | Seen in the game | Glyphs drawn | Kept as made |
 | --- | --- | --- | --- | --- |
-| `typewriter` (2 pictures) | American Typewriter | Pilot Login, Pilot Roster, Mission Info, the message line in flight, the version label | 104 | 4: `-` `=` `#` `ß` |
-| `typewriter_small` (2 pictures) | American Typewriter | the mission book and the briefing papers | 103 | 3: `%`, the check mark `¤`, `ß` |
+| `typewriter` (2 pictures) | American Typewriter | Pilot Login, Pilot Roster, Mission Info, the message line in flight, the version label | 103 | 5: `Å` `-` `=` `#` `ß` |
+| `typewriter_small` (2 pictures) | American Typewriter | the mission book and the briefing papers | 100 | 6: `Å` `Ü` `È` `%`, the check mark `¤`, `ß` |
 | `system` | Arial | the console after `console_changefont system` | 70 | none |
-| `system12` | Helvetica | the console after `console_changefont system12` | 91 | 2: `~` `¤` |
+| `system12` | Helvetica | the console after `console_changefont system12` | 90 | 3: `#` `~` `¤` |
 
 `system8`, `aeroplane`, `digital_large` and `digital_small` keep the waifu2x way. They are drawn by hand or their typeface was not found. `system8` is the console's own font.
 
 How it works:
-- `tools/fonts.json` holds the fitted numbers. Per font: the face, size, stretch and weight. Per glyph box: the character drawn, the left edge of its ink and its baseline.
-- They were fitted once against the game's own glyphs. Each candidate was drawn with the CoreText helper `tools/lettering-draw.c`, shrunk to the original size and compared. A run only draws from the stored numbers.
-- Regular fits both typewriter fonts best; Apple's Semibold and Bold score lower.
-- The `.fnt` tables do not change. Each glyph is drawn into its own box, and is cut at the box's edge as the game's own glyph is. Pixels outside the drawn boxes come from the made picture.
+- `tools/fonts.json` holds the numbers each run draws from. Per font: the face, size, stretch and weight. Per glyph box: the character drawn, the left edge of its ink, its baseline and its size.
+- The glyphs are drawn with the CoreText helper `tools/lettering-draw.c`.
+- The `.fnt` tables do not change. Each glyph is drawn into its own box. Pixels outside the drawn boxes come from the made picture.
 - Where several characters share a box, the one that fits best is drawn. So `system` draws Y where its table says Ü, as the game does.
 - Alpha is the glyph's coverage. The colour is the one the original picture has at that alpha, so a font whose colour follows its alpha keeps doing so.
 - The made 2x picture stays in `hd-textures/replaced/`, and the manifest lists the picture with the way `font`.
 
 Checks, for each glyph:
-- Its box, shrunk to the original size, is compared with the original alpha as a match from 0 to 100: 100 × (1 − sum of differences / sum of both).
-- It must reach 75. Else that box keeps the made pixels.
-- The drawn glyphs score 75.7 to 99.7, middle 91 to 95. The same glyphs moved by one pixel score 11 to 90, middle 51 to 56. Drawn 15% smaller, middle 56 to 60.
-- No pixel outside the drawn boxes changes.
-- The kept glyphs scored under 75 in the fit. The check mark is drawn by hand; the game's `ß`, `#`, `%`, `=`, `-` and `~` are drawn differently from the typeface.
+- The glyph is drawn with 3 pixels of room around its box and shrunk to the original size.
+- Inside the box it is compared with the original alpha. Ink outside the box counts as difference, since the box cuts it off.
+- The match runs from 0 to 100: 100 × (1 − difference / sum of both). It must reach 75.
+- At most 5% of the glyph's ink may fall outside the box.
+- A glyph that fails keeps the made pixels. The kept glyphs in the table fail one of these.
+- Outside the drawn boxes, the new picture must equal the made picture pixel for pixel. Else the whole picture stays as made.
 
 Options and runs:
 - `--no-font-redraw` puts the made 2x pictures back.
@@ -444,7 +444,8 @@ In the game, with full resolution:
 - The Pilot Login, the Pilot Roster, the mission book, the briefing, the message line in flight, Mission Info and the console in `system12` and `system` were compared against the 2x set.
 - Every text stood in the same place. The letters were sharp, and shapes that waifu2x had bent, such as `w` and `W`, were right.
 - The strokes look thinner than in the 2x set, though they carry the same amount of ink: the soft edge of the 2x letters made them look heavier.
-- The pictures are in `logs/shots/fonts-final/`.
+- The pictures are in `logs/shots/fonts-final/`. `11-clipped-glyphs-fixed.png` shows the accented capitals that the first version cut at the box edge.
+
 ### Menus and loading screens
 
 `tools/menu-pictures.json` lists the flat pictures the tool enlarges. `tools/menus.py` reads it.
@@ -748,6 +749,7 @@ Collected from the sections above.
 - `--deep-z`: only the first mission was compared.
 - `--scale 4` and the generative textures: longer missions.
 - Letters drawn from the fonts: the multiplayer screens, and `--font-times 2` in the game.
+- Sharper letters at 2x: `system8` (the console) and `aeroplane` (window titles) were seen in test runs but not compared. `digital_large` and `digital_small` were never loaded in a test run.
 - Redrawn labels: not yet looked at in the game.
 - `--join`: whether the Multiplayer screen lists the server.
 
