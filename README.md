@@ -139,6 +139,8 @@ If you move the game folder, run `./setup.sh` again and use the new app.
 **Start from any folder.** Setup may end with a command that starts with `ln -s`.
 Run it once. After that, `dogfighter` works in any Terminal folder.
 
+**How to play.** The menus, pickups, console, cheats, House Editor and multiplayer levels are in the [player's guide](docs/GUIDE.md).
+
 ### Best picture
 
 The game starts with the best picture by itself:
