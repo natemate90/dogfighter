@@ -218,18 +218,81 @@ It does that only when it makes a new key settings file. It never changes one yo
 | Esc | Menu |
 | Fn + F12 | Screenshot |
 
-A joystick is off by default. Turn it on in the game's Options.
-
-| Joystick button | Action |
-| --- | --- |
-| 1 | Fire primary weapon |
-| 2 | Fire secondary weapon |
-| 3 | Next weapon |
-| 4 | Rear view |
-| 5 | Change camera view |
-
 The House Editor and the Paint Room have their own keys.
 They are in sections 1.1 and 1.2 of `game/readme.txt`.
+
+## Controllers and joysticks
+
+Nobody has tried this with a real controller yet.
+What was checked without one is in [docs/TECHNICAL.md](docs/TECHNICAL.md), under Controls.
+
+These should work:
+- Xbox Wireless Controller (Series X|S, and Xbox One models with Bluetooth), over Bluetooth.
+- PlayStation DualShock 4 and DualSense, over Bluetooth or a USB cable.
+- Nintendo Switch Pro Controller.
+- USB and Bluetooth joysticks, and other gamepads macOS can see.
+
+Use Bluetooth for an Xbox controller. macOS may not see one on a USB cable.
+
+To set it up:
+1. Connect the controller before you start the game. Pair it in System Settings > Bluetooth, or plug it in.
+2. Run `./dogfighter --doctor`. Its last lines list the controllers the game can see.
+3. Start the game. In the main menu, click the books for Options.
+4. Turn on Joystick there. It is off by default.
+
+The game uses one controller: the first in that list.
+
+| Controller | Action |
+| --- | --- |
+| Left stick | Pitch and bank |
+| Right trigger (RT / R2) | More speed while you hold it |
+| Left trigger (LT / L2) | Less speed while you hold it |
+| A / Cross | Fire primary weapon |
+| B / Circle | Fire secondary weapon |
+| X / Square | Next weapon |
+| Y / Triangle | Rear view |
+| LB / L1 | Change camera view |
+
+- The stick should work like a flight stick: pull it down to climb.
+- With both triggers released the plane flies at half speed, once you have touched a trigger.
+- The right stick and the D-pad do nothing. The game does not read them.
+- The keyboard and the mouse keep working next to the controller.
+- On a joystick with a throttle lever, the lever sets the speed.
+
+**Other buttons.** The game's Options have a Key configuration screen.
+Nobody has checked yet whether it takes controller buttons.
+The sure way is the file `game/user.ini`. Quit the game first, then add or change a line like this:
+
+```
+bind jbutton5 "+thrustinc"
+```
+
+| Name in the file | Xbox | PlayStation |
+| --- | --- | --- |
+| `jbutton0` | A | Cross |
+| `jbutton1` | B | Circle |
+| `jbutton2` | X | Square |
+| `jbutton3` | Y | Triangle |
+| `jbutton4` | LB | L1 |
+| `jbutton5` | RB | R1 |
+| `jbutton6` | View | Create / Share |
+| `jbutton7` | Menu | Options |
+| `jbutton8` | Left stick click | L3 |
+| `jbutton9` | Right stick click | R3 |
+
+The actions are the words in quotes in that file, such as `+primattack`, `use next` or `pause_toggle`.
+
+**The Xbox, PS or Home button.** macOS uses it for itself.
+It can open Launchpad or the Games overlay. That puts another app in front of the game.
+Do not press it while you play.
+To turn it off, connect the controller and open System Settings > Game Controllers.
+
+**If the controller is not found:**
+- Run `./dogfighter --doctor`. It says `no controller found` when Wine sees none.
+- Check that macOS sees it: it is listed in System Settings > Game Controllers.
+- Quit the game, connect the controller, then start the game again.
+- Disconnect other controllers. The game only uses the first one.
+- If the plane steers by itself, the stick does not rest in the middle. Turn Joystick off in Options.
 
 ## Extra detail for walls and floors (optional)
 
@@ -330,6 +393,7 @@ Start with the self-check. It does not start the game:
 ```
 
 It checks the installation and prints a fix for each problem.
+It also lists the controllers the game can see.
 
 | Problem | What to do |
 | --- | --- |
@@ -340,6 +404,7 @@ It checks the installation and prints a fix for each problem.
 | The mouse is stuck in the window | Press Ctrl+Option. The game holds the mouse on purpose. |
 | The window cannot be dragged | Press Ctrl+Option first, then drag the title bar. |
 | The text is tiny | Make the window bigger. The picture grows with it. |
+| The controller does nothing | See "Controllers and joysticks" above. Joystick is off in the game's Options by default. |
 | No music | Check that the `music` folder holds ten `.ogg` files. If not, run `./setup.sh` again. |
 | The disc is not found | Delete the `cd` folder and run `./setup.sh` again. |
 | It says `focusfix.exe` or `focushook.dll` is missing | Run `./setup.sh` again. |

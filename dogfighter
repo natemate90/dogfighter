@@ -90,6 +90,8 @@ Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [-
                     the Multiplayer screen then lists the server.
   --doctor          Check the installation and print a fix for each problem.
                     Does not start the game. With --wine=NAME it checks that build.
+                    It also lists the game controllers Wine sees, and says
+                    whether joystick input is on in the game.
   --backup          Copy pilots, levels, photos, stickers and settings to a dated
                     zip file in backups/.
   --restore[=FILE]  Put a backup back: the newest one, or FILE. The current saves
@@ -381,6 +383,7 @@ RUNNING="$HERE/game/.dogfighter-running"
 FOCUSFIX_EXE="$HERE/build/focusfix.exe"
 FOCUSHOOK_DLL="$HERE/build/focushook.dll"
 WINDIAG_EXE="$HERE/build/windiag.exe"
+JOYLIST_EXE="$HERE/build/joylist.exe"
 CRASHLOG_DLL="$HERE/build/crashlog.dll"
 BACKUPS="$HERE/backups"
 SAVED="User user.ini system.ini"
@@ -388,6 +391,10 @@ SIZES="2560x1600 2560x1440 1920x1200 1920x1080 1680x1050 1600x1200 1600x900 1440
        1280x1024 1280x960 1280x800 1280x720 1024x768 800x600 640x480"
 
 export WINEPREFIX="$HERE/prefix$SUFFIX"
+# Wine reads controllers in a background process. Mach9's SDL reads an Xbox
+# controller through Apple's GameController, which gives input only to the
+# app in front unless this is set.
+export SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS=1
 if [ "$MODE" = stop ]; then
   if [ -x "$WINESERVER" ]; then "$WINESERVER" -k 2>/dev/null || true; fi
   if [ "$WINE_PICKED" = 1 ]; then
@@ -421,6 +428,13 @@ save_folders_ok() {
   done
 }
 
+user_get() {
+  [ -f "$USER_INI" ] || return 0
+  LC_ALL=C awk -v k="$1" '
+    { sub(/\r$/, "") }
+    $1 == "sets" && $2 == k { v = $3; gsub(/"/, "", v); print v; exit }' "$USER_INI"
+}
+
 CHECKS=0
 FAILED=0
 check() {
@@ -432,6 +446,33 @@ check() {
   else
     FAILED=$((FAILED + 1))
     echo "FAIL  $name. Fix: $fix"
+  fi
+}
+
+list_controllers() {
+  local lines line n=0
+  if [ ! -f "$JOYLIST_EXE" ] || [ ! -f "$WINEPREFIX/system.reg" ] || ! "$WINE" --version >/dev/null 2>&1; then
+    echo "      Controllers: not checked. That needs ./setup.sh and one start of the game."
+    return 0
+  fi
+  lines="$(WINEDEBUG=-all "$WINE" "$JOYLIST_EXE" 2>/dev/null | tr -d '\r' || true)"
+  if [ "$lines" = "no controller found" ]; then
+    echo "      Controllers: no controller found. Connect one, then run this again."
+    return 0
+  fi
+  while IFS= read -r line; do
+    [[ "$line" == "controller "* ]] || continue
+    n=$((n + 1))
+    if [ "$n" = 1 ]; then
+      echo "      Controller 1: ${line#controller 1: }. The game uses this one."
+    else
+      echo "      Controller $n: ${line#controller $n: }. Not used: the game takes the first one."
+    fi
+  done <<<"$lines"
+  if [ "$n" = 0 ]; then
+    echo "      Controllers: not checked. Wine's DirectInput gave no answer."
+  elif [ "$(user_get option_joystick)" != true ]; then
+    echo "      Joystick input is off in the game. Turn on Joystick in the game's Options, behind the books in the main menu."
   fi
 }
 
@@ -457,10 +498,11 @@ doctor() {
   check "Ten music tracks in music/" "./setup.sh" has_files "$HERE/music" "${tracks[@]}"
   check "Music player (game/winmm.dll, game/Music)" "./setup.sh" \
     has_files "$HERE/game" winmm.dll Music/Track02.ogg
-  check "Helper is built in build/" "./setup.sh" has_files "$HERE/build" focusfix.exe focushook.dll
+  check "Helper is built in build/" "./setup.sh" has_files "$HERE/build" focusfix.exe focushook.dll joylist.exe
   check "Helper is newer than its source" \
     "delete build/focusfix.exe and build/focushook.dll, then ./setup.sh" helper_fresh
   check "Save folders in game/User" "./setup.sh" save_folders_ok
+  list_controllers
   if [ "$FAILED" = 0 ]; then
     if [ "$WINE_PICKED" = 1 ]; then
       echo "All $CHECKS checks passed. Start the game with: ./dogfighter"
@@ -643,13 +685,6 @@ ini_drop_section() {
     line ~ /^\[/ { in_s = (line == s) }
     !in_s { print }' "$1" >"$tmp"
   mv "$tmp" "$1"
-}
-
-user_get() {
-  [ -f "$USER_INI" ] || return 0
-  LC_ALL=C awk -v k="$1" '
-    { sub(/\r$/, "") }
-    $1 == "sets" && $2 == k { v = $3; gsub(/"/, "", v); print v; exit }' "$USER_INI"
 }
 
 user_set() {

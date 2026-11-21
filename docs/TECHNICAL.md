@@ -629,8 +629,11 @@ It checks these things.
 - With `--wine=mach9` or `--wine=stable` it checks that build.
 - macOS does not hold Wine in quarantine.
 - The game files, the CD label and the ten music tracks are in place.
-- The helper is built and newer than its source.
+- The helper and the controller lister `build/joylist.exe` are built, and the helper is newer than its source.
 - The save folders in `game/User` exist.
+
+After the checks it lists the controllers the game can see, or says `no controller found`.
+It also says when Joystick is off in the game's Options. Neither counts as a failed check.
 
 ## Online multiplayer
 
@@ -656,6 +659,52 @@ If it does not, type the address into the Address book in the game.
 The key table in the README holds the defaults from `game/user.ini` and `game/readme.txt`.
 Setup adds `x` for "next weapon" to a new `game/user.ini`, because MacBooks have no keypad.
 An existing `game/user.ini` is never changed.
+
+### Controllers
+
+Nobody has tried a real controller yet. This section says what was read and what was run.
+
+How a controller reaches the game, in both Wine builds:
+- Wine's driver `winebus.sys` reads controllers in two ways at once: through the SDL library, and through macOS IOHID (the raw reports of the device).
+- Each controller is kept from one of the two. Wine's rule picks SDL for gamepads and raw reports for a short list of devices.
+- A gamepad that SDL knows becomes a standard pad. `winexinput.sys` then shows it to DirectInput as Windows shows an Xbox pad.
+- That pad has X and Y (left stick), Rx and Ry (right stick), one Z axis for both triggers, a hat and 10 buttons.
+- Any other joystick from SDL keeps its own axes, numbered in order: X, Y, Z, Rx, Ry, Rz.
+- The game asks DirectInput for joysticks and gets them.
+
+The Rosetta Wine loads SDL 2.32 from `wine/lib`. Mach9 loads SDL 3.4 from `wine-mach9/wine/lib/external`, through the sdl2-compat layer.
+Read in `dlls/winebus.sys` and `dlls/winexinput.sys` of Wine 11.0 and of Mach9's Wine at commit `501796b0ed`.
+
+What the launcher sets:
+- `dogfighter.reg` adds `Hidraw`=0 under `HKLM\System\CurrentControlSet\Services\winebus\Devices\054C` and `...\057E`. Those are Sony and Nintendo.
+- Without it Wine reads a DualShock 4 or DualSense raw. The game's throttle axis Z is then the right stick, left and right.
+- With it they go through SDL and behave like an Xbox pad.
+- The launcher exports `SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS=1`. Wine reads controllers in `winedevice.exe`, which is never the app in front. Mach9's SDL can read a pad through Apple's GameController, and that only serves the app in front unless this is set.
+- Wine's own settings stay at their defaults: `Enable SDL` 1, `Map Controllers` 1, `DisableHidraw` 0.
+
+How the game reads a joystick, from the code of `Dogfighter.exe`:
+- It only reads one when `option_joystick` in `game/user.ini` is true. Options in the game sets that.
+- At start it takes the first joystick DirectInput lists (`EnumDevices`, `DIDEVTYPE_JOYSTICK`, attached only). So connect before starting.
+- It asks for a range of 0 to 10000 on X, Y and Z. If there is no Z axis it takes the first slider.
+- X is bank and Y is pitch. Moves under 8% of the way count as the middle.
+- Z or the slider is the throttle, as a position: the lowest value is full throttle.
+- With the pad from `winexinput.sys`, Z rests in the middle. The right trigger lowers it and the left trigger raises it.
+- The game sends a throttle only when the axis has moved. So the keys `d` and `c` keep working until a trigger is touched.
+- It reads 32 buttons as `jbutton0` to `jbutton31`. A `bind jbuttonN "action"` line in `game/user.ini` sets one.
+- It reads Rx, Ry and Rz but does nothing with them. It does not read the hat.
+
+`./dogfighter --doctor` runs `build/joylist.exe` in Wine. It asks DirectInput the way the game does and prints each joystick with its axes and buttons.
+Wine adds a controller a moment after its first program starts. So the tool asks again for up to five seconds before it says `no controller found`.
+
+What was run, on an M4 Max with no controller connected:
+- Both builds start the SDL and the IOHID reader and read the two `Hidraw` settings. `--debug=+hid` shows it: `run-20261121-021428.log` (Mach9) and `run-20261121-021558.log` (Rosetta Wine).
+- `--doctor` prints `no controller found` on both builds.
+- Keyboard and mouse still reach the game in a flight on both builds. An F12 press and a click bound to `screenshot` each made a screenshot.
+
+Not done for controllers:
+- macOS has no way to make a pretend controller without installing a driver. So no input from a controller was ever seen.
+- A joystick without force feedback goes through SDL on both builds. If its throttle is not its third axis, the game reads the wrong one. Setting `Hidraw`=1 under `...\winebus\Devices\VVVV/PPPP` (its vendor and product id, in hex) makes Wine read it raw.
+- The launcher does not turn off the macOS shortcut on the Home, PS or Xbox button. That is a setting of the whole Mac.
 
 ## Troubleshooting
 
@@ -693,7 +742,7 @@ An existing `game/user.ini` is never changed.
 | `--debug=CHANNELS` | Write Wine debug channels to the log, e.g. `--debug=+seh`. |
 | `--diag` | Write the game's windows, display mode and cursor state to the log. |
 | `--winecfg` | Open Wine's settings for this game instead of playing. |
-| `--doctor` | Check the installation and print a fix for each problem. |
+| `--doctor` | Check the installation and print a fix for each problem. Lists the controllers the game can see. |
 | `--backup` | Copy saves and settings to a dated zip file in `backups/`. |
 | `--restore[=FILE]` | Put a backup back: the newest one, or `FILE`. |
 
@@ -752,6 +801,7 @@ Collected from the sections above.
 - Sharper letters at 2x: `system8` (the console) and `aeroplane` (window titles) were seen in test runs but not compared. `digital_large` and `digital_small` were never loaded in a test run.
 - Redrawn labels: not yet looked at in the game.
 - `--join`: whether the Multiplayer screen lists the server.
+- Controllers: none was ever connected. Open points are whether the game gets its input, the direction of pitch, the triggers as throttle, Xbox over USB, and whether the Key configuration screen takes controller buttons.
 
 ## Legal
 
