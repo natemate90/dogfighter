@@ -292,8 +292,7 @@ make_hd_textures() {
     step "Larger textures"
     echo "hd-textures/ holds a complete set. It is kept; missing menu pictures are added and its labels, letters and desk are redrawn."
     python3 -I "$tool" --menus-only || echo "The menu pictures could not be made. The game uses its own."
-    python3 -I "$tool" --fetch-fonts
-    python3 -I "$tool" --fetch-desk
+    python3 -I "$tool" --fetch-fonts --fetch-desk
     python3 -I "$tool" --lettering-only || echo "The labels, letters and desk could not be redrawn. The set stays as it was."
     [ -n "$GENERATIVE" ] || return 0
     python3 -I "$tool" --fetch-tools --generative

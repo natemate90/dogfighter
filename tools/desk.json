@@ -64,32 +64,7 @@
    "what": "Humbrol \"The Colour System\" binder of about 1997, cover with a drawn Super Enamel tin; eBay UK listing 188899593421"
   }
  },
- "fonts": {
-  "oswald": {
-   "file": "Oswald[wght].ttf",
-   "folder": "oswald",
-   "url": "https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/oswald/Oswald%5Bwght%5D.ttf",
-   "sha256": "5b38c246e255a12f5712d640d56bcced0472466fc68983d2d0410ec0457c2817",
-   "licence": {
-    "name": "SIL Open Font License 1.1",
-    "file": "OFL.txt",
-    "url": "https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/oswald/OFL.txt",
-    "sha256": "0fd731a904b729a4e02eaf5e8ebd06783edd9abe400e8882760160230675b652"
-   }
-  },
-  "arial": {
-   "system": "/System/Library/Fonts/Supplemental/Arial.ttf",
-   "sha256": "525979822591a3447cfc49d943d6f7683508e25543407871c0ed8fed05fd2bd9"
-  },
-  "arial-bold": {
-   "system": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-   "sha256": "d72db21f9242aedd6b917d8549ad5921766b24d5f8d0becfda2ff4c620b3c2e0"
-  },
-  "arial-black": {
-   "system": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
-   "sha256": "7d7db3ad96a31373c1437c6ab14266f6605495544c8e663558b047521174c42e"
-  }
- },
+ "fonts": ["Oswald[wght].ttf", "Arial.ttf", "Arial Bold.ttf", "Arial Black.ttf"],
  "faces": [
   {
    "name": "lowleft-q-side",
@@ -150,7 +125,7 @@
  "colour_fit": {"hi": 93, "lo": 7, "lo_mix": 0.5, "gain": [0.6, 1.25], "shade": 1.0},
  "soften": 0.55,
  "feather": [0.6, 0.9],
- "title": {"font": "oswald", "yellow": [247, 200, 20], "outline": [60, 50, 30]},
+ "title": {"font": "Oswald[wght].ttf", "yellow": [247, 200, 20], "outline": [60, 50, 30]},
  "fiat_lid": {
   "reference": "fiat-01046-lid",
   "quad": [[0, 20], [1584, 46], [1592, 1140], [0, 1155]],
@@ -170,8 +145,8 @@
    "title_width": 330,
    "line1": [78, 28],
    "line2": [70, 104],
-   "words": {"font": "arial", "size": 17, "top": 200, "step": 20, "colour": [40, 40, 40]},
-   "number": {"font": "arial", "size": 22, "at": [105, 214], "colour": [40, 40, 40]}
+   "words": {"font": "Arial.ttf", "size": 17, "top": 200, "step": 20, "colour": [40, 40, 40]},
+   "number": {"font": "Arial.ttf", "size": 22, "at": [105, 214], "colour": [40, 40, 40]}
   },
   "kits": {
    "me262": {
@@ -214,8 +189,8 @@
   "size": [1520, 290],
   "clear": [272, 4, 1228, 286],
   "layout": {
-   "title": {"font": "arial-black", "size": 74, "width": 450, "at": [285, 42]},
-   "words": {"font": "arial-bold", "size": 25, "left": 305, "top": 128, "step": 31, "colour": [35, 35, 35]},
+   "title": {"font": "Arial Black.ttf", "size": 74, "width": 450, "at": [285, 42]},
+   "words": {"font": "Arial Bold.ttf", "size": 25, "left": 305, "top": 128, "step": 31, "colour": [35, 35, 35]},
    "painting_blur": 14
   },
   "kits": {
@@ -247,8 +222,8 @@
    "title_squeeze": 0.8,
    "title_right": 1026,
    "title_top": 18,
-   "series": {"font": "arial-bold", "size": 30, "colour": [245, 245, 245]},
-   "number": {"font": "arial-bold", "size": 34, "colour": [240, 240, 240]}
+   "series": {"font": "Arial Bold.ttf", "size": 30, "colour": [245, 245, 245]},
+   "number": {"font": "Arial Bold.ttf", "size": 34, "colour": [240, 240, 240]}
   },
   "kits": {
    "spitfire9": {

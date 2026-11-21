@@ -117,7 +117,8 @@ The desk: the model kit boxes and paint tins on the main menu's desk are
 drawn again over the made 4x pictures from photos of real boxes and tins, by
 tools/desk.py and tools/desk-draw.py with the numbers in tools/desk.json. The
 photos are pinned by URL and SHA-256; --fetch-tools or --fetch-desk downloads
-them, with numpy and Pillow in a Python environment of its own. Without them
+them and the lettering fonts, with numpy and Pillow in a Python environment
+of its own. Without them
 the desk stays as made. The manifest lists such a piece with way "desk".
 --no-desk leaves the desk as made. --menus-only and --lettering-only draw it
 too.
@@ -216,6 +217,14 @@ GENERATIVE_MODELS = {
 }
 CN_TILE_PICKLE = ("diffusion_pytorch_model.bin", "eb05b4c3665bd76dad70a90652014a9b3aab391abd8a5bb484e860330f9492fb")
 GENERATIVE_PYTHON = (3, 12)
+PINNED_PACKAGES = """import sys
+from pip._vendor.packaging.requirements import Requirement
+for line in open(sys.argv[1]):
+    if line.strip() and not line.startswith("#"):
+        wanted = Requirement(line.strip())
+        if wanted.marker is None or wanted.marker.evaluate():
+            print(wanted.name + str(wanted.specifier))
+"""
 
 ARCHIVES = (
     {
@@ -257,19 +266,11 @@ PINNED = {
 }
 
 
-def sha256_of(path):
-    digest = hashlib.sha256()
-    with open(path, "rb") as f:
-        for block in iter(lambda: f.read(1 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
 def tool_checksums(tools):
     found = {}
     for name in PINNED:
         path = os.path.join(tools, *name.split("/"))
-        found[name] = sha256_of(path) if os.path.isfile(path) else None
+        found[name] = up.sha256_of(path) if os.path.isfile(path) else None
     return found
 
 
@@ -279,13 +280,13 @@ def fetch_tools(root, tools):
     os.makedirs(downloads, exist_ok=True)
     for archive in ARCHIVES:
         path = os.path.join(downloads, archive["file"])
-        if not (os.path.isfile(path) and sha256_of(path) == archive["sha256"]):
+        if not (os.path.isfile(path) and up.sha256_of(path) == archive["sha256"]):
             print("Downloading " + archive["file"])
             part = path + ".part"
             done = subprocess.run(["/usr/bin/curl", "-fL", "--retry", "3", "--progress-bar", "-o", part, archive["url"]])
             if done.returncode:
                 sys.exit("Download failed: " + archive["url"])
-            if sha256_of(part) != archive["sha256"]:
+            if up.sha256_of(part) != archive["sha256"]:
                 os.remove(part)
                 sys.exit("%s does not match its pinned SHA-256 checksum. Nothing was unpacked." % archive["file"])
             os.replace(part, path)
@@ -330,7 +331,7 @@ def lettering_fonts(tools):
     found = {}
     for name, font in lettering.load_spec()["fonts"].items():
         path = font["system"] if "system" in font else os.path.join(tools, "fonts", font["folder"], name)
-        digest = sha256_of(path) if os.path.isfile(path) else None
+        digest = up.sha256_of(path) if os.path.isfile(path) else None
         if digest is None:
             why = "font %s is not on this Mac" % name if "system" in font else "font %s is missing; --fetch-fonts fetches it" % name
             found[name] = (None, None, why)
@@ -354,17 +355,17 @@ def generative_stack(tools, log):
 def check_generative_models(setup):
     """Refuses the generative way for this run when a model file is not the pinned one."""
     stack = setup["generative_stack"]
-    wrong = [name for name, digest in GENERATIVE_MODELS.items() if sha256_of(os.path.join(stack["models"], *name.split("/"))) != digest]
+    wrong = [name for name, digest in GENERATIVE_MODELS.items() if up.sha256_of(os.path.join(stack["models"], *name.split("/"))) != digest]
     if wrong and not setup["allow_other_tools"]:
         stack["refused"] = "model files differ from the pinned ones: " + ", ".join(wrong)
         print("The generative way is off for this run: %s. Fetch them again with --fetch-tools --generative." % stack["refused"])
 
 
-def generative_python():
-    """A Python of at least GENERATIVE_PYTHON: the one running this tool, else one from Homebrew or python.org."""
-    if sys.version_info[:2] >= GENERATIVE_PYTHON:
+def python_between(oldest, newest):
+    """A Python from oldest to newest (None: no limit): the one running this tool, else one from Homebrew or python.org."""
+    if oldest <= sys.version_info[:2] and (newest is None or sys.version_info[:2] <= newest):
         return sys.executable
-    for minor in range(20, GENERATIVE_PYTHON[1] - 1, -1):
+    for minor in range((newest or (3, 20))[1], oldest[1] - 1, -1):
         name = "python3.%d" % minor
         for found in (shutil.which(name), "/opt/homebrew/bin/" + name, "/usr/local/bin/" + name,
                       "/Library/Frameworks/Python.framework/Versions/3.%d/bin/%s" % (minor, name)):
@@ -373,16 +374,44 @@ def generative_python():
     return None
 
 
+def python_env(folder, requirements, oldest, newest=None):
+    """Makes folder/venv hold exactly the pinned wheels of requirements, with a Python from oldest to newest, and returns its python.
+
+    A venv whose Python is outside that range is made again: pip finds no
+    wheels for a newer Python and may not build them. pip install runs only
+    when pip freeze differs from the requirements, whose markers are
+    evaluated by the venv's own Python.
+    """
+    venv = os.path.join(folder, "venv")
+    python = os.path.join(venv, "bin", "python")
+    fits = "import sys; sys.exit(not %r <= sys.version_info[:2]%s)" % (oldest, "" if newest is None else " <= %r" % (newest,))
+    if not (os.access(python, os.X_OK) and subprocess.run([python, "-I", "-c", fits]).returncode == 0):
+        base = python_between(oldest, newest)
+        if not base:
+            sys.exit("%s needs Python %d.%d%s. Install one, for example with 'brew install python@3.13', then run this again."
+                     % (folder, oldest[0], oldest[1], " or later" if newest is None else " to %d.%d" % newest))
+        print("Making a Python environment in %s with %s" % (venv, base))
+        subprocess.run([base, "-m", "venv", "--clear", venv], check=True)
+    env = dict(os.environ, PIP_CACHE_DIR=os.path.join(folder, "cache", "pip"), PIP_DISABLE_PIP_VERSION_CHECK="1")
+    wanted = subprocess.run([python, "-I", "-c", PINNED_PACKAGES, requirements], capture_output=True, text=True, check=True).stdout
+    have = subprocess.run([python, "-I", "-m", "pip", "freeze"], env=env, capture_output=True, text=True).stdout
+    if sorted(line.strip().lower() for line in have.splitlines() if line.strip()) != sorted(line.lower() for line in wanted.split()):
+        subprocess.run([python, "-I", "-m", "pip", "install", "--only-binary", ":all:", "--no-deps", "-r", requirements],
+                       env=env, check=True)
+        subprocess.run([python, "-I", "-m", "pip", "check"], env=env, check=True)
+    return python
+
+
 def download(url, target, digest):
     """Fetches url to target unless a file with that checksum is there. Stops the tool on a wrong checksum."""
-    if os.path.isfile(target) and sha256_of(target) == digest:
+    if os.path.isfile(target) and up.sha256_of(target) == digest:
         return
     os.makedirs(os.path.dirname(target), exist_ok=True)
     print("Downloading " + url)
     part = target + ".part"
     if subprocess.run(["/usr/bin/curl", "-fL", "--retry", "3", "--progress-bar", "-C", "-", "-o", part, url]).returncode:
         sys.exit("Download failed: " + url)
-    if sha256_of(part) != digest:
+    if up.sha256_of(part) != digest:
         os.remove(part)
         sys.exit("%s does not match its pinned SHA-256 checksum. It was deleted." % url)
     os.replace(part, target)
@@ -396,30 +425,13 @@ def fetch_generative(tools):
     """
     folder = os.path.join(tools, GENERATIVE)
     models = os.path.join(folder, "models")
-    venv = os.path.join(folder, "venv")
-    python = os.path.join(venv, "bin", "python")
-    requirements = os.path.join(HERE, "generative-requirements.txt")
     if shutil.disk_usage(tools if os.path.isdir(tools) else os.path.dirname(tools)).free < 9e9 and not generative_stack(tools, ""):
         sys.exit("The generative way needs about 9 GB of free disk space while it is set up, 6.6 GB after.")
-    if not os.access(python, os.X_OK):
-        base = generative_python()
-        if not base:
-            sys.exit("The generative way needs Python %d.%d or later; the Xcode Command Line Tools have 3.9. "
-                     "Install one, for example with 'brew install python', then run this again." % GENERATIVE_PYTHON)
-        print("Making a Python environment in %s with %s" % (venv, base))
-        subprocess.run([base, "-m", "venv", venv], check=True)
-    env = dict(os.environ, PIP_CACHE_DIR=os.path.join(folder, "cache", "pip"), PIP_DISABLE_PIP_VERSION_CHECK="1")
-    with open(requirements) as f:
-        wanted = sorted(line.strip().lower() for line in f if line.strip() and not line.startswith("#"))
-    have = subprocess.run([python, "-I", "-m", "pip", "freeze"], env=env, capture_output=True, text=True).stdout
-    if sorted(line.strip().lower() for line in have.splitlines() if line.strip()) != wanted:
-        subprocess.run([python, "-I", "-m", "pip", "install", "--only-binary", ":all:", "--no-deps", "-r", requirements],
-                       env=env, check=True)
-        subprocess.run([python, "-I", "-m", "pip", "check"], env=env, check=True)
+    python = python_env(folder, os.path.join(HERE, "generative-requirements.txt"), GENERATIVE_PYTHON)
     for name, digest in GENERATIVE_MODELS.items():
         target = os.path.join(models, *name.split("/"))
         if name.endswith("diffusion_pytorch_model.safetensors"):
-            if os.path.isfile(target) and sha256_of(target) == digest:
+            if os.path.isfile(target) and up.sha256_of(target) == digest:
                 continue
             pickle = os.path.join(os.path.dirname(target), CN_TILE_PICKLE[0])
             download(CN_TILE + CN_TILE_PICKLE[0], pickle, CN_TILE_PICKLE[1])
@@ -427,7 +439,7 @@ def fetch_generative(tools):
             subprocess.run([python, "-I", "-c", "import sys, torch, safetensors.torch as st; "
                             "st.save_file(torch.load(sys.argv[1], map_location='cpu', weights_only=True), sys.argv[2])",
                             pickle, target + ".part"], check=True)
-            if sha256_of(target + ".part") != digest:
+            if up.sha256_of(target + ".part") != digest:
                 os.remove(target + ".part")
                 sys.exit("The converted tile ControlNet does not match its pinned checksum. The pickle is kept in " + pickle)
             os.replace(target + ".part", target)
@@ -967,7 +979,8 @@ def main():
     parser.add_argument("--no-desk", action="store_true",
                         help="leave the kit boxes and paint tins of the main menu's desk as made instead of drawing them from photos")
     parser.add_argument("--fetch-desk", action="store_true",
-                        help="download the desk's pinned photos and set up its Python packages in upscale-tools/desk/, then stop")
+                        help="download the lettering fonts and the desk's pinned photos and set up its Python packages in "
+                             "upscale-tools/desk/, then stop")
     parser.add_argument("--no-menus", action="store_true",
                         help="leave the menus, the loading screens and the HUD as the game has them")
     parser.add_argument("--menus-only", action="store_true",
@@ -988,10 +1001,10 @@ def main():
     if args.check:
         sys.exit(0 if set_complete(args.out) else 1)
 
-    if args.fetch_fonts or args.fetch_tools:
+    if args.fetch_fonts or args.fetch_desk or args.fetch_tools:
         fetch_fonts(tools)
     if args.fetch_desk or args.fetch_tools:
-        desk.fetch(tools, download)
+        desk.fetch(tools, download, python_env)
     if args.fetch_fonts or args.fetch_desk:
         return
     if args.fetch_tools:
@@ -1184,7 +1197,7 @@ def where(setup, record):
     """The file of a generated texture: just made, set aside for an override, or in the set."""
     for folder in (os.path.join(setup["work"], "cache"), os.path.join(setup["out"], ASIDE), os.path.join(setup["out"], "cache")):
         path = os.path.join(folder, *up.safe_parts(record["path"]))
-        if os.path.isfile(path) and sha256_of(path) == record["file_sha256"]:
+        if os.path.isfile(path) and up.sha256_of(path) == record["file_sha256"]:
             return path
     return None
 
@@ -1352,7 +1365,8 @@ def draw_desk(args, setup, sources, records, old, skip):
         record = records[path]
         file = where(setup, record) if record["way"] != "none" else None
         return (file, record["file_sha256"]) if file else None
-    return desk.draw({entry.path: data for _, entry, data in sources}, made_of, args.tools, setup["work"], setup["out"], old, skip)
+    return desk.draw({entry.path: data for _, entry, data in sources}, made_of, lettering_fonts(args.tools), args.tools, setup["work"],
+                     setup["out"], old, skip)
 
 
 def plain_picture(setup, data, scale, tiles):
@@ -1429,7 +1443,7 @@ def settle(args, setup, settings, key, sources, records, run, old):
         if record["way"] in REPLACING:
             if source and source != kept:
                 put(source, kept)
-            if not (os.path.isfile(target) and sha256_of(target) == record["file_sha256"]):
+            if not (os.path.isfile(target) and up.sha256_of(target) == record["file_sha256"]):
                 put(replacing[record["path"]][0], target)
                 changed += 1
         else:
