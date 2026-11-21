@@ -14,11 +14,12 @@ tools/fonts.json
           SHA-256. It is only read to draw pixels.
   tables  per font table: the typeface and its face (the index in a .ttc),
           size (em in original pixels), stretch and weight (original pixels
-          added around each stroke), fitted once for the whole font; the
+          added around each stroke) for the whole font; the
           pictures it covers with the SHA-256 of the game's own picture;
     glyphs  one row per box: picture, x, y, width, height, the character
             drawn, the left edge of its ink and its baseline in the box (in
-            original pixels), and the score of the fit.
+            original pixels), its size (the font's, or smaller where the
+            game's glyph is smaller) and its match when the values were set.
     kept    one row per box that keeps the made picture's pixels, with why.
   Where several characters of a table share a box, the one that fits best is
   drawn. The game's own mappings stay: system draws Y where its table
@@ -29,15 +30,18 @@ one the original picture gives that alpha, so a font whose colour follows its
 alpha keeps doing so.
 
 Checks, for each drawn glyph:
-  match    the box shrunk to the original size (the mean of each block)
-           against the original alpha, as 100 * (1 - sum|new - old| /
-           sum(new + old)): at least LIMIT. Else the box keeps the made
-           pixels. The drawn glyphs score 75.7 to 99.7, middle 91 to 95;
-           the same glyphs moved by one pixel score 11 to 90, middle 51 to
-           56, and drawn 15% smaller, middle 56 to 60.
-  outside  pixels changed outside the drawn boxes: must be 0.
+  match    the glyph is drawn with MARGIN original pixels around its box
+           and shrunk to the original size (the mean of each block). Inside
+           the box it is compared with the original alpha; all ink outside
+           the box counts as difference, since the box cuts it off. The
+           match is 100 * (1 - difference / (new ink + old ink)), and must
+           be at least LIMIT. At most OUTSIDE of the glyph's ink may fall
+           outside the box. Else the box keeps the made pixels.
+  outside  pixels of the new picture that differ from the made picture
+           outside the drawn boxes: must be 0.
 A picture is left as made when the game's picture is not the listed one, the
-typeface is missing (one line per font says so) or the helper fails.
+typeface is missing (one line per font says so), the helper fails or the
+outside check fails.
 
 The glyphs are drawn by tools/lettering-draw.c with its cover job.
 """
@@ -55,7 +59,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 SPEC = os.path.join(HERE, "fonts.json")
 WAY = "font"
 LIMIT = 75.0
+OUTSIDE = 0.05
 TIMES = 4
+MARGIN = 3
 
 
 def load_spec():
@@ -126,16 +132,23 @@ def enlarged(rgba, width, height, times):
 
 
 def match(alpha, original, width, x, y, w, h, times):
-    """The drawn box shrunk to the original size against the original alpha, 100 being the same."""
-    differ = total = 0
-    for by in range(h):
-        for bx in range(w):
-            block = sum(alpha[(by * times + j) * w * times + bx * times + i] for j in range(times) for i in range(times))
+    """The glyph, drawn with MARGIN around its box and shrunk to the original size, against the original alpha; 100 is the same.
+
+    Also returns the share of the glyph's ink that falls outside the box.
+    """
+    side = (w + 2 * MARGIN) * times
+    differ = total = spilt = ink = 0.0
+    for by in range(-MARGIN, h + MARGIN):
+        for bx in range(-MARGIN, w + MARGIN):
+            block = sum(alpha[((by + MARGIN) * times + j) * side + (bx + MARGIN) * times + i] for j in range(times) for i in range(times))
             new = block / (times * times * 255.0)
-            old = original[((y + by) * width + x + bx) * 4 + 3] / 255.0
+            inside = 0 <= by < h and 0 <= bx < w
+            old = original[((y + by) * width + x + bx) * 4 + 3] / 255.0 if inside else 0.0
             differ += abs(new - old)
             total += new + old
-    return round(100 * (1 - differ / total), 2) if total else 0.0
+            ink += new
+            spilt += 0.0 if inside else new
+    return (round(100 * (1 - differ / total), 2) if total else 0.0), (spilt / ink if ink else 1.0)
 
 
 def draw(items, work, times=TIMES):
@@ -179,9 +192,9 @@ def draw(items, work, times=TIMES):
         rows = [row for row in table["glyphs"] if row[0] == picture]
         stem = os.path.join(folder, "%02d" % number)
         fields = []
-        for at, (_, x, y, w, h, char, left, base, _) in enumerate(rows):
-            fields += ["cover", w, h, times, "%s-%03d" % (stem, at), 0, font, table["face"], char, table["size"],
-                       table["stretch"], table["weight"], left, base, 0, 0, 0]
+        for at, (_, x, y, w, h, char, left, base, size, _) in enumerate(rows):
+            fields += ["cover", w + 2 * MARGIN, h + 2 * MARGIN, times, "%s-%03d" % (stem, at), 0, font, table["face"], char, size,
+                       table["stretch"], table["weight"], left + MARGIN, base + MARGIN, 0, 0, 0]
         said = subprocess.run([helper], input=b"".join(os.fsencode(str(field)) + b"\0" for field in fields),
                               stdout=subprocess.PIPE).stdout.decode().splitlines()
         if len(said) != len(rows) or any(not line.startswith("ok") for line in said):
@@ -191,26 +204,37 @@ def draw(items, work, times=TIMES):
         base_rgba = enlarged(made_rgba, made_w, made_h, times // made_times)
         drawn = bytearray(base_rgba)
         palette = colours(original_rgba)
-        inked = {}
+        inked, placed = {}, []
         kept = [{"char": row[5], "box": row[1:5], "why": row[6]} for row in table["kept"] if row[0] == picture]
         scores = []
-        for at, (_, x, y, w, h, char, _, _, _) in enumerate(rows):
+        for at, (_, x, y, w, h, char, _, _, _, _) in enumerate(rows):
+            if x < 0 or y < 0 or x + w > width or y + h > height:
+                kept.append({"char": char, "box": [x, y, w, h], "why": "the box runs past the picture"})
+                continue
+            side = (w + 2 * MARGIN) * times
             with open("%s-%03d" % (stem, at), "rb") as f:
-                cover = struct.unpack("<%df" % (w * h * times * times), f.read())
+                cover = struct.unpack("<%df" % (side * (h + 2 * MARGIN) * times), f.read())
             alpha = bytes(min(255, max(0, int(value * 255 + 0.5))) for value in cover)
-            score = match(alpha, original_rgba, width, x, y, w, h, times)
-            if score < LIMIT:
-                kept.append({"char": char, "box": [x, y, w, h], "why": "match %.1f is under %.1f" % (score, LIMIT)})
+            score, spilt = match(alpha, original_rgba, width, x, y, w, h, times)
+            if score < LIMIT or spilt > OUTSIDE:
+                why = "match %.1f is under %.1f" % (score, LIMIT) if score < LIMIT else "%.0f%% of its ink falls outside the box" % (100 * spilt)
+                kept.append({"char": char, "box": [x, y, w, h], "why": why})
                 continue
             scores.append(score)
+            placed.append((x, y, w, h))
             for by in range(h * times):
                 for bx in range(w * times):
                     pixel = (y * times + by) * big_w + x * times + bx
-                    value = max(alpha[by * w * times + bx], inked.get(pixel, 0))
+                    value = max(alpha[(by + MARGIN * times) * side + bx + MARGIN * times], inked.get(pixel, 0))
                     inked[pixel] = value
                     drawn[pixel * 4:pixel * 4 + 4] = palette[value] + bytes([value])
+        boxed = bytearray(big_w * big_h)
+        for x, y, w, h in placed:
+            for line in range(max(0, y * times), min(big_h, (y + h) * times)):
+                start, end = line * big_w + max(0, x * times), line * big_w + min(big_w, (x + w) * times)
+                boxed[start:end] = b"\1" * (end - start)
         outside = sum(1 for pixel in range(big_w * big_h)
-                      if pixel not in inked and drawn[pixel * 4:pixel * 4 + 4] != base_rgba[pixel * 4:pixel * 4 + 4])
+                      if not boxed[pixel] and drawn[pixel * 4:pixel * 4 + 4] != base_rgba[pixel * 4:pixel * 4 + 4])
         if outside:
             print("  font picture left as made: %s (%d pixels changed outside the drawn boxes)" % (path, outside))
             continue

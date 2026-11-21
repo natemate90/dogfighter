@@ -145,7 +145,7 @@ The game starts with the best picture by itself:
 - The 3D picture uses every pixel of your Retina screen. The edges of 3D shapes are drawn sharp, not stretched.
 - Text, menus and the gauges in flight keep their normal size.
 - The textures of the 3D world have twice the pixels.
-- The letters of the menus, the briefings, the messages in flight and the console are drawn again from the Mac's own matching fonts, with four times the pixels, so they look sharp.
+- The letters of the Pilot Login, the Pilot Roster, Mission Info, the message line in flight, the mission book and the briefing are drawn again from the Mac's own matching fonts, with four times the pixels, so they look sharp. The other letters have twice the pixels.
 - The main menu, the loading screens, the mission books, the briefing, the medals, the pilot photos and the pictures of planes and weapons have four times the pixels.
 - Window frames, buttons and the mouse arrow have twice the pixels.
 - The gauges in flight have four times the pixels. Their labels, such as FUEL and SPEED, are redrawn with a matching font.
