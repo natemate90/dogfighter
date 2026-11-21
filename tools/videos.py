@@ -22,8 +22,11 @@ video with 22 kHz PCM sound. tools/videos.json says what is made of each:
   cuts         how a cut between shots is found (see tools/videos-make.py).
   interpolate  the RIFE model that makes the frames between, 15 to 60.
   encode       x265 10-bit in a .mov, with the game's sound unchanged.
-  memory       percent free under which no shot starts, and under which the
-               run stops.
+  memory       the macOS memory pressure at which no chunk starts (stop_level,
+               waited out for up to wait_s), the one that stops the run when
+               it lasts abort_after_s (abort_level), the most swap used
+               (abort_swap_gb), and the percent free that holds instead when
+               the pressure cannot be read (stop_free, abort_free).
   seedvr2, models, rife
                the pinned downloads: URL, SHA-256 and licence. --fetch-videos
                fetches them (about 9.8 GB), the texture tool's upscalers, and
