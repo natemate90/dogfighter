@@ -283,6 +283,12 @@ build_helpers() {
     "$HERE/tools/build-focusfix.sh" "$TOOLCHAIN"
     break
   done
+  if [ ! "$HERE/build/intro-player" -nt "$HERE/tools/intro-player.m" ]; then
+    step "Building the intro video player"
+    /usr/bin/cc -fobjc-arc -O2 -Wall -o "$HERE/build/intro-player" "$HERE/tools/intro-player.m" \
+      -framework AppKit -framework AVFoundation -framework CoreMedia -framework CoreVideo ||
+      echo "The intro video player could not be built. The game plays its own intro videos."
+  fi
 }
 
 make_hd_textures() {

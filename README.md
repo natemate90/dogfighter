@@ -127,6 +127,7 @@ Your pilots, saves and key settings stay as they are.
 - The first start takes about a minute longer. It prepares Wine for the game.
 - The very first start shows the game's setup window. Click OK. After that, the launcher clicks OK for you.
 - With Mach9 (macOS 26.4 or later) two intro videos play. Press Esc to skip them.
+- If you made the sharper intro videos, they play first, in their own window, on either Wine. Esc, a click or any key skips one. The game then leaves out its own copies. How to make them is in [docs/TECHNICAL.md](docs/TECHNICAL.md#intro-videos).
 - The game opens in a normal Mac window. Drag an edge or click the green button to make it bigger. The picture grows with the window.
 
 For a game without sound, start it with `./dogfighter --mute`.
@@ -173,6 +174,7 @@ To turn parts off, add one of these after `./dogfighter`:
 | Option | What it turns off |
 | --- | --- |
 | `--no-hd-textures` | The sharper textures. |
+| `--no-hd-videos` | The sharper intro videos. |
 | `--no-full-res` | The extra pixels. The picture is scaled to the window instead. |
 | `--original` | All of it: the game looks as it did in 2000. |
 
@@ -431,12 +433,13 @@ Add these after `./dogfighter`, for example `./dogfighter --mute`.
 | (none) | Play in a window you can resize, with the best picture. |
 | `--no-full-res` | Draw the picture with fewer pixels and scale it to the window. |
 | `--no-hd-textures` | Use the game's own textures. |
+| `--no-hd-videos` | Let the game play its own intro videos. |
 | `--mute` | Play without any sound. The next start without it has sound again. |
 | `--no-auto-joystick` | Do not turn on Joystick in the game's Options when a controller is connected. |
 | `--res=WxH` | Picture size in flight, for example `--res=1440x900`. Without it, the largest size that fits is used. |
 | `--windowed=WxH` | Start with the picture at most this big, for example `--windowed=1024x768`. |
 | `--keep-shape` | Keep the window in the shape of the picture when you resize it. Not tried by hand yet. |
-| `--original` | Keep the game's own picture: its settings, resolution and textures. |
+| `--original` | Keep the game's own picture: its settings, resolution, textures and intro videos. |
 | `--setup` | Show the game's setup window. |
 | `--join=ADDRESS` | Add a server to the game's Address book, then start the game. |
 | `--wine=stable` | Use the Rosetta Wine. `--wine=mach9` uses Mach9. |
