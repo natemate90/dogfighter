@@ -1207,7 +1207,8 @@ def build(args, setup, sources, old):
         if args.repeat > 0 and screens:
             again.append(min(screens, key=lambda item: len(item[2])))
         if again:
-            second = [record for record in run_batch(setup, again, os.path.join(work, "repeat"), pool) if record["way"] != "none"]
+            second = [record for record in run_batch(setup, again, os.path.join(work, "repeat"), pool)
+                      if records[record["path"]]["way"] != "none"]
             same = sum(1 for record in second if record.get("file_sha256") == records[record["path"]]["file_sha256"])
             run["repeat"] = {"textures": len(second), "identical": same}
             print("Made %d textures a second time: %d came out byte for byte the same." % (len(second), same))
