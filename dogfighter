@@ -469,8 +469,10 @@ list_controllers() {
       echo "      Controller $n: ${line#controller $n: }. Not used: the game takes the first one."
     fi
   done <<<"$lines"
-  if [ "$n" = 0 ]; then
-    echo "      Controllers: not checked. Wine's DirectInput gave no answer."
+  if [ "$n" = 0 ] && [[ "$lines" == error:* ]]; then
+    echo "      Controllers: not checked. Wine ran, but its DirectInput did not start."
+  elif [ "$n" = 0 ]; then
+    echo "      Controllers: not checked. Wine did not start the program that lists them."
   elif [ "$(user_get option_joystick)" != true ]; then
     echo "      Joystick input is off in the game. Turn on Joystick in the game's Options, behind the books in the main menu."
   fi
