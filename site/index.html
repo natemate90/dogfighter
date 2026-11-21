@@ -11,7 +11,7 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=Big+Shoulders+Stencil:wght@700..800&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Domine:wght@400..700&family=Saira:ital,wdth,wght@0,100..125,600..900;1,100..125,600..900&family=Stardos+Stencil:wght@400;700&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -39,6 +39,21 @@
     <div><dt>Price</dt><dd>Free</dd></div>
   </dl>
 </section>
+
+<aside class="warning wrap" aria-labelledby="warning-h">
+  <div class="placard">
+    <div class="placard-panel">
+      <h2 class="placard-head" id="warning-h">Warning</h2>
+      <ul class="placard-lines">
+        <li>Unofficial fan project</li>
+        <li>Not affiliated with or endorsed by Airfix, Hornby Hobbies, Paradox, Unique Development Studios or the original makers</li>
+        <li>Contains no game files</li>
+        <li>Your own original disc required</li>
+        <li>All trademarks belong to their owners</li>
+      </ul>
+    </div>
+  </div>
+</aside>
 
 <section class="build" id="build" aria-label="A model plane kit that puts itself together as you scroll">
   <div class="stage">
@@ -77,13 +92,13 @@
         <g class="part" data-c="585,175" data-s="200,340,90" transform="translate(-385 165) rotate(90 585 175)">
           <path class="plastic" d="M650,292 L630,92 C627,70 606,60 586,62 C568,64 560,78 558,96 L520,292 Z"/>
           <path class="paint" fill="url(#camo)" d="M650,292 L630,92 C627,70 606,60 586,62 C568,64 560,78 558,96 L520,292 Z"/>
-          <g class="decal"><circle cx="594" cy="150" r="24" fill="var(--sky)"/><circle cx="594" cy="150" r="16" fill="var(--ink-fixed)"/><circle cx="594" cy="150" r="7" fill="var(--yellow)"/></g>
+          <g class="decal"><circle cx="594" cy="150" r="24" fill="var(--sky)"/><circle cx="594" cy="150" r="16" fill="var(--ink-fixed)"/><circle cx="594" cy="150" r="7" fill="var(--paper)"/></g>
           <path class="line" d="M540,210 L566,210 L560,98 M600,292 L590,230"/>
         </g>
         <g class="part" data-c="585,465" data-s="470,340,-90" transform="translate(-115 -125) rotate(-90 585 465)">
           <path class="plastic" d="M650,348 L630,548 C627,570 606,580 586,578 C568,576 560,562 558,544 L520,348 Z"/>
           <path class="paint" fill="url(#camo)" d="M650,348 L630,548 C627,570 606,580 586,578 C568,576 560,562 558,544 L520,348 Z"/>
-          <g class="decal"><circle cx="594" cy="490" r="24" fill="var(--sky)"/><circle cx="594" cy="490" r="16" fill="var(--ink-fixed)"/><circle cx="594" cy="490" r="7" fill="var(--yellow)"/></g>
+          <g class="decal"><circle cx="594" cy="490" r="24" fill="var(--sky)"/><circle cx="594" cy="490" r="16" fill="var(--ink-fixed)"/><circle cx="594" cy="490" r="7" fill="var(--paper)"/></g>
           <path class="line" d="M540,430 L566,430 L560,542 M600,348 L590,410"/>
         </g>
         <g class="part" data-c="280,265" data-s="690,340,90" transform="translate(410 75) rotate(90 280 265)">
@@ -253,7 +268,7 @@ cd dogfighter
     <li style="--tin: var(--earth)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">2</text></svg><code>--original</code><p>The game exactly as it looked in 2000.</p></li>
     <li style="--tin: var(--sky)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">3</text></svg><code>--no-hd-textures</code><p>Every Retina pixel, with the game's own textures.</p></li>
     <li style="--tin: var(--plastic)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">4</text></svg><code>--mute</code><p>No sound, this time only.</p></li>
-    <li style="--tin: var(--yellow)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">5</text></svg><code>--doctor</code><p>Checks the install and prints a fix for each problem.</p></li>
+    <li style="--tin: var(--red)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">5</text></svg><code>--doctor</code><p>Checks the install and prints a fix for each problem.</p></li>
     <li style="--tin: var(--blue)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">6</text></svg><code>--backup</code><p>Puts your pilots and settings in a dated zip file.</p></li>
   </ul>
 </section>
