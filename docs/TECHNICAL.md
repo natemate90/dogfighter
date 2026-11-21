@@ -605,6 +605,54 @@ The made picture waits in `hd-textures/replaced/`.
 - A later run with the same photos, numbers, packages and made pictures keeps the pieces and draws nothing.
 - Drawing takes about 4 seconds on an M4 Max. Two runs gave the same bytes.
 
+### The plane paintings
+
+Twelve planes have an Airfix box painting in the game: on their loading screen, inside the television, and in the model window.
+The game's copies are a few hundred pixels wide, and the upscaler repainted rivets, letters and faces.
+So the tool draws each painting again over the made 4x pictures, from a picture of the real box art.
+
+| Plane | Box art |
+| --- | --- |
+| Bf109G-6 | photo of the 1990s box 01072 |
+| P-61 Black Widow | Airfix's render of A04006V, and the same painting without words, both from uk.airfix.com |
+| Dauntless | Airfix's render of A02022V |
+| Fiat G.50 | Airfix's render of A01046V, and the wide banner of its page |
+| Fw190D | photo of the box A01064 without a swastika on the tail, as in the game |
+| Hellcat | two photos of the 1968 box 253 |
+| Hurricane Mk1 | flat scan of the "Aircraft of the Aces" box 02082, and a photo of the later box |
+| P-51D Mustang | photo of the 1990s box 02098 |
+| Spitfire Mk IX | photos of the box 02081 and of its "Aircraft of the Aces" box |
+| Ju87B-2 Stuka | photo of the 1:24 box 18002 |
+| Typhoon | photo of the box 01027 |
+| Zero | two photos of the box 01028 |
+
+How a painting is drawn:
+- The box art is laid onto the game's picture with a fitted homography and a small grid of bends on top. The fit was made once from matched points and lies within about half a pixel of the game's picture.
+- The colours are fitted to the game's picture in small windows. The game's colours, its light and the dark edge of the television stay; the detail comes from the box art.
+- Where the box shows a title, a logo, a frame or other words, the made picture stays. The game's painting does not have them.
+- Where the box art does not reach, as at the top of most loading screens, the made picture stays too.
+- The frame of the television and of the model window picture stays as made.
+
+What it needs:
+- `tools/paintings.json` holds every number: the corners, the bends, the printed area of each picture, the boxes where the made picture stays, and each picture with its URL and SHA-256 checksum.
+- `--fetch-tools` or `--fetch-paintings` downloads the 18 pictures, about 14 MB, to `upscale-tools/paintings/references/`, each checked against its checksum. Five come from Airfix's own image host, one from vintage-airfix.com, the rest are eBay listings, which can disappear.
+- `tools/paintings-draw.py` runs in the desk's Python environment, `upscale-tools/desk/venv`, which `--fetch-paintings` sets up too.
+- Nothing is drawn by AI. The box art never enters the repository; the drawn pictures stay in `hd-textures/`.
+
+Checks:
+- The numbers were fitted to the game's own pixels of each picture. The tool checks those pixels against a checksum. All four languages of the disc have the same pixels there.
+- Each drawn painting, shrunk to the original size, must match the original at 15 dB or more inside its area. The drawn ones score 22 to 28 dB, the made ones 54 to 71. The box art has its own detail where the game's copy is blurred, so the score only catches a drawing gone wrong as a whole.
+- A missing picture or package, or a failed check, leaves that painting as made, and the run says why in one line.
+
+The manifest lists such a piece with the way `painting`.
+The made picture's record is under `generated`, and the target, the pictures' checksums, the package versions and the scores under `painting`.
+The made picture waits in `hd-textures/replaced/`.
+- 57 pieces change: 45 tiles of 12 loading screens and the 12 plane pictures of the model window.
+- `--no-paintings` puts the made pictures back. The next run without it draws them again.
+- `--menus-only` and `--lettering-only` draw the paintings too. `./setup.sh` runs `--fetch-paintings` and `--lettering-only` on a complete set.
+- A later run with the same pictures, numbers, packages and made pictures keeps the pieces and draws nothing.
+- Drawing all 24 takes about 20 seconds on one core. Two runs gave the same bytes.
+
 ### Your own textures
 
 Put a `.gti` file in `texture-overrides/`, under the same path as in `hd-textures/cache/`.

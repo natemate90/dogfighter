@@ -290,10 +290,10 @@ make_hd_textures() {
   local tool="$HERE/tools/upscale-textures.py"
   if python3 -I "$tool" --check; then
     step "Larger textures"
-    echo "hd-textures/ holds a complete set. It is kept; missing menu pictures are added and its labels, letters and desk are redrawn."
+    echo "hd-textures/ holds a complete set. It is kept; missing menu pictures are added and its labels, letters, desk and paintings are redrawn."
     python3 -I "$tool" --menus-only || echo "The menu pictures could not be made. The game uses its own."
-    python3 -I "$tool" --fetch-fonts --fetch-desk
-    python3 -I "$tool" --lettering-only || echo "The labels, letters and desk could not be redrawn. The set stays as it was."
+    python3 -I "$tool" --fetch-fonts --fetch-desk --fetch-paintings
+    python3 -I "$tool" --lettering-only || echo "The labels, letters, desk and paintings could not be redrawn. The set stays as it was."
     [ -n "$GENERATIVE" ] || return 0
     python3 -I "$tool" --fetch-tools --generative
     echo "To redraw the listed surfaces in that set, run: python3 tools/upscale-textures.py"

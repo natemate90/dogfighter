@@ -255,13 +255,13 @@ def python_version(python):
     return said.stdout.strip()
 
 
-def kept_pieces(old, key, out):
+def kept_pieces(old, key, out, way=WAY):
     """The pieces an earlier run drew with the same key, when every one of them is still in the set; else None."""
     found = {}
     for record in old.get("textures", []):
-        if record.get("way") == WAY and record[WAY].get("key") == key:
+        if record.get("way") == way and record[way].get("key") == key:
             file = os.path.join(out, "cache", *up.safe_parts(record["path"]))
             if not (os.path.isfile(file) and up.sha256_of(file) == record["file_sha256"]):
                 return None
-            found[record["path"]] = (file, record["file_sha256"], record["bytes"], record[WAY])
+            found[record["path"]] = (file, record["file_sha256"], record["bytes"], record[way])
     return found or None
