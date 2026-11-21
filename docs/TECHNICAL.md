@@ -773,6 +773,9 @@ The videos go to `hd-videos/`, with `manifest.json`: checksums, settings, model 
 - A run that stops goes on where it stopped. The work files are in `hd-videos/.work/`.
 - `--video-only NAME` makes one video. `--video-clip START,SECONDS` makes only that part, to `hd-videos/clips/`. `--video-level N` tries another level, also to `clips/`.
 - Under 15% free memory no new shot or batch of frames starts. Under 8% the run stops at once.
+- SeedVR2 gets a long shot in chunks of at most 47 frames, so its memory does not grow with the shot. Each chunk also sees 4 frames of its neighbours, and the 4 frames where two chunks meet are faded from one to the other.
+- A stopped run of level 2 or 3 goes on from the chunk where it stopped. SeedVR2's own output goes to `seedvr2.log` in the work folder.
+- While a tool runs, `videos.log` gets a line each minute with its memory (`tool=`), graphics memory included.
 
 SeedVR2 and `upscayl-bin` need the Mac's graphics card. Without it, levels 1 to 3 are left out. RIFE alone falls back to the processor, much slower.
 

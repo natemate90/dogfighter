@@ -12,7 +12,10 @@ video with 22 kHz PCM sound. tools/videos.json says what is made of each:
                3B model, 3 the 7B "sharp" one. refine is the job of
                tools/texture-refine.c: glyphs repeats the last pull-back until
                values cut off at 0 or 255 no longer keep a block from its
-               original.
+               original. chunk is the most frames of a shot SeedVR2 gets in
+               one call, overlap the frames it shares with each neighbour
+               (also between its batches), tile the size in pixels of the
+               pieces its VAE encodes and decodes. These three set its memory.
   videos       name, file in the game folder, level, the SHA-256 the settings
                were checked on (another file is made too, with a note), and
                clip: start and length in seconds, for a sample.
