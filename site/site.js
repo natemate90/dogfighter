@@ -34,8 +34,8 @@
     const state = painted ? 9 : fitted;
     if (state === last) return;
     last = state;
-    if (painted) caption.textContent = "Painted, decals on. Ready to fly.";
-    else if (fitted === 0) caption.textContent = "Frame A, eight parts. Scroll to put the kit together.";
+    if (painted) caption.textContent = "Painted. Decals on. Ready to fly.";
+    else if (fitted === 0) caption.textContent = "Frame A has eight parts. Scroll to put the kit together.";
     else if (fitted === parts.length) caption.textContent = "All eight parts fitted. Now the paint.";
     else caption.textContent = `${words[fitted][0].toUpperCase() + words[fitted].slice(1)} of eight parts fitted.`;
   }
@@ -61,7 +61,7 @@
       window.removeEventListener("resize", onScroll);
       last = -1;
       draw(0);
-      caption.textContent = "Frame A: eight parts of a fighter, ready to cut out.";
+      caption.textContent = "Frame A has eight parts of a fighter. They are ready to cut out.";
       if (loop) {
         loop.pauseAnimations();
         loop.setCurrentTime(2.2);

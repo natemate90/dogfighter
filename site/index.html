@@ -29,7 +29,7 @@
 <section class="hero wrap" aria-labelledby="title">
   <div class="hero-text">
     <h1 id="title"><span class="t1">Dogfighter</span><span class="t2">for Apple Silicon Macs</span></h1>
-    <p class="lede">The 2000 Windows game Airfix Dogfighter, where model planes fight through a house, set up to run well on a Mac with M1 or later. You bring your own original disc.</p>
+    <p class="lede">Airfix Dogfighter is a Windows game from 2000. Model planes fight through a house. This project makes it run well on a Mac with M1 or later. You bring your own original disc.</p>
     <p class="cta"><a class="button" href="#assembly">How to install</a> <a class="button ghost" href="https://github.com/natemate90/dogfighter">See the code</a></p>
   </div>
   <dl class="kitbox" aria-label="About this kit">
@@ -135,7 +135,7 @@
       </g>
     </svg>
     </div>
-    <p class="stage-caption" aria-live="off"><span id="caption">Frame A, eight parts. Scroll to put the kit together.</span></p>
+    <p class="stage-caption" aria-live="off"><span id="caption">Frame A has eight parts. Scroll to put the kit together.</span></p>
   </div>
 </section>
 
@@ -150,7 +150,7 @@
     <li>
       <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M10 44a22 22 0 0 1 44 0"/><path d="M32 44l12-14"/><circle cx="32" cy="44" r="4"/><path d="M14 44h4M46 44h4M17 30l3 2M47 30l-3 2M32 22v4"/></svg>
       <h3>macOS 26.4 or later works best</h3>
-      <p>It runs Mach9, a Wine made for Apple Silicon: about 100 frames a second in flight on the test Mac. Older macOS uses Rosetta 2 and gets about 30.</p>
+      <p>It then runs on Mach9. Mach9 is Wine built for Apple Silicon. Flight runs at about 100 frames a second on the test Mac. Older macOS uses Rosetta 2 and gets about 30.</p>
     </li>
     <li>
       <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="22"/><circle cx="32" cy="32" r="8"/><circle cx="32" cy="32" r="2.5"/><path d="M40 16a18 18 0 0 1 8 8"/></svg>
@@ -160,14 +160,14 @@
     <li>
       <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="10" y="18" width="44" height="28" rx="4"/><path d="M10 36h44"/><circle cx="46" cy="41" r="1.8"/><path d="M16 41h14"/><text x="32" y="31">6 GB</text></svg>
       <h3>About 6 GB of free space</h3>
-      <p>For the game and its sharper textures, and an internet connection while you install.</p>
+      <p>That holds the game and its sharper textures. You also need internet while you install.</p>
     </li>
   </ul>
 </section>
 
 <section class="sheet wrap" id="assembly" aria-labelledby="assembly-h">
   <h2 id="assembly-h">Assembly</h2>
-  <p class="intro">Three steps in Terminal. The <a href="https://github.com/natemate90/dogfighter#readme">README</a> has every detail, and what to do when a step stops.</p>
+  <p class="intro">Three steps in Terminal. The <a href="https://github.com/natemate90/dogfighter#readme">README</a> has the details. It also says what to do when a step fails.</p>
   <ol class="steps">
     <li class="step">
       <span class="stepnum" aria-hidden="true">1</span>
@@ -194,7 +194,7 @@ cdrdao read-cd --read-raw --datafile Dogfighter.bin --driver generic-mmc:0x20000
         <g class="bar"><rect x="46" y="84" width="20" height="14"/><rect x="70" y="84" width="20" height="14"/><rect x="94" y="84" width="20" height="14"/><rect x="118" y="84" width="20" height="14"/><rect x="142" y="84" width="20" height="14"/><rect x="166" y="84" width="20" height="14" class="empty"/><rect x="190" y="84" width="20" height="14" class="empty"/><rect x="214" y="84" width="20" height="14" class="empty"/></g>
       </svg>
       <h3>Get the project and run setup</h3>
-      <p>Setup downloads what it needs and checks each download. It copies the game and its music from your disc file, then makes the sharper textures. The second line installs Rosetta 2. Skip it on macOS 26.4 or later.</p>
+      <p>Setup downloads what it needs and checks each download. It copies the game and its music from your disc file. Then it makes the sharper textures. The second line installs Rosetta 2. Skip it on macOS 26.4 or later.</p>
 <pre><code>xcode-select --install
 softwareupdate --install-rosetta --agree-to-license
 git clone https://github.com/natemate90/dogfighter.git
@@ -211,7 +211,7 @@ cd dogfighter
         </g>
       </svg>
       <h3>Play</h3>
-      <p>Start the game, or double-click <code>Dogfighter.app</code>. It opens in a normal Mac window you can resize. <kbd>Ctrl</kbd>+<kbd>Option</kbd> frees the mouse.</p>
+      <p>Start the game from Terminal. Or double-click <code>Dogfighter.app</code>. It opens in a normal Mac window you can resize. <kbd>Ctrl</kbd>+<kbd>Option</kbd> frees the mouse.</p>
 <pre><code>./dogfighter</code></pre>
     </li>
   </ol>
@@ -220,7 +220,7 @@ cd dogfighter
 <section class="blueprint" id="extras" aria-labelledby="extras-h">
   <div class="wrap">
     <h2 id="extras-h">What the kit adds</h2>
-    <p class="intro">The game as it was in 2000, with these on top. <code>--original</code> keeps the game's own picture: 16-bit colour, the normal draw distance, its own resolution and textures.</p>
+    <p class="intro">The game as it was in 2000. These come on top. <code>--original</code> keeps the game's own picture. That means 16-bit colour, the normal draw distance, its own resolution and its own textures.</p>
     <div class="bp-grid">
       <svg class="exploded" viewBox="90 8 800 436" role="img" aria-labelledby="exploded-title">
         <title id="exploded-title">Exploded side view of a fighter plane, with letters A to F pointing at its parts.</title>
@@ -249,9 +249,9 @@ cd dogfighter
         </g>
       </svg>
       <dl class="legend">
-        <div><dt><span>A</span> Speed</dt><dd>On macOS 26.4 or later, about 100 frames a second in flight. Missions load in 2 to 5 seconds. Measured on an M4 Max.</dd></div>
-        <div><dt><span>B</span> A sharper picture</dt><dd>The 3D world uses every pixel of a Retina screen. Textures get twice the pixels, menus and loading screens four times. Your Mac makes them from your own disc. The plane paintings and the kit boxes and paint tins on the main menu are drawn from photos of real model-kit boxes and a paint tin, which setup downloads.</dd></div>
-        <div><dt><span>C</span> Clear letters</dt><dd>The pilot screens, the mission book and the briefing are redrawn from matching fonts, so text stays crisp in a big window.</dd></div>
+        <div><dt><span>A</span> Speed</dt><dd>About 100 frames a second in flight on macOS 26.4 or later. Missions load in 2 to 5 seconds. Measured on an M4 Max.</dd></div>
+        <div><dt><span>B</span> A sharper picture</dt><dd>The 3D world uses every pixel of a Retina screen. Textures get twice the pixels. Menus and loading screens get four times. Your Mac makes them from your own disc. The plane paintings and the kit boxes and paint tins on the main menu are drawn from photos of real model-kit boxes and a paint tin. Setup downloads those photos.</dd></div>
+        <div><dt><span>C</span> Clear letters</dt><dd>The pilot screens, the mission book and the briefing are redrawn from matching fonts. Text stays crisp in a big window.</dd></div>
         <div><dt><span>D</span> Controllers</dt><dd>Xbox, PlayStation and Switch Pro controllers and USB joysticks should work. Nobody has tried a real one yet.</dd></div>
         <div><dt><span>E</span> Music and saves</dt><dd>The music comes from the disc's audio tracks. One command backs up your pilots and saves.</dd></div>
         <div><dt><span>F</span> Friends</dt><dd>Fly against each other over the internet. Tailscale makes it easiest: no router settings.</dd></div>
@@ -266,8 +266,8 @@ cd dogfighter
   <ul class="tins">
     <li style="--tin: var(--green)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">1</text></svg><code>./dogfighter</code><p>Nothing added: the best picture. This is the default.</p></li>
     <li style="--tin: var(--earth)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">2</text></svg><code>--original</code><p>The game exactly as it looked in 2000.</p></li>
-    <li style="--tin: var(--sky)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">3</text></svg><code>--no-hd-textures</code><p>Every Retina pixel, with the game's own textures.</p></li>
-    <li style="--tin: var(--plastic)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">4</text></svg><code>--mute</code><p>No sound, this time only.</p></li>
+    <li style="--tin: var(--sky)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">3</text></svg><code>--no-hd-textures</code><p>Every Retina pixel. The game's own textures.</p></li>
+    <li style="--tin: var(--plastic)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">4</text></svg><code>--mute</code><p>No sound. Only for this start.</p></li>
     <li style="--tin: var(--red)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">5</text></svg><code>--doctor</code><p>Checks the install and prints a fix for each problem.</p></li>
     <li style="--tin: var(--blue)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">6</text></svg><code>--backup</code><p>Puts your pilots and settings in a dated zip file.</p></li>
   </ul>
@@ -283,7 +283,7 @@ cd dogfighter
       <a href="https://github.com/natemate90/dogfighter/blob/main/docs/TECHNICAL.md">How it works</a>
       <a href="https://github.com/natemate90/dogfighter/issues">Report a problem</a>
     </nav>
-    <p class="disclaimer">This is an unofficial fan project. It is not affiliated with or endorsed by Airfix, Hornby Hobbies, Paradox, Unique Development Studios or the other original makers of the game. It contains no game files: you need your own original disc. All trademarks belong to their owners.</p>
+    <p class="disclaimer">This is an unofficial fan project. It is not affiliated with or endorsed by Airfix, Hornby Hobbies, Paradox, Unique Development Studios or the other original makers of the game. It contains no game files. You need your own original disc. All trademarks belong to their owners.</p>
     <p class="made">Made by <a href="https://github.com/natemate90">natemate90</a>. No cookies, no tracking.</p>
   </div>
 </footer>
