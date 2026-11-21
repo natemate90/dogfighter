@@ -277,7 +277,7 @@ build_helpers() {
   fi
   cmp -s "$HERE/build/winmm.dll" "$HERE/game/winmm.dll" || cp "$HERE/build/winmm.dll" "$HERE/game/winmm.dll"
   local helper
-  for helper in focusfix focushook windiag crashlog; do
+  for helper in focusfix focushook windiag crashlog joylist; do
     [ -n "$(find "$HERE/build" -name "$helper.*" -newer "$HERE/src/focusfix/$helper.c" 2>/dev/null)" ] && continue
     step "Building the window helper and its diagnostics"
     "$HERE/tools/build-focusfix.sh" "$TOOLCHAIN"

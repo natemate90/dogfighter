@@ -20,3 +20,9 @@ REGEDIT4
 [HKEY_LOCAL_MACHINE\Software\Wow6432Node\Microsoft\Windows\CurrentVersion\App Paths\Dogfighter.exe]
 @="C:\\Games\\Dogfighter\\Dogfighter.exe"
 "Path"="C:\\Games\\Dogfighter"
+
+[HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\winebus\Devices\054C]
+"Hidraw"=dword:00000000
+
+[HKEY_LOCAL_MACHINE\System\CurrentControlSet\Services\winebus\Devices\057E]
+"Hidraw"=dword:00000000
