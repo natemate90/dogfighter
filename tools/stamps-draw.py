@@ -7,9 +7,12 @@ target the game's own pixels and the made 4x pixels of its box as raw RGBA.
 tools/stamps.py says what the spec holds.
 
 How a stamp is drawn:
-  - The old ink is taken off the made picture: where the game's pixels are
-    darker or lighter than its paper, the made pixels are filled from the
-    paper around them, with the made paper's grain.
+  - The old ink is taken off the made picture: where the game's pixels in
+    the stamp are darker or lighter than its paper, the made pixels are
+    filled from the paper around them, with the made paper's grain. The
+    paper is a plane fitted to the pixels around each one, so it follows the
+    page's shading toward the spine. The new paper fades into the made
+    picture before the stamp's reach ends and before the box's edges.
   - The stamp's shapes are drawn sharp at 16 times the game's pixels: rings
     as circles, and emblems from their SVG file, each colour of the drawing
     standing for full ink or for bare paper. The stamp's corners map the
@@ -20,10 +23,12 @@ How a stamp is drawn:
   - The ink darkens the paper by its colour, as ink on paper does.
 
 It writes one raw RGBA file per target and prints one JSON line per target:
-name, whether any pixel changed, and match and made_match, the PSNR in dB of
+name, whether any pixel changed, match and made_match, the PSNR in dB of
 the new and of the made picture against the game's own picture inside the
-box, after shrinking by block average. The last line holds the versions of
-numpy and Pillow.
+box, after shrinking by block average, and edges, the step in brightness
+between the new and the made picture at each side of the box (see
+edge_steps). A step over edge_step adds why, and the target stays as made.
+The last line holds the versions of numpy and Pillow.
 """
 import json
 import re
@@ -270,19 +275,40 @@ def dilate(mask, radius):
     return out
 
 
-def paper_of(game, near, look):
-    """Which of the game's pixels are ink: those off a smooth surface fitted to the paper near the stamp."""
-    h, w = game.shape[:2]
-    yy, xx = np.mgrid[0:h, 0:w] / max(h, w)
-    terms = np.stack([np.ones_like(xx), xx, yy, xx * xx, xx * yy, yy * yy], -1).reshape(-1, 6)
-    grey = game.mean(2).ravel()
-    paper = near.ravel() & (grey >= np.percentile(grey[near.ravel()], look["paper_share"]))
+def plane(values, weight, sigma):
+    """Each pixel's value on a plane fitted to the weighted pixels around it in a Gaussian window, and the window's share of weight.
+
+    A plane, not an average, so the estimate follows the page's shading up to
+    the box's edges instead of being pulled toward the brighter side.
+    """
+    pad = int(np.ceil(3 * sigma))
+    h, w = weight.shape
+    yy, xx = np.mgrid[0:h, 0:w].astype(np.float64)
+
+    def mean(v):
+        return blur(np.pad(weight * v, pad), sigma)[pad:-pad, pad:-pad] / np.maximum(share, 1e-9)
+    share = blur(np.pad(weight, pad), sigma)[pad:-pad, pad:-pad]
+    mx, my = mean(xx), mean(yy)
+    ridge = 0.05 * sigma * sigma
+    cxx, cxy, cyy = mean(xx * xx) - mx * mx + ridge, mean(xx * yy) - mx * my, mean(yy * yy) - my * my + ridge
+    det = cxx * cyy - cxy * cxy
+    out = []
+    for c in range(values.shape[2]):
+        v = values[..., c]
+        mv = mean(v)
+        cxv, cyv = mean(xx * v) - mx * mv, mean(yy * v) - my * mv
+        out.append(mv + ((cyy * cxv - cxy * cyv) * (xx - mx) + (cxx * cyv - cxy * cxv) * (yy - my)) / det)
+    return np.stack(out, -1), share
+
+
+def paper_of(game, near, stamp, look):
+    """Which of the game's pixels are ink: those of the stamp off the paper fitted around them."""
+    keep = near
     for _ in range(4):
-        fit = np.linalg.lstsq(terms[paper], game.reshape(-1, 3)[paper], rcond=None)[0]
-        surface = np.einsum("nk,kc->nc", terms, fit).reshape(h, w, 3)
-        off = np.abs(game - surface).max(2)
-        paper = near.ravel() & (off < look["ink_step"]).ravel()
-    return off >= look["ink_step"]
+        paper, _ = plane(game, keep.astype(np.float64), look["shade_sigma"])
+        ink = stamp & (np.abs(game - paper).max(2) >= look["ink_step"])
+        keep = near & ~ink
+    return ink
 
 
 def enlarge(values, times):
@@ -291,26 +317,28 @@ def enlarge(values, times):
 
 
 def clean(made, game, corners, box, times, look, rng):
-    """The made pixels with the paper near the stamp drawn again from the game's paper, without its ink."""
-    ink = paper_of(game, reach(corners, box, 1) <= look["paper_reach"], look)
+    """The made pixels with the paper near the stamp drawn again from the game's paper, without its ink, and where the game has ink."""
+    small = reach(corners, box, 1)
+    ink = paper_of(game, small <= look["paper_reach"], small <= look["clean_reach"], look)
     keep = (~dilate(ink, 1)).astype(np.float64)
     sigma = look["paper_sigma"]
-    near = blur(keep, sigma)
-    paper = np.stack([blur(game[..., c] * keep, sigma) for c in range(3)], -1) / np.maximum(near, 1e-6)[..., None]
+    paper, near = plane(game, keep, sigma)
     for wider in (2 * sigma, 4 * sigma, 8 * sigma):
         thin = near < 0.2
         if not thin.any():
             break
-        near_w = blur(keep, wider)
-        paper[thin] = (np.stack([blur(game[..., c] * keep, wider) for c in range(3)], -1) / np.maximum(near_w, 1e-6)[..., None])[thin]
+        paper[thin], near[thin] = (part[thin] for part in plane(game, keep, wider))
     paper = enlarge(paper, times)
     rgb = made[..., :3].astype(np.float64)
     outside = reach(corners, box, times) > look["clean_reach"] + 0.1
     grain = rgb - np.stack([blur(rgb[..., c], look["grain_sigma"]) for c in range(3)], -1)
     spread = grain[outside].std(0) if outside.any() else np.zeros(3)
     paper += noise(rng, paper.shape[:2], look["grain_sigma"] / 2)[..., None] * spread
-    soft = np.clip((look["clean_reach"] - reach(corners, box, times)) / look["clean_feather"], 0, 1)[..., None]
-    return rgb * (1 - soft) + paper * soft
+    h, w = paper.shape[:2]
+    yy, xx = np.mgrid[0:h, 0:w]
+    edge = np.minimum(np.minimum(xx, w - 1 - xx), np.minimum(yy, h - 1 - yy)) / (look["edge_feather"] * times)
+    soft = np.minimum(np.clip((look["clean_reach"] - reach(corners, box, times)) / look["clean_feather"], 0, 1), np.clip(edge, 0, 1))
+    return rgb * (1 - soft[..., None]) + paper * soft[..., None], ink
 
 
 def ink_cover(stamp, corners, box, times, files, look, rng):
@@ -348,12 +376,38 @@ def ink_cover(stamp, corners, box, times, files, look, rng):
     return np.clip(cover * patchy * (1 - specks), 0, 1)
 
 
+SIDES = ("left", "top", "right", "bottom")
+
+
+def edge_steps(result, made, bare, times, look):
+    """The largest step in mean brightness, in levels of 255, between the drawn and the made picture near each side of the box.
+
+    Outside the box the picture stays as made, so this is the step a viewer
+    sees across the box's edge. It is measured in windows of one by four of
+    the game's pixels on bare paper, in the outer edge_feather + 1 pixels, in
+    the order of SIDES.
+    """
+    diff = (result[..., :3].astype(np.float64) - made[..., :3]) @ [0.299, 0.587, 0.114]
+    steps = []
+    for turns in (-1, 0, 1, 2):
+        d, ok = np.rot90(diff, turns), np.rot90(bare, turns)
+        step = 0.0
+        for row in range(0, (look["edge_feather"] + 1) * times, times):
+            for col in range(0, d.shape[1] - 4 * times + 1, 4 * times):
+                window = (slice(row, row + times), slice(col, col + 4 * times))
+                if ok[window].mean() >= 0.5:
+                    step = max(step, abs(float(d[window][ok[window]].mean())))
+        steps.append(round(step, 2))
+    return steps
+
+
 def draw(target, spec, files, made, original, times):
+    """The drawn pixels, and what main prints about them besides the name."""
     stamp = spec["stamps"][target["stamp"]]
     look = dict(spec["look"], **stamp.get("look", {}))
     rng = np.random.default_rng(look["seed"])
     game = original[..., :3].astype(np.float64)
-    paper = clean(made, game, target["corners"], target["box"], times, look, rng)
+    paper, ink = clean(made, game, target["corners"], target["box"], times, look, rng)
     cover = ink_cover(stamp, target["corners"], target["box"], times, files, look, rng)
     tint = np.asarray(stamp["ink"], np.float64) / 255
     result = made.astype(np.float64).copy()
@@ -364,7 +418,14 @@ def draw(target, spec, files, made, original, times):
         diff = (shrink(big[..., :3].astype(np.float64), times) - game)[original[..., 3] > 0]
         mse = float((diff ** 2).mean()) if diff.size else 0.0
         return 99.0 if mse == 0 else round(10 * np.log10(255 * 255 / mse), 2)
-    return result, psnr(result), psnr(made)
+    bare = ~np.kron(dilate(ink, 1), np.ones((times, times), bool)) & (cover == 0)
+    edges = edge_steps(result, made, bare, times, look)
+    said = {"changed": bool((result != made).any()), "match": psnr(result), "made_match": psnr(made), "edges": edges}
+    worst = int(np.argmax(edges))
+    if edges[worst] > look["edge_step"]:
+        said["why"] = "its paper steps %.1f levels in brightness at the %s edge of its box, over %.1f" % (
+            edges[worst], SIDES[worst], look["edge_step"])
+    return result, said
 
 
 def read(path, w, h):
@@ -382,10 +443,10 @@ def main():
     for item in job["targets"]:
         w, h = item["w"], item["h"]
         made, original = read(item["made"], w * times, h * times), read(item["original"], w, h)
-        result, match, made_match = draw(targets[item["name"]], spec, job["references"], made, original, times)
+        result, said = draw(targets[item["name"]], spec, job["references"], made, original, times)
         with open(item["out"], "wb") as f:
             f.write(result.tobytes())
-        print(json.dumps({"name": item["name"], "changed": bool((result != made).any()), "match": match, "made_match": made_match}), flush=True)
+        print(json.dumps(dict(name=item["name"], **said)), flush=True)
     print(json.dumps({"numpy": np.__version__, "pillow": PIL.__version__}), flush=True)
 
 
