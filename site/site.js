@@ -71,6 +71,7 @@
       window.addEventListener("scroll", onScroll, { passive: true });
       window.addEventListener("resize", onScroll);
       if (loop) loop.unpauseAnimations();
+      last = -1;
       onScroll();
     }
   }

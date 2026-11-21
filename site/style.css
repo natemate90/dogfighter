@@ -389,6 +389,7 @@ pre code { white-space: pre-wrap; overflow-wrap: anywhere; }
   .needs li:nth-child(n + 3) { border-top: 1.5px solid var(--ink); }
   .steps { grid-template-columns: 1fr; gap: 44px; max-width: 640px; }
   .bp-grid { grid-template-columns: 1fr; }
+  .exploded { position: static; }
   .tins { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 560px) {
