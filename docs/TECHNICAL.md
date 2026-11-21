@@ -289,7 +289,7 @@ Setup never fails on this step:
 A set made with the macOS filter is complete too. A later `./setup.sh` does not replace it with an upscaled one.
 The tool on its own also skips finished work: a second run over the full set on an M4 Max took 3 seconds and changed nothing.
 
-`--fetch-tools` downloads three archives, about 100 MB, to `downloads/upscale/`, three fonts (see [Redrawn labels](#redrawn-labels)), and the photos and Python packages of [the desk](#the-desk-on-the-main-menu).
+`--fetch-tools` downloads three archives, about 100 MB, to `downloads/upscale/`, four fonts, three for the [redrawn labels](#redrawn-labels) and Oswald for the desk, and the photos and Python packages of [the desk](#the-desk-on-the-main-menu).
 - `upscayl-bin` 20251207-174704, which runs the model.
 - The Real-ESRGAN model `realesrgan-x4plus`, from the Real-ESRGAN release v0.2.5.0.
 - `waifu2x-ncnn-vulkan` 20250915 with its `cunet` model, as the second choice.

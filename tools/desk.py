@@ -7,7 +7,8 @@ of the tin on Humbrol's 1997 colour binder, fitted into the made picture's
 colours and light. tools/desk-draw.py does the drawing; it needs numpy and
 Pillow, which --fetch-tools and --fetch-desk put in a Python environment of
 its own in upscale-tools/desk/venv, with the versions of
-tools/desk-requirements.txt. Nothing is drawn by AI.
+tools/desk-requirements.txt and a Python of PYTHONS, which have wheels for
+them. Nothing is drawn by AI.
 
 tools/desk.json
   screen        the screen of tools/menu-pictures.json the desk lies on.
@@ -19,8 +20,8 @@ tools/desk.json
   references    each photo by name: its url, its SHA-256 and what it shows.
                 --fetch-tools and --fetch-desk put it in
                 upscale-tools/desk/references/<name>.jpg.
-  fonts         as in tools/lettering.json: a downloaded font with its url,
-                checksum and licence, or a macOS font with its path.
+  fonts         the fonts of tools/lettering.json it uses, by file name.
+                --fetch-fonts, --fetch-desk and --fetch-tools fetch them.
   faces         drawn in this order. Each has the way it is built (make),
                 the kit, its corners in the 4x menu (quad: the top left, top
                 right, bottom right and bottom left of the printed face),
@@ -65,7 +66,6 @@ import json
 import math
 import os
 import subprocess
-import sys
 
 import gti
 import menus
@@ -77,19 +77,12 @@ DRAW = os.path.join(HERE, "desk-draw.py")
 REQUIREMENTS = os.path.join(HERE, "desk-requirements.txt")
 WAY = "desk"
 LIMIT = 15.0
+PYTHONS = ((3, 9), (3, 14))
 
 
 def load_spec():
     with open(SPEC) as f:
         return json.load(f)
-
-
-def sha256_of(path):
-    digest = hashlib.sha256()
-    with open(path, "rb") as f:
-        for block in iter(lambda: f.read(1 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def python_of(tools):
@@ -100,34 +93,20 @@ def reference_file(tools, name):
     return os.path.join(tools, WAY, "references", name + ".jpg")
 
 
-def font_file(tools, font):
-    return font["system"] if "system" in font else os.path.join(tools, "fonts", font["folder"], font["file"])
-
-
-def fetch(tools, download):
-    """Sets up the Python environment and downloads the photos and fonts. Returns False when a part failed."""
-    spec = load_spec()
+def fetch(tools, download, python_env):
+    """Sets up the Python environment and downloads the photos. Returns False when a part failed."""
     good = True
-    python = python_of(tools)
     try:
-        if not os.access(python, os.X_OK):
-            print("Making a Python environment for the desk in %s" % os.path.dirname(os.path.dirname(python)))
-            subprocess.run([sys.executable, "-m", "venv", os.path.dirname(os.path.dirname(python))], check=True)
-        env = dict(os.environ, PIP_CACHE_DIR=os.path.join(tools, WAY, "cache", "pip"), PIP_DISABLE_PIP_VERSION_CHECK="1")
-        subprocess.run([python, "-I", "-m", "pip", "install", "--quiet", "--only-binary", ":all:", "--no-deps", "-r", REQUIREMENTS],
-                       env=env, check=True)
+        python_env(os.path.join(tools, WAY), REQUIREMENTS, *PYTHONS)
+    except SystemExit as problem:
+        print(problem)
+        good = False
     except (OSError, subprocess.CalledProcessError):
         print("The desk's Python packages could not be installed.")
         good = False
-    wanted = [(ref["url"], reference_file(tools, name), ref["sha256"]) for name, ref in sorted(spec["references"].items())]
-    for font in spec["fonts"].values():
-        if "url" in font:
-            folder = os.path.join(tools, "fonts", font["folder"])
-            wanted += [(font["url"], os.path.join(folder, font["file"]), font["sha256"]),
-                       (font["licence"]["url"], os.path.join(folder, font["licence"]["file"]), font["licence"]["sha256"])]
-    for url, target, digest in wanted:
+    for name, ref in sorted(load_spec()["references"].items()):
         try:
-            download(url, target, digest)
+            download(ref["url"], reference_file(tools, name), ref["sha256"])
         except SystemExit as problem:
             print(problem)
             good = False
@@ -165,13 +144,15 @@ def fingerprint(laid, originals, areas):
     return digest.hexdigest()
 
 
-def draw(sources, made_of, tools, work, out, old, skip):
+def draw(sources, made_of, fonts, tools, work, out, old, skip):
     """{path: (file, checksum, bytes, note)} for the pieces of the desk's screen that were drawn again.
 
     sources is {path: the game's data} of this run, made_of(path) gives (made
-    file, its checksum), or None for a picture that was not made, old is the
-    previous manifest, skip the paths something else replaces. work is a folder for
-    this run, out the folder of the set.
+    file, its checksum), or None for a picture that was not made, fonts is
+    {name: (file, checksum, None)} of tools/lettering.json, or (None, None,
+    why) for a font that cannot be used, old is the previous manifest, skip
+    the paths something else replaces. work is a folder for this run, out the
+    folder of the set.
     """
     spec = load_spec()
     listed = menus.expanded(menus.load_spec()).get(spec["screen"])
@@ -201,22 +182,17 @@ def draw(sources, made_of, tools, work, out, old, skip):
         file = reference_file(tools, name)
         if not os.path.isfile(file):
             return leave("photo %s is missing; --fetch-desk fetches it" % name)
-        if sha256_of(file) != ref["sha256"]:
+        if up.sha256_of(file) != ref["sha256"]:
             return leave("photo %s does not match its pinned checksum" % name)
         references[name] = file
-    fonts, font_sums = {}, {}
-    for name, font in spec["fonts"].items():
-        file = font_file(tools, font)
-        if not os.path.isfile(file):
-            return leave("font %s is missing%s" % (font.get("file", file), "" if "system" in font else "; --fetch-desk fetches it"))
-        font_sums[name] = sha256_of(file)
-        if "system" not in font and font_sums[name] != font["sha256"]:
-            return leave("font %s does not match its pinned checksum" % font["file"])
-        fonts[name] = file
+    for name in spec["fonts"]:
+        if fonts[name][0] is None:
+            return leave(fonts[name][2])
+    font_sums = {name: fonts[name][1] for name in spec["fonts"]}
 
     with open(SPEC, "rb") as f:
         spec_sum = hashlib.sha256(f.read()).hexdigest()
-    key = hashlib.sha256(json.dumps({"spec": spec_sum, "draw": sha256_of(DRAW), "requirements": sha256_of(REQUIREMENTS),
+    key = hashlib.sha256(json.dumps({"spec": spec_sum, "draw": up.sha256_of(DRAW), "requirements": up.sha256_of(REQUIREMENTS),
                                      "python": python_version(python), "made": {path: made[path][1] for _, path, _, _ in laid},
                                      "references": {name: spec["references"][name]["sha256"] for name in references},
                                      "fonts": font_sums}, sort_keys=True).encode()).hexdigest()
@@ -226,7 +202,8 @@ def draw(sources, made_of, tools, work, out, old, skip):
 
     folder = os.path.join(work, WAY)
     os.makedirs(folder, exist_ok=True)
-    job = {"spec": SPEC, "times": times, "size": [side * times for side in listed["size"]], "references": references, "fonts": fonts,
+    job = {"spec": SPEC, "times": times, "size": [side * times for side in listed["size"]], "references": references,
+           "fonts": {name: fonts[name][0] for name in spec["fonts"]},
            "pieces": [], "states": {}}
     made_gti = {}
     for number, (state, path, x, y) in enumerate(laid):
@@ -284,7 +261,7 @@ def kept_pieces(old, key, out):
     for record in old.get("textures", []):
         if record.get("way") == WAY and record[WAY].get("key") == key:
             file = os.path.join(out, "cache", *up.safe_parts(record["path"]))
-            if not (os.path.isfile(file) and sha256_of(file) == record["file_sha256"]):
+            if not (os.path.isfile(file) and up.sha256_of(file) == record["file_sha256"]):
                 return None
             found[record["path"]] = (file, record["file_sha256"], record["bytes"], record[WAY])
     return found or None

@@ -69,14 +69,6 @@ def load_spec():
         return json.load(f)
 
 
-def sha256_of(path):
-    digest = hashlib.sha256()
-    with open(path, "rb") as f:
-        for block in iter(lambda: f.read(1 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
 def wanted(sources, skip):
     """{path: (table name, why or None)} for each font picture of this run that the spec names and nothing else replaces."""
     found = {}
@@ -93,7 +85,7 @@ def typefaces():
     found = {}
     for name, font in load_spec()["fonts"].items():
         if os.path.isfile(font["system"]):
-            found[name] = (font["system"], sha256_of(font["system"]), None)
+            found[name] = (font["system"], up.sha256_of(font["system"]), None)
         else:
             found[name] = (None, None, "%s is not on this Mac" % name)
     return found

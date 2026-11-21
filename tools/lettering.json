@@ -19,6 +19,10 @@
    "system": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
    "sha256": "d72db21f9242aedd6b917d8549ad5921766b24d5f8d0becfda2ff4c620b3c2e0"
   },
+  "Arial.ttf": {
+   "system": "/System/Library/Fonts/Supplemental/Arial.ttf",
+   "sha256": "525979822591a3447cfc49d943d6f7683508e25543407871c0ed8fed05fd2bd9"
+  },
   "BebasNeue-Regular.ttf": {
    "folder": "bebasneue",
    "url": "https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/bebasneue/BebasNeue-Regular.ttf",
@@ -37,6 +41,17 @@
   "Menlo.ttc": {
    "system": "/System/Library/Fonts/Menlo.ttc",
    "sha256": "dc256e0b39c2a6fec947129d421fef41b8b429f58f9b6e5d1b148c87f775c1f6"
+  },
+  "Oswald[wght].ttf": {
+   "folder": "oswald",
+   "url": "https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/oswald/Oswald%5Bwght%5D.ttf",
+   "sha256": "5b38c246e255a12f5712d640d56bcced0472466fc68983d2d0410ec0457c2817",
+   "licence": {
+    "name": "SIL Open Font License 1.1",
+    "file": "OFL.txt",
+    "url": "https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/oswald/OFL.txt",
+    "sha256": "0fd731a904b729a4e02eaf5e8ebd06783edd9abe400e8882760160230675b652"
+   }
   },
   "StardosStencil-Bold.ttf": {
    "folder": "stardosstencil",
