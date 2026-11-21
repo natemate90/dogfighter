@@ -133,14 +133,27 @@ def laid_back(pixels, box, times, path, x, y, picture):
 
 
 def draw(sources, made_of, tools, work, out, old, skip):
-    """{path: (file, checksum, bytes, note)} for the pieces whose painting was drawn again.
+    """{path: (file, checksum, bytes, note)} for the pieces whose painting was drawn again; see draw_targets."""
+    step = {"spec": SPEC, "draw": DRAW, "way": WAY, "limit": LIMIT, "word": "painting", "flag": "--fetch-paintings",
+            "from": "from box art", "file": reference_file, "references": lambda target: [layer["reference"] for layer in target["layers"]]}
+    return draw_targets(step, sources, made_of, tools, work, out, old, skip)
 
-    sources is {path: the game's data} of this run, made_of(path) gives (made
-    file, its checksum), or None for a picture that was not made, old is the
-    previous manifest, skip the paths something else replaces. work is a
-    folder for this run, out the folder of the set.
+
+def draw_targets(step, sources, made_of, tools, work, out, old, skip):
+    """{path: (file, checksum, bytes, note)} for the pieces whose targets were drawn again by a script in the desk's Python environment.
+
+    step names the spec, the drawing script, the way, the score limit, the
+    word for a target in messages, the fetch flag, how they are drawn,
+    file(tools, name, ref) for a reference and references(target) for the
+    names a target uses. A target's fitted_sha256 is one checksum or a list
+    of them. sources is {path: the game's data} of this run, made_of(path)
+    gives (made file, its checksum), or None for a picture that was not made,
+    old is the previous manifest, skip the paths something else replaces.
+    work is a folder for this run, out the folder of the set.
     """
-    spec = load_spec()
+    with open(step["spec"]) as f:
+        spec = json.load(f)
+    word, way = step["word"], step["way"]
     screens = menus.expanded(menus.load_spec())
     wanted = [(target, laid_out(target, screens, sources)) for target in spec["targets"]]
     wanted = [(target, pieces) for target, pieces in wanted if pieces]
@@ -149,20 +162,20 @@ def draw(sources, made_of, tools, work, out, old, skip):
 
     python = desk.python_of(tools)
     if not os.access(python, os.X_OK):
-        print("  paintings left as made: the Python environment is missing; --fetch-paintings sets it up")
+        print("  %ss left as made: the Python environment is missing; %s sets it up" % (word, step["flag"]))
         return {}
-    used = {layer["reference"] for target, _ in wanted for layer in target["layers"]}
+    used = {name for target, _ in wanted for name in step["references"](target)}
     references, problems = desk.pinned({name: ref for name, ref in spec["references"].items() if name in used},
-                                       lambda name, ref: reference_file(tools, name, ref), "picture", "--fetch-paintings")
+                                       lambda name, ref: step["file"](tools, name, ref), "picture", step["flag"])
 
     originals, made, made_gti, ready = {}, {}, {}, []
     for target, pieces in wanted:
-        why = [problems[layer["reference"]] for layer in target["layers"] if layer["reference"] in problems]
+        why = [problems[name] for name in step["references"](target) if name in problems]
         if why:
-            print("  painting %s left as made: %s" % (target["name"], why[0]))
+            print("  %s %s left as made: %s" % (word, target["name"], why[0]))
             continue
         if any(made_of(path) is None for path, _, _ in pieces):
-            print("  painting %s left as made: a picture of it was not made" % target["name"])
+            print("  %s %s left as made: a picture of it was not made" % (word, target["name"]))
             continue
         for path, _, _ in pieces:
             if path not in originals:
@@ -171,27 +184,28 @@ def draw(sources, made_of, tools, work, out, old, skip):
                 with open(made[path][0], "rb") as f:
                     made_gti[path] = gti.parse(f.read())
         own = composed(pieces, originals, target["box"], 1)
-        if hashlib.sha256(own).hexdigest() != target["fitted_sha256"]:
-            print("  painting %s left as made: the game's pixels are not the ones it was fitted to" % target["name"])
+        fitted = target["fitted_sha256"]
+        if hashlib.sha256(own).hexdigest() not in (fitted if isinstance(fitted, list) else [fitted]):
+            print("  %s %s left as made: the game's pixels are not the ones it was fitted to" % (word, target["name"]))
             continue
         if any(gti.to_rgba(made_gti[path].best())[:2] != (originals[path][0] * TIMES, originals[path][1] * TIMES)
                for path, _, _ in pieces):
-            print("  painting %s left as made: it was not made %d times as large" % (target["name"], TIMES))
+            print("  %s %s left as made: it was not made %d times as large" % (word, target["name"], TIMES))
             continue
         ready.append((target, pieces, own))
     if not ready:
         return {}
 
-    with open(SPEC, "rb") as f:
+    with open(step["spec"], "rb") as f:
         spec_sum = hashlib.sha256(f.read()).hexdigest()
-    common = {"spec": spec_sum, "draw": up.sha256_of(DRAW), "requirements": up.sha256_of(desk.REQUIREMENTS),
+    common = {"spec": spec_sum, "draw": up.sha256_of(step["draw"]), "requirements": up.sha256_of(desk.REQUIREMENTS),
               "python": desk.python_version(python)}
     done, todo = {}, []
     for target, pieces, own in ready:
-        sums = {layer["reference"]: spec["references"][layer["reference"]]["sha256"] for layer in target["layers"]}
+        sums = {name: spec["references"][name]["sha256"] for name in step["references"](target)}
         key = hashlib.sha256(json.dumps(dict(common, target=target["name"], made={path: made[path][1] for path, _, _ in pieces},
                                              references=sums), sort_keys=True).encode()).hexdigest()
-        kept = desk.kept_pieces(old, key, out, WAY)
+        kept = desk.kept_pieces(old, key, out, way)
         if kept is None:
             todo.append((target, pieces, own, key, sums))
         else:
@@ -199,10 +213,10 @@ def draw(sources, made_of, tools, work, out, old, skip):
     if not todo:
         return done
 
-    folder = os.path.join(work, WAY)
+    folder = os.path.join(work, way)
     os.makedirs(folder, exist_ok=True)
     big = {path: gti.to_rgba(made_gti[path].best()) for _, pieces, _, _, _ in todo for path, _, _ in pieces}
-    job = {"spec": SPEC, "times": TIMES, "references": references, "targets": []}
+    job = {"spec": step["spec"], "times": TIMES, "references": references, "targets": []}
     for number, (target, pieces, own, _, _) in enumerate(todo):
         x0, y0, x1, y1 = target["box"]
         stem = os.path.join(folder, "%02d" % number)
@@ -213,16 +227,16 @@ def draw(sources, made_of, tools, work, out, old, skip):
                                "original": stem + ".original", "out": stem + ".out"})
     with open(os.path.join(folder, "job.json"), "w") as f:
         json.dump(job, f)
-    said = subprocess.run([python, "-I", DRAW, os.path.join(folder, "job.json")], stdout=subprocess.PIPE, text=True)
+    said = subprocess.run([python, "-I", step["draw"], os.path.join(folder, "job.json")], stdout=subprocess.PIPE, text=True)
     lines = [json.loads(line) for line in said.stdout.splitlines() if line.startswith("{")]
     if said.returncode or len(lines) != len(todo) + 1:
-        print("  paintings left as made: tools/paintings-draw.py stopped (exit %d)" % said.returncode)
+        print("  %ss left as made: tools/%s stopped (exit %d)" % (word, os.path.basename(step["draw"]), said.returncode))
         return done
     packages = lines.pop()
     drawn = {}
     for (target, pieces, _, key, sums), item, line in zip(todo, job["targets"], lines):
-        if line["match"] < LIMIT:
-            print("  painting %s left as made: it scores %.1f dB, under %.1f" % (target["name"], line["match"], LIMIT))
+        if line["match"] < step["limit"]:
+            print("  %s %s left as made: it scores %.1f dB, under %.1f" % (word, target["name"], line["match"], step["limit"]))
             continue
         if not line["changed"]:
             continue
@@ -241,5 +255,5 @@ def draw(sources, made_of, tools, work, out, old, skip):
             with open(file, "wb") as f:
                 f.write(data)
             drawn[path] = (file, hashlib.sha256(data).hexdigest(), len(data), note)
-    print("  paintings: %d of %d drawn again from box art, %d pieces" % (len({drawn[path][3]["target"] for path in drawn}), len(todo), len(drawn)))
+    print("  %ss: %d of %d drawn again %s, %d pieces" % (word, len({drawn[path][3]["target"] for path in drawn}), len(todo), step["from"], len(drawn)))
     return dict(done, **drawn)

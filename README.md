@@ -154,6 +154,7 @@ The game starts with the best picture by itself:
 - Labels with small writing, such as on the bombs, the glue tube and the book spines, are redrawn with matching fonts.
 - The model kit boxes and paint tins on the main menu's desk are drawn again from photos of real 1990s Airfix boxes and a Humbrol tin. Setup downloads the photos once.
 - The twelve plane paintings on the loading screens and in the model window are drawn again from Airfix's box art. Setup downloads the pictures once.
+- The ink stamps on the Axis and US Airforce pages of the mission book are drawn again as sharp ink. The US page shows the wartime winged star instead of the 1947 seal.
 - Every start also turns some of the game's own settings up, such as the draw distance and the colour depth.
 
 Setup makes the sharper textures once.
