@@ -259,8 +259,8 @@ python3 tools/upscale-textures.py
 ```
 
 - It writes 1,192 textures and the 11 font pictures to `hd-textures/cache/`, twice as large as the originals.
-- It also writes 511 menu and HUD pictures, two or four times as large (see [Menus and loading screens](#menus-and-loading-screens)).
-- That takes about 800 MB of disk space: about 180 MB for the textures, the rest for the menu pictures.
+- It also writes 640 menu and HUD pictures, two or four times as large (see [Menus and loading screens](#menus-and-loading-screens)).
+- That takes about 980 MB of disk space: about 180 MB for the textures, the rest for the menu pictures.
 - The packs in `game/` are never changed.
 
 Without the upscalers the resizer is the Lanczos filter that comes with macOS.
@@ -411,18 +411,27 @@ Other screens were not compared.
 | --- | --- | --- |
 | Main menu (12 tiles) and its 13 highlights | 4x | Real-ESRGAN, on the whole screen |
 | 25 loading screens (12 tiles each) | 4x | Real-ESRGAN, on the whole screen |
+| Mission selection: 16 tiles, the three other book tiles, the paper, 10 mission rows, 9 highlights | 4x | Real-ESRGAN, on the whole screen |
+| Mission briefing: 6 tiles, the paper, 6 highlights, 40 photos of rooms, units and pickups | 4x | Real-ESRGAN, on the whole screen |
+| Credits: the 12 tiles of the frame | 4x | Real-ESRGAN, on the whole screen |
+| Credits: the 6 pictures of the scrolling text | 2x | waifu2x |
 | Window frames, buttons, sliders, the mouse arrow | 2x | waifu2x |
-| Medals, plane and weapon pictures, in-flight map tiles, pilot photos | 4x | Real-ESRGAN |
+| Medals, plane and weapon pictures, the icons of the model window, the maps of the Mission Info window, pilot photos | 4x | Real-ESRGAN |
 | The HUD: gauges, plane shapes, weapon signs, digits, sights, radar frame (48 pictures) | 4x | Real-ESRGAN, then the labels are redrawn |
 
 A screen is put together from its tiles into one 640x480 picture first.
 That picture is enlarged, pulled back to the original and checked like a texture, then cut into the tiles again.
 So no edge shows where two tiles meet.
 
-A highlight is the piece the game draws over the main menu under the mouse.
-For each one the whole menu is enlarged once more with the highlight laid in, and only the highlight is cut out.
-Its edges then continue into the menu around it.
-The places of the highlights were found by laying each one over the menu; they are in the JSON file.
+A highlight is the piece the game draws over a screen under the mouse.
+For each one the whole screen is enlarged once more with the highlight laid in, and only the highlight is cut out.
+Its edges then continue into the screen around it.
+The same is done for every piece the game lays over a screen: the rows of the mission list, the paper, and the photo on the briefing.
+
+Where each piece lies is in the JSON file. The places come from two sources.
+- `./dogfighter --diag-draws` writes the place of each picture's first draw to the log. The tiles of all five screens, four highlights, two mission rows and one briefing photo were read from that.
+- The other highlights, rows and paper tiles were laid over the composed screen at every place, and the best fit was taken. Where both sources had a piece, they agreed.
+- All 40 briefing photos are taken to lie where the one that was logged lies, at 350,65. A wrong place would not move a picture in the game. It would only make its edge fit the paper less well.
 
 - Each picture gets its marker, `.2x` or `.4x`.
 - The manifest lists each with its way, its scores, `marked` (2 or 4) and, for a piece of a screen, `screen`.
@@ -430,16 +439,20 @@ The places of the highlights were found by laying each one over the menu; they a
 - Pilot photos are `.tga` files. The tool reads and writes them itself.
 - `--no-menus` leaves all of them out and removes them from a set.
 - `--menus-only` adds them to a complete set and keeps that set's settings and key, as `--lettering-only` does. `./setup.sh` runs it on a complete set.
-- An override in `texture-overrides/` works for these too. It must have the enlarged size.
+- An override in `texture-overrides/` works for these too, for a `.gti` and for a `.tga` photo. It must have the enlarged size.
 - A change in the JSON file makes the pictures it touches again on the next run.
 
-Left out, because the game reads their pixels one by one: the Paint Room's pieces, the stickers and `Graphics\Misc`.
-The House Editor is left out too. Nobody has checked how it draws.
+Left out:
+- The Paint Room's pieces, the stickers and `Graphics\Misc`: the game reads their pixels one by one.
+- The House Editor: nobody has checked how it draws.
+- The icons of the mission success screen and the two other credits frames (`creds_al`, `creds_ax`): no test run reached them.
+- The photos and the noise behind the credits. The photos show the people who made the game, and an upscaler repaints faces.
 
-One run on an M4 Max made the 511 pictures in about two minutes. Two runs gave the same bytes.
-The set grows from about 200 MB to about 800 MB. The 25 loading screens take most of that.
+One run on an M4 Max made the 640 pictures in about six and a half minutes. Each state of a screen costs one more pass over the whole screen, and the two mission screens have 67 states.
+Two runs into two folders gave the same bytes. The tool also makes one screen a second time in every run and compares.
+The set grows from about 200 MB to about 980 MB. The 25 loading screens take most of that.
 
-In the game, with full resolution: the login window, the Pilot Roster, the main menu with two highlights, the mission selection, a loading screen and a flight.
+In the game, with full resolution: the login window, the Pilot Roster, the main menu with two highlights, the mission selection, the briefing, the model window, the credits, a loading screen, a flight and the map in the Mission Info window.
 In the flight the gauges, the digits, the armour ring and the radar stood where they stand with the game's own files.
 Every screen matched the one with the game's own files in layout. Info, Close, Login and Campaign opened on a click.
 The upscaler repaints faces on the pilot photos a little. That is a matter of taste.

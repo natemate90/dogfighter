@@ -20,7 +20,7 @@ This is an unofficial project. It is not affiliated with any of them.
 - An internet connection while you install.
 - Free disk space:
   - about 5 GB for the game (about 3 GB on macOS older than 26.4),
-  - about 1 GB more for the sharper textures and menus that setup makes,
+  - about 1.2 GB more for the sharper textures and menus that setup makes,
   - about 6.6 GB more for the optional extra detail on walls and floors.
 
 ### Which macOS works best
@@ -146,7 +146,7 @@ The game starts with the best picture by itself:
 - Text, menus and the gauges in flight keep their normal size.
 - The textures of the 3D world have twice the pixels.
 - Letters have twice the pixels too, so they look crisper.
-- The main menu, the loading screens, the medals, the pilot photos and the pictures of planes and weapons have four times the pixels.
+- The main menu, the loading screens, the mission books, the briefing, the medals, the pilot photos and the pictures of planes and weapons have four times the pixels.
 - Window frames, buttons and the mouse arrow have twice the pixels.
 - The gauges in flight have four times the pixels. Their labels, such as FUEL and SPEED, are redrawn with a matching font.
 - Labels with small writing, such as on the bombs, the glue tube and the book spines, are redrawn with matching fonts.
@@ -154,8 +154,8 @@ The game starts with the best picture by itself:
 
 Setup makes the sharper textures once.
 - It downloads two upscalers, about 100 MB. These programs enlarge pictures and draw in detail.
-- The textures and menu pictures take about 800 MB of disk space.
-- One run on an M4 Max took about six and a half minutes.
+- The textures and menu pictures take about 1 GB of disk space.
+- One run on an M4 Max took about eleven minutes.
 - If the upscalers do not run on your Mac, setup uses the Mac's own filter. Those textures are smoother, with less detail.
 - Running setup again leaves a finished set as it is. It only adds menu pictures that are missing.
 

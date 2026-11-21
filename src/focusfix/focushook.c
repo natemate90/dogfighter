@@ -1267,6 +1267,36 @@ static void raise_texture_size_limit(void)
     say("texture size limit raised from %d to %u pixels", ORIGINAL_LIMIT, texture_limit);
 }
 
+/* Enters a function of the game through a jump written over its first bytes,
+   which must be whole instructions that do not depend on where they stand.
+   Returns a copy of those bytes that jumps on into the function, to call the
+   game's own code with; NULL, and nothing changed, when the bytes are not
+   the expected ones. */
+static void *enter_game_function(BYTE *code, const BYTE *expected, SIZE_T stolen, void *replacement)
+{
+    enum { JUMP = 0xe9, NOP = 0x90, JUMP_SIZE = 5 };
+    BYTE *copy;
+    DWORD old;
+
+    if (stolen < JUMP_SIZE || IsBadReadPtr(code, stolen) || memcmp(code, expected, stolen)
+        || !(copy = VirtualAlloc(NULL, stolen + JUMP_SIZE, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE)))
+        return NULL;
+    if (!VirtualProtect(code, stolen, PAGE_EXECUTE_READWRITE, &old))
+    {
+        VirtualFree(copy, 0, MEM_RELEASE);
+        return NULL;
+    }
+    memcpy(copy, code, stolen);
+    copy[stolen] = JUMP;
+    *(LONG *)(copy + stolen + 1) = (code + stolen) - (copy + stolen + JUMP_SIZE);
+    code[0] = JUMP;
+    *(LONG *)(code + 1) = (BYTE *)replacement - (code + JUMP_SIZE);
+    memset(code + JUMP_SIZE, NOP, stolen - JUMP_SIZE);
+    VirtualProtect(code, stolen, old, &old);
+    FlushInstructionCache(GetCurrentProcess(), code, stolen);
+    return copy;
+}
+
 /* The game draws a flat picture as large as the size stored in its file, and
    takes texture coordinates as pixels of that size. A file with more pixels
    would be drawn larger. For a file that has a marker next to it,
@@ -1399,28 +1429,12 @@ static void __fastcall noted_draw_flat(void *screen, void *unused, void *texture
 
 static void note_flat_draws(BYTE *cc)
 {
-    enum { DRAW_FUNCTION = 0x44eb0, JUMP = 0xe9, NOP = 0x90, STOLEN = 6 };
-    static const BYTE start[STOLEN] = { 0x81, 0xec, 0xcc, 0x01, 0x00, 0x00 };
-    BYTE *code = cc + DRAW_FUNCTION, *trampoline;
-    DWORD old;
+    enum { DRAW_FUNCTION = 0x44eb0 };
+    static const BYTE start[] = { 0x81, 0xec, 0xcc, 0x01, 0x00, 0x00 };
 
-    if (IsBadReadPtr(code, STOLEN) || memcmp(code, start, STOLEN)
-        || !(trampoline = VirtualAlloc(NULL, 16, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE))
-        || !VirtualProtect(code, STOLEN, PAGE_EXECUTE_READWRITE, &old))
-    {
-        say("test run: this is not the known game build; flat draws are not noted");
-        return;
-    }
-    memcpy(trampoline, code, STOLEN);
-    trampoline[STOLEN] = JUMP;
-    *(LONG *)(trampoline + STOLEN + 1) = (code + STOLEN) - (trampoline + STOLEN + 5);
-    game_draw_flat = (void *)trampoline;
-    code[0] = JUMP;
-    *(LONG *)(code + 1) = (BYTE *)noted_draw_flat - (code + 5);
-    code[5] = NOP;
-    VirtualProtect(code, STOLEN, old, &old);
-    FlushInstructionCache(GetCurrentProcess(), code, STOLEN);
-    say("test run: the first flat draw of each picture is noted");
+    game_draw_flat = enter_game_function(cc + DRAW_FUNCTION, start, sizeof(start), noted_draw_flat);
+    say(game_draw_flat ? "test run: the first flat draw of each picture is noted"
+                       : "test run: this is not the known game build; flat draws are not noted");
 }
 
 static BOOL give_stored_image_sizes(void)
@@ -1445,33 +1459,21 @@ static BOOL give_stored_image_sizes(void)
 
 static void hook_texture_load(void)
 {
-    enum { LOAD_FUNCTION = 0x46350, JUMP = 0xe9, STOLEN = 5 };
-    static const BYTE start[STOLEN] = { 0x83, 0xec, 0x48, 0x53, 0x55 };
+    enum { LOAD_FUNCTION = 0x46350 };
+    static const BYTE start[] = { 0x83, 0xec, 0x48, 0x53, 0x55 };
     static BOOL done;
-    BYTE *code = (BYTE *)GetModuleHandleA("Cc.dll"), *trampoline;
-    DWORD old;
+    BYTE *cc = (BYTE *)GetModuleHandleA("Cc.dll");
 
-    if (done || !code || !GetModuleHandleA("AfEngine.dll")) return;
+    if (done || !cc || !GetModuleHandleA("AfEngine.dll")) return;
     done = TRUE;
-    code += LOAD_FUNCTION;
-    if (IsBadReadPtr(code, STOLEN) || memcmp(code, start, STOLEN)
-        || !(trampoline = VirtualAlloc(NULL, 16, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE))
-        || !give_stored_image_sizes()
-        || !VirtualProtect(code, STOLEN, PAGE_EXECUTE_READWRITE, &old))
+    if (IsBadReadPtr(cc + LOAD_FUNCTION, sizeof(start)) || memcmp(cc + LOAD_FUNCTION, start, sizeof(start)) || !give_stored_image_sizes()
+        || !(game_texture_load = enter_game_function(cc + LOAD_FUNCTION, start, sizeof(start), marked_texture_load)))
     {
         say("this is not the known game build; pictures with more pixels are drawn too large");
         return;
     }
-    memcpy(trampoline, code, STOLEN);
-    trampoline[STOLEN] = JUMP;
-    *(LONG *)(trampoline + STOLEN + 1) = (code + STOLEN) - (trampoline + STOLEN + 5);
-    game_texture_load = (void *)trampoline;
-    code[0] = JUMP;
-    *(LONG *)(code + 1) = (BYTE *)marked_texture_load - (code + 5);
-    VirtualProtect(code, STOLEN, old, &old);
-    FlushInstructionCache(GetCurrentProcess(), code, STOLEN);
     say("the game's texture loader is watched for pictures with 2 or 4 times the pixels");
-    if (test_notes_draws) note_flat_draws(code - LOAD_FUNCTION);
+    if (test_notes_draws) note_flat_draws(cc);
 }
 
 static BOOL CALLBACK note_display(HMONITOR monitor, HDC dc, RECT *rect, LPARAM lp)
