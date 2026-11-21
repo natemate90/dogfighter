@@ -20,7 +20,7 @@ minutes. If the upscalers cannot be fetched or do not run on this Mac, the
 textures are made with the Mac's own filter. Labels with small writing are
 then redrawn with matching fonts; three of them are downloaded, the rest come
 with macOS. When hd-textures/ already holds a complete set, whatever made it,
-setup keeps it and the upscalers as they are, and only redraws its labels.
+setup keeps it and the upscalers as they are. It only adds missing menu pictures and redraws the labels, letters, desk, paintings and stamps.
 --no-hd-textures skips this step. --hd-textures is still accepted; it is
 the default.
 

@@ -127,7 +127,7 @@ Your pilots, saves and key settings stay as they are.
 - The first start takes about a minute longer. It prepares Wine for the game.
 - The very first start shows the game's setup window. Click OK. After that, the launcher clicks OK for you.
 - With Mach9 (macOS 26.4 or later) two intro videos play. Press Esc to skip them.
-- If you made the sharper intro videos, they play first, in their own window, on either Wine. Esc, a click or any key skips one. The game then leaves out its own copies. How to make them is in [docs/TECHNICAL.md](docs/TECHNICAL.md#intro-videos).
+- If you made the sharper intro videos, they play first, in their own window, on either Wine. Esc, a click or any key skips one. The game then leaves out its own copies. Nobody has tried this yet. How to make them is in [docs/TECHNICAL.md](docs/TECHNICAL.md#intro-videos).
 - The game opens in a normal Mac window. Drag an edge or click the green button to make it bigger. The picture grows with the window.
 
 For a game without sound, start it with `./dogfighter --mute`.
@@ -146,6 +146,7 @@ Run it once. After that, `dogfighter` works in any Terminal folder.
 
 The game starts with the best picture by itself:
 - The 3D picture uses every pixel of your Retina screen. The edges of 3D shapes are drawn sharp, not stretched.
+- Jagged edges of 3D shapes are smoothed. The ground and walls stay sharp in the distance.
 - Text, menus and the gauges in flight keep their normal size.
 - The textures of the 3D world have twice the pixels.
 - The letters of the Pilot Login, the Pilot Roster, Mission Info, the message line in flight, the mission book and the briefing are drawn again from the Mac's own matching fonts, with four times the pixels, so they look sharp. The other letters have twice the pixels.
@@ -163,7 +164,7 @@ Setup makes the sharper textures once.
 - The textures and menu pictures take about 1 GB of disk space.
 - One run on an M4 Max took about eleven minutes.
 - If the upscalers do not run on your Mac, setup uses the Mac's own filter. Those textures are smoother, with less detail.
-- Running setup again leaves a finished set as it is. It only adds menu pictures that are missing.
+- Running setup again keeps a finished set. It only adds missing menu pictures and draws the labels, letters, desk, paintings and stamps again.
 
 The textures are made on your Mac from your own game files. Nothing is uploaded.
 Your game files are never changed.
@@ -461,6 +462,6 @@ More picture options and test options are in [docs/TECHNICAL.md](docs/TECHNICAL.
 ## Legal
 
 For personal use with a disc you own.
-Never share the game files: `Dogfighter.bin`, `cd/`, `game/`, `music/`, `hd-textures/` or `Dogfighter.app`.
+Never share the game files: `Dogfighter.bin`, `cd/`, `game/`, `music/`, `hd-textures/`, `hd-videos/` or `Dogfighter.app`.
 
 How it all works, for developers: [docs/TECHNICAL.md](docs/TECHNICAL.md).

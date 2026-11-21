@@ -278,7 +278,7 @@ python3 tools/upscale-textures.py
 `python3 tools/upscale-textures.py --check` gives that answer; the launcher asks the same question.
 A complete set stays as it is, whatever settings made it, for example `--scale 4`, `--upscaler vimage` or `--allow-other-tools`.
 Setup then fetches no upscalers either, so upscalers of your own in `upscale-tools/` stay too.
-It only redraws the set's labels (see [Redrawn labels](#redrawn-labels)).
+It only adds missing menu pictures and redraws the labels, letters, desk, paintings and stamps (see [Redrawn labels](#redrawn-labels)).
 To make the set again, run the tool yourself, or move `hd-textures/` away and run `./setup.sh`.
 `./setup.sh --no-hd-textures` skips the step.
 
@@ -290,10 +290,13 @@ Setup never fails on this step:
 A set made with the macOS filter is complete too. A later `./setup.sh` does not replace it with an upscaled one.
 The tool on its own also skips finished work: a second run over the full set on an M4 Max took 3 seconds and changed nothing.
 
-`--fetch-tools` downloads three archives, about 100 MB, to `downloads/upscale/`, four fonts, three for the [redrawn labels](#redrawn-labels) and Oswald for the desk, and the photos and Python packages of [the desk](#the-desk-on-the-main-menu).
+`--fetch-tools` downloads three archives, about 100 MB, to `downloads/upscale/`.
 - `upscayl-bin` 20251207-174704, which runs the model.
 - The Real-ESRGAN model `realesrgan-x4plus`, from the Real-ESRGAN release v0.2.5.0.
 - `waifu2x-ncnn-vulkan` 20250915 with its `cunet` model, as the second choice.
+
+It also fetches four fonts: three for the [redrawn labels](#redrawn-labels) and Oswald for the desk.
+And it fetches the pictures and Python packages of [the desk](#the-desk-on-the-main-menu), the plane paintings and the stamps.
 
 Each archive is checked against a SHA-256 checksum pinned in the tool before it is unpacked.
 Only the program and model files are unpacked, to `upscale-tools/`.
@@ -774,7 +777,8 @@ The videos go to `hd-videos/`, with `manifest.json`: checksums, settings, model 
 - A run that stops goes on where it stopped. The work files are in `hd-videos/.work/`.
 - `--video-only NAME` makes one video. `--video-clip START,SECONDS` makes only that part, to `hd-videos/clips/`. `--video-level N` tries another level, also to `clips/`.
 - SeedVR2 gets a long shot in chunks of at most 29 frames. Its memory grows with the chunk, and 52 frames needed more than 22 GB. Each chunk also sees 4 frames of its neighbours, and the 4 frames where two chunks meet are faded from one to the other.
-- SeedVR2 keeps freed graphics memory for reuse. Above 6 GB it gives some back, and 24 GB is its hard limit (26 GB for level 3). Without these limits it reached 29 GB. Changing them does not make the video again.
+- SeedVR2 keeps freed graphics memory for reuse. Above 6 GB it gives some back, and 19 GB is its hard limit (26 GB for level 3). Without these limits it reached 29 GB. Changing them does not make the video again.
+- The limits alone did not hold. So SeedVR2 runs through `tools/seedvr2-run.py`. It empties that kept memory before each phase and after each batch. It changes SeedVR2's code in memory only, so the unpacked files keep their checksum.
 - A stopped run of level 2 or 3 goes on from the chunk where it stopped. SeedVR2's own output goes to `seedvr2.log` in the work folder.
 - While a tool runs, `videos.log` gets a line each minute with its memory (`tool=`), graphics memory included.
 
@@ -818,6 +822,8 @@ If Mach9 does not start and the launcher starts the Rosetta Wine, the videos are
 `build/intro-player` and the helper must be newer than their sources; if not, the game plays its own and the launcher says to run `./setup.sh`.
 
 `--no-hd-videos` lets the game play its own intros. `--original` does too, unless `--hd-videos` is given.
+
+Nobody has run the player window, its decoding, the skipping or the game leaving out its own copies yet.
 
 ## CD music
 
@@ -975,7 +981,7 @@ Not done for controllers:
 | `--no-focusfix` | Start without the helper (see Troubleshooting). |
 | `--wine=NAME` | Pick the Wine build: `--wine=mach9` or `--wine=stable`, the Rosetta Wine. Any other name uses `wine-NAME/` and `prefix-NAME/`. |
 | `--wine-rule=KEY=VALUE` | Only with Mach9: one Mach9 setting for the game. Can be given more than once. |
-| `--stop` | End a running game and all its Wine processes, on both Wine builds. |
+| `--stop` | End a running game and all its Wine processes. Without `--wine`, on both Wine builds. |
 | `--debug=CHANNELS` | Write Wine debug channels to the log, e.g. `--debug=+seh`. |
 | `--diag` | Write the game's windows, display mode and cursor state to the log. |
 | `--winecfg` | Open Wine's settings for this game instead of playing. |
@@ -1038,8 +1044,10 @@ Collected from the sections above.
 - Sharper letters at 2x: `system8` (the console) and `aeroplane` (window titles) were seen in test runs but not compared. `digital_large` and `digital_small` were never loaded in a test run.
 - Redrawn labels: not yet looked at in the game.
 - The desk on the main menu: not yet looked at in the game.
+- The plane paintings and the stamps in the mission book: not yet looked at in the game.
 - `--join`: whether the Multiplayer screen lists the server.
-- The sharper intro videos: the player window, the skipping and the game leaving out its own copies were never run.
+- The sharper intro videos: the player window, its decoding, the skipping and the game leaving out its own copies were never run.
+- The Airfix intro at level 2: only a 4-second clip was made so far. The level 3 sample was not made yet.
 - Controllers: none was ever connected. Open points are whether the game gets its input, the direction of pitch, the triggers as throttle, Xbox over USB, and whether the Key configuration screen takes controller buttons.
 - Turning Joystick on by itself: no controller was connected. The write was tried on a copy of `game/user.ini`, with a pretend controller name in place of `hidutil`.
 - Joystick throttle: no joystick was connected. A lever that is not the third axis is read wrongly through SDL.
@@ -1048,5 +1056,5 @@ Collected from the sections above.
 ## Legal
 
 For personal use with a disc you own.
-Never commit or share the game files: `Dogfighter.bin`, `cd/`, `game/`, `music/`, `hd-textures/` or `Dogfighter.app`.
+Never commit or share the game files: `Dogfighter.bin`, `cd/`, `game/`, `music/`, `hd-textures/`, `hd-videos/` or `Dogfighter.app`.
 `.gitignore` keeps them out of git.
