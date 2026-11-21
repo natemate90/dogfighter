@@ -17,8 +17,13 @@ At a cut RIFE would blend two shots, so the last frame of a shot is held
 until the next shot starts. That also keeps every original frame at its own
 time, so picture and sound stay in sync.
 
-Memory: under stop_free percent free no new shot or batch is started; under
-abort_free the running tool is stopped at once and the run ends. While a tool
+Memory: the run follows macOS's memory pressure, so compressed memory and idle
+apps swapped to the SSD do not stop it. At stop_level or worse no new shot,
+chunk or batch is started; it checks again every 30 s for up to wait_s, then
+the run ends. At abort_level for abort_after_s in a row, or with more than
+abort_swap_gb of swap used, the running tool is stopped at once and the run
+ends. When the pressure cannot be read, the old rule holds: nothing starts
+under stop_free percent free, and the run ends under abort_free. While a tool
 runs, a "during" line is logged each minute with the memory of the tool and
 its children (tool=).
 """
@@ -47,6 +52,27 @@ RATE = 15
 SAMPLES = 22050
 BATCH = 32
 LIBC = ctypes.CDLL("/usr/lib/libSystem.B.dylib", use_errno=True)
+LIBC.sysctlbyname.argtypes = [ctypes.c_char_p, ctypes.c_void_p, ctypes.POINTER(ctypes.c_size_t), ctypes.c_void_p, ctypes.c_size_t]
+PRESSURE = {"normal": 1, "warning": 2, "critical": 4}
+PRESSURE_NAME = {level: name for name, level in PRESSURE.items()}
+
+
+def sysctl(name, size):
+    value, length = ctypes.create_string_buffer(size), ctypes.c_size_t(size)
+    if LIBC.sysctlbyname(name.encode(), value, ctypes.byref(length), None, 0):
+        raise OSError(ctypes.get_errno(), "sysctl " + name)
+    return value.raw[:length.value]
+
+
+def pressure():
+    """The green, yellow and red of Activity Monitor: 1, 2 or 4. The sysctl is not in the SDK; xnu returns the
+    DISPATCH_MEMORYPRESSURE_NORMAL, _WARN and _CRITICAL of <dispatch/source.h>, and counts its urgent level as 2."""
+    return struct.unpack("<i", sysctl("kern.memorystatus_vm_pressure_level", 4))[0]
+
+
+def swap_used():
+    """xsu_used of struct xsw_usage in <sys/sysctl.h>, after the 64-bit xsu_total and xsu_avail."""
+    return struct.unpack_from("<Q", sysctl("vm.swapusage", 32), 16)[0]
 
 
 def footprint(pid):
@@ -61,13 +87,25 @@ def footprint(pid):
 
 class Watch:
     """Logs memory and load, remembers the worst, and stops the running tool when memory runs out."""
+    TICK, PAUSE = 5, 30
 
-    def __init__(self, log, limits):
-        self.log_file, self.limits = log, limits
-        self.child, self.label, self.aborted, self.unread = None, "", False, None
+    def __init__(self, log, limits, pressure=pressure, swap=swap_used):
+        self.log_file, self.limits, self.read_pressure, self.read_swap = log, limits, pressure, swap
+        self.stop_level, self.abort_level = PRESSURE[limits["stop_level"]], PRESSURE[limits["abort_level"]]
+        self.child, self.label, self.aborted, self.why, self.unread = None, "", False, "", None
         self.least_free, self.most_used, self.most_child, self.run_peak = 100, 0, 0, 0
+        self.worst_level, self.most_swap, self.red_since, self.notes, self.noted = 0, 0, None, [], set()
         self.logged = time.time()
         threading.Thread(target=self.loop, daemon=True).start()
+
+    def read(self, what, reader, then):
+        try:
+            return reader()
+        except OSError as error:
+            if what not in self.noted:
+                self.noted.add(what)
+                self.notes.append("%s not read (%s), so %s" % (what, error, then))
+            return None
 
     def free(self):
         said = subprocess.run(["/usr/bin/memory_pressure"], capture_output=True, text=True).stdout
@@ -94,32 +132,58 @@ class Watch:
         free = self.free()
         used = psutil.virtual_memory().total - psutil.virtual_memory().available
         child = self.tool_memory(self.child.pid) if self.child and self.child.poll() is None else 0
+        level = self.read("memory pressure", self.read_pressure, "the old rule holds: nothing starts under %d%% free, and the run "
+                          "ends under %d%%" % (self.limits["stop_free"], self.limits["abort_free"]))
+        swap = self.read("swap", self.read_swap, "it has no limit")
         if free >= 0:
             self.least_free = min(self.least_free, free)
         self.most_used, self.most_child = max(self.most_used, used), max(self.most_child, child)
+        self.worst_level, self.most_swap = max(self.worst_level, level or 0), max(self.most_swap, swap or 0)
         self.run_peak = max(self.run_peak, child)
-        return free, used, child
+        return free, used, child, level, swap
 
     def log(self, tag, text=""):
-        free, used, child = self.sample()
+        sampled = free, used, child, level, swap = self.sample()
         if self.unread:
             text, self.unread = "%s (tool memory not read: %s)" % (text, self.unread), None
-        line = "%s load1=%.1f free=%d%% used=%.1fGB tool=%.1fGB %s %s" % (
-            time.strftime("%Y-%m-%d %H:%M:%S"), os.getloadavg()[0], free, used / 1e9, child / 1e9, tag, text)
+        while self.notes:
+            text = "%s (%s)" % (text, self.notes.pop(0))
+        line = "%s load1=%.1f free=%d%% used=%.1fGB pressure=%s swap=%s tool=%.1fGB %s %s" % (
+            time.strftime("%Y-%m-%d %H:%M:%S"), os.getloadavg()[0], free, used / 1e9,
+            "?" if level is None else PRESSURE_NAME.get(level, level), "?" if swap is None else "%.1fGB" % (swap / 1e9),
+            child / 1e9, tag, text)
         with open(self.log_file, "a") as f:
             f.write(line + "\n")
         print(line, flush=True)
         self.logged = time.time()
-        return free
+        return sampled
+
+    def danger(self, free, level, swap):
+        """Why the run must end now, or "". Pressure must stay at abort_level for abort_after_s, not one sample."""
+        if swap is not None and swap > self.limits["abort_swap_gb"] * 1e9:
+            return "swap used went over %s GB" % self.limits["abort_swap_gb"]
+        if level is None:
+            return "free memory went under %d%%" % self.limits["abort_free"] if 0 <= free < self.limits["abort_free"] else ""
+        if level < self.abort_level:
+            self.red_since = None
+            return ""
+        if self.red_since is None:
+            self.red_since = time.time()
+            self.log("pressure", "%s, the tool is stopped if it stays so for %d s" % (
+                PRESSURE_NAME.get(level, level), self.limits["abort_after_s"]))
+        if time.time() - self.red_since >= self.limits["abort_after_s"]:
+            return "memory pressure was %s or worse for %d s" % (self.limits["abort_level"], self.limits["abort_after_s"])
+        return ""
 
     def loop(self):
         while True:
-            time.sleep(5)
-            free, _, _ = self.sample()
+            time.sleep(self.TICK)
+            free, _, _, level, swap = self.sample()
             running = self.child and self.child.poll() is None
-            if 0 <= free < self.limits["abort_free"] and not self.aborted:
-                self.aborted = True
-                self.log("ABORT", "free memory under %d%%, the running tool is stopped" % self.limits["abort_free"])
+            why = "" if self.aborted else self.danger(free, level, swap)
+            if why:
+                self.aborted, self.why = True, why
+                self.log("ABORT", why + ", the running tool is stopped")
                 if running:
                     os.killpg(self.child.pid, signal.SIGKILL)
                 else:
@@ -145,19 +209,24 @@ class Watch:
                     f.seek(max(0, os.path.getsize(log) - 4000))
                     said = f.read()
         if self.aborted:
-            sys.exit("Stopped: free memory went under %d%%. Run again to go on." % self.limits["abort_free"])
+            sys.exit("Stopped: %s. Run again to go on." % self.why)
         if self.child.returncode:
             tail = said.decode(errors="replace").strip().splitlines()[-8:] if said else []
             sys.exit("%s ended with exit code %d\n%s" % (os.path.basename(command[0]), self.child.returncode, "\n".join(tail)))
         return "" if log else said.decode(errors="replace") if said else ""
 
     def room(self, what):
-        for _ in range(10):
-            free = self.log("before", what)
-            if free < 0 or free >= self.limits["stop_free"]:
+        started = time.time()
+        while True:
+            free, _, _, level, _ = self.log("before", what)
+            if level is None and (free < 0 or free >= self.limits["stop_free"]) or level is not None and level < self.stop_level:
                 return
-            time.sleep(60)
-        sys.exit("Stopped before %s: under %d%% memory free for ten minutes. Run again to go on." % (what, self.limits["stop_free"]))
+            if time.time() - started >= self.limits["wait_s"]:
+                break
+            time.sleep(self.PAUSE)
+        busy = "memory pressure %s or worse" % self.limits["stop_level"] if level is not None else (
+            "under %d%% memory free" % self.limits["stop_free"])
+        sys.exit("Stopped before %s: %s for %d s. Run again to go on." % (what, busy, self.limits["wait_s"]))
 
 
 def stage(folder, key):
@@ -481,7 +550,8 @@ def main():
             "match_db": {"least": round(min(scores), 1), "mean": round(float(np.mean(scores)), 1)},
             "seconds": round(time.time() - started), "ffmpeg_sha256": packs.sha256_of(FFMPEG),
             "least_free_percent": watch.least_free, "most_used_gb": round(watch.most_used / 1e9, 1),
-            "most_tool_gb": round(watch.most_child / 1e9, 1),
+            "most_tool_gb": round(watch.most_child / 1e9, 1), "worst_pressure": PRESSURE_NAME.get(watch.worst_level),
+            "most_swap_gb": round(watch.most_swap / 1e9, 1),
         }
         with open(os.path.join(work, "result.json"), "w") as f:
             json.dump(result, f, indent=1, sort_keys=True)

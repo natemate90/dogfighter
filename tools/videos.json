@@ -15,17 +15,18 @@
   "2": {"what": "restored: SeedVR2 3B over whole shots", "way": "seedvr2",
         "dit": "seedvr2_ema_3b-Q8_0.gguf", "vae": "ema_vae_fp16.safetensors", "batch": 9, "chunk": 47, "overlap": 4,
         "color": "lab", "seed": 42, "input_noise": 0.0, "latent_noise": 0.0, "tile": 512, "tile_overlap": 128,
-        "mps_low_gb": 6, "mps_high_gb": 20},
+        "mps_low_gb": 6, "mps_high_gb": 24},
   "3": {"what": "remaster: SeedVR2 7B sharp over whole shots", "way": "seedvr2",
         "dit": "seedvr2_ema_7b_sharp-Q4_K_M.gguf", "vae": "ema_vae_fp16.safetensors", "batch": 9, "chunk": 47, "overlap": 4,
         "color": "lab", "seed": 42, "input_noise": 0.0, "latent_noise": 0.0, "tile": 512, "tile_overlap": 128,
-        "mps_low_gb": 6, "mps_high_gb": 22}
+        "mps_low_gb": 6, "mps_high_gb": 26}
  },
  "cuts": {"reduce": 40, "least": 24, "ratio": 1.95, "black": 8},
  "interpolate": {"model": "rife-v4.26", "uhd": true},
  "encode": {"codec": "libx265", "crf": 14, "preset": "medium", "pix_fmt": "yuv420p10le", "tag": "hvc1",
             "container": "mov", "audio": "pcm_s16le"},
- "memory": {"stop_free": 15, "abort_free": 8},
+ "memory": {"stop_level": "warning", "abort_level": "critical", "abort_after_s": 20, "wait_s": 600, "abort_swap_gb": 16,
+            "stop_free": 15, "abort_free": 8},
  "seedvr2": {
   "url": "https://codeload.github.com/numz/ComfyUI-SeedVR2_VideoUpscaler/tar.gz/refs/tags/v2.5.23",
   "file": "ComfyUI-SeedVR2_VideoUpscaler-v2.5.23.tar.gz",
