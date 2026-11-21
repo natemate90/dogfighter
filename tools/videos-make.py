@@ -127,14 +127,14 @@ class Watch:
             elif running and time.time() - self.logged >= 60:
                 self.log("during", "%s, tool peak %.1fGB" % (self.label, self.run_peak / 1e9))
 
-    def run(self, command, quiet=False, feed=None, log=None):
+    def run(self, command, quiet=False, feed=None, log=None, env=None):
         """Runs command and ends the run when it fails. With log, its output goes to the end of that file instead."""
         if self.aborted:
             sys.exit(3)
         self.label = os.path.basename(next((part for part in command if part.endswith(".py")), command[0]))
         self.run_peak = 0
         output = open(log, "ab") if log else subprocess.PIPE if quiet else None
-        self.child = subprocess.Popen(command, start_new_session=True, stdout=output,
+        self.child = subprocess.Popen(command, start_new_session=True, stdout=output, env=env,
                                       stderr=subprocess.STDOUT if quiet or log else None,
                                       stdin=subprocess.PIPE if feed else None)
         said = self.child.communicate(feed)[0]
@@ -299,12 +299,21 @@ def upscale_seedvr2(watch, job, video, level, src, up, shots):
     before the chunk only steer the model and are dropped. Those after it are
     kept in up/tail and faded into the first frames of the next chunk, so no
     step shows where one chunk ends. A chunk counts as made when all its frames
-    are in up/ and the tail the next chunk needs is there too."""
+    are in up/ and the tail the next chunk needs is there too.
+
+    SeedVR2's inference_cli.py sets both PYTORCH_MPS_*_WATERMARK_RATIO to 0.0
+    unless they are set already. That turns off PyTorch's release of cached Metal
+    memory, so freed memory is never given back and reached 29 GB in the VAE
+    encode alone. level["mps_low_gb"] and level["mps_high_gb"] set them again:
+    above the low one PyTorch releases cached memory, the high one is a hard cap."""
     names = pictures(src)
     width, height = Image.open(os.path.join(src, names[0])).size
     feed, out, tail = up + "-shots", up + "-out", os.path.join(up, "tail")
     os.makedirs(tail, exist_ok=True)
     overlap, log = level["overlap"], os.path.join(os.path.dirname(up), "seedvr2.log")
+    most = torch.mps.recommended_max_memory()
+    env = dict(os.environ, PYTORCH_MPS_LOW_WATERMARK_RATIO="%.3f" % min(2.0, level["mps_low_gb"] * 1e9 / most),
+               PYTORCH_MPS_HIGH_WATERMARK_RATIO="%.3f" % min(2.0, level["mps_high_gb"] * 1e9 / most))
 
     def there(folder, part):
         return all(os.path.isfile(os.path.join(folder, name)) for name in part)
@@ -339,10 +348,11 @@ def upscale_seedvr2(watch, job, video, level, src, up, shots):
                        "--vae_decode_tile_size", str(level["tile"]), "--vae_encode_tile_overlap", str(level["tile_overlap"]),
                        "--vae_decode_tile_overlap", str(level["tile_overlap"]), "--debug"]
             with open(log, "a") as f:
-                f.write("\n=== %s shot %d chunk %d: frames %d to %d, with %d to %d\n" % (
-                    time.strftime("%Y-%m-%d %H:%M:%S"), number + 1, part + 1, first, last - 1, low, high - 1))
+                f.write("\n=== %s shot %d chunk %d: frames %d to %d, with %d to %d, Metal memory low %s high %s of %.1fGB\n" % (
+                    time.strftime("%Y-%m-%d %H:%M:%S"), number + 1, part + 1, first, last - 1, low, high - 1,
+                    env["PYTORCH_MPS_LOW_WATERMARK_RATIO"], env["PYTORCH_MPS_HIGH_WATERMARK_RATIO"], most / 1e9))
             started = time.time()
-            watch.run(command, log=log)
+            watch.run(command, log=log, env=env)
             made = sorted(os.path.join(root, name) for root, _, files in os.walk(out) for name in files if name.endswith(".png"))
             if len(made) != high - low:
                 sys.exit("SeedVR2 made %d frames for frames %d to %d, which are %d" % (len(made), low, high - 1, high - low))
