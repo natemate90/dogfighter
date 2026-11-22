@@ -444,13 +444,25 @@ static void read_command(const char *arg)
     command_count++;
 }
 
-static void send_command(char *text)
+/* FALSE when the helper wants the command again later: the game is still in
+   its intro videos, where starting a mission ends it on Mach9. */
+static BOOL send_command(char *text)
 {
+    enum { LATER = 2 };
+    static BOOL waiting;
     COPYDATASTRUCT data = { 0x41664463, strlen(text) + 1, text };
     DWORD_PTR taken = 0;
 
     SendMessageTimeoutA(game_hwnd, WM_COPYDATA, 0, (LPARAM)&data, SMTO_ABORTIFHUNG, 5000, &taken);
+    if (taken == LATER)
+    {
+        if (!waiting) note("console command for the game: %s: waits until the game is in its main menu", text);
+        waiting = TRUE;
+        return FALSE;
+    }
+    waiting = FALSE;
     note("console command for the game: %s: %s", text, taken ? "run" : "not taken");
+    return TRUE;
 }
 
 static void draw_test(void)
@@ -569,8 +581,9 @@ int main(int argc, char **argv)
             move_mouse(moves[moves_done].dx, moves[moves_done].dy, moves[moves_done].click, moves[moves_done].outside);
             moves_done++;
         }
-        while (commands_sent < command_count && shown >= commands[commands_sent].second)
-            send_command(commands[commands_sent++].text);
+        while (commands_sent < command_count && shown >= commands[commands_sent].second
+               && send_command(commands[commands_sent].text))
+            commands_sent++;
         while (window_test && shown >= wait && (int)(shown - wait) >= next_step)
             window_test = window_test_step(next_step++);
         while (move_test && shown >= wait && (int)(shown - wait) >= next_step)
