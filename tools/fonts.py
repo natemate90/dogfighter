@@ -43,13 +43,25 @@ Checks, for each drawn glyph:
            the box it is compared with the original alpha; all ink outside
            the box counts as difference, since the box cuts it off. The
            match is 100 * (1 - difference / (new ink + old ink)), and must
-           be at least LIMIT. At most OUTSIDE of the glyph's ink may fall
-           outside the box. Else the box keeps the made pixels.
-  outside  pixels of the new picture that differ from the made picture
+           be at least LIMIT.
+  place    the glyph is also drawn one original pixel left, right, up and
+           down. At its own place it must match better than at each of
+           those by LEAD. A glyph one pixel off has its right place next to
+           it, which matches better, so it fails. LIMIT alone cannot tell:
+           the heavier, lighter strokes of weight and gain score lower at
+           the right place, and a glyph one pixel off often scores as well.
+           The bar | of system12 fails this: it fills its box from top to
+           bottom, so one pixel up matches exactly as well.
+  outside  at most OUTSIDE of the glyph's ink may fall outside the box,
+           measured on the glyph drawn with weight 0 and full alpha, so the
+           extra weight, which the box cuts off as the game's glyphs are
+           cut, does not count.
+A glyph that fails keeps the made pixels. For the whole picture:
+  picture  pixels of the new picture that differ from the made picture
            outside the drawn boxes: must be 0.
 A picture is left as made when the game's picture is not the listed one, the
 typeface is missing (one line per font says so), the helper fails or the
-outside check fails.
+picture check fails.
 
 The glyphs are drawn by tools/lettering-draw.c with its cover job.
 """
@@ -66,8 +78,10 @@ import up
 HERE = os.path.dirname(os.path.abspath(__file__))
 SPEC = os.path.join(HERE, "fonts.json")
 WAY = "font"
-LIMIT = 65.0
-OUTSIDE = 0.25
+LIMIT = 60.0
+LEAD = 1.0
+OUTSIDE = 0.05
+STEPS = ((0, 0), (-1, 0), (1, 0), (0, -1), (0, 1))
 TIMES = 4
 MARGIN = 3
 
@@ -151,6 +165,19 @@ def match(alpha, original, width, x, y, w, h, times):
     return (round(100 * (1 - differ / total), 2) if total else 0.0), (spilt / ink if ink else 1.0)
 
 
+def verdict(found):
+    """(why the glyph is kept, or None; its lead) from the matches of STEPS and of the weight-0 drawing, in that order."""
+    score = found[0][0]
+    lead = round(score - max(other for other, _ in found[1:len(STEPS)]), 2)
+    if score < LIMIT:
+        return "match %.1f is under %.1f" % (score, LIMIT), lead
+    if lead < LEAD:
+        return "one pixel off it matches as well or better (lead %.1f)" % lead, lead
+    if found[-1][1] > OUTSIDE:
+        return "%.0f%% of its ink falls outside the box" % (100 * found[-1][1]), lead
+    return None, lead
+
+
 def draw(items, work, times=TIMES):
     """Draws the listed font pictures. items: [(path, table name, original data, made file)].
 
@@ -193,11 +220,13 @@ def draw(items, work, times=TIMES):
         stem = os.path.join(folder, "%02d" % number)
         fields = []
         for at, (_, x, y, w, h, char, left, base, size, _) in enumerate(rows):
-            fields += ["cover", w + 2 * MARGIN, h + 2 * MARGIN, times, "%s-%03d" % (stem, at), 0, font, table["face"], char, size,
-                       table["stretch"], table["weight"], left + MARGIN, base + MARGIN, 0, 0, 0]
+            for step, (dx, dy) in enumerate(STEPS + ((0, 0),)):
+                weight = table["weight"] if step < len(STEPS) else 0
+                fields += ["cover", w + 2 * MARGIN, h + 2 * MARGIN, times, "%s-%03d-%d" % (stem, at, step), 0, font, table["face"], char,
+                           size, table["stretch"], weight, left + MARGIN + dx, base + MARGIN + dy, 0, 0, 0]
         said = subprocess.run([helper], input=b"".join(os.fsencode(str(field)) + b"\0" for field in fields),
                               stdout=subprocess.PIPE).stdout.decode().splitlines()
-        if len(said) != len(rows) or any(not line.startswith("ok") for line in said):
+        if len(said) != len(rows) * (len(STEPS) + 1) or any(not line.startswith("ok") for line in said):
             print("  font picture left as made: %s (the helper could not draw every glyph)" % path)
             continue
         big_w, big_h = width * times, height * times
@@ -207,21 +236,26 @@ def draw(items, work, times=TIMES):
         gain = table.get("gain", 1.0)
         inked, placed = {}, []
         kept = [{"char": row[5], "box": row[1:5], "why": row[6]} for row in table["kept"] if row[0] == picture]
-        scores = []
+        scores, leads = [], []
         for at, (_, x, y, w, h, char, _, _, _, _) in enumerate(rows):
             if x < 0 or y < 0 or x + w > width or y + h > height:
                 kept.append({"char": char, "box": [x, y, w, h], "why": "the box runs past the picture"})
                 continue
             side = (w + 2 * MARGIN) * times
-            with open("%s-%03d" % (stem, at), "rb") as f:
-                cover = struct.unpack("<%df" % (side * (h + 2 * MARGIN) * times), f.read())
-            alpha = bytes(min(255, max(0, int(value * gain * 255 + 0.5))) for value in cover)
-            score, spilt = match(alpha, original_rgba, width, x, y, w, h, times)
-            if score < LIMIT or spilt > OUTSIDE:
-                why = "match %.1f is under %.1f" % (score, LIMIT) if score < LIMIT else "%.0f%% of its ink falls outside the box" % (100 * spilt)
+            tried = []
+            for step in range(len(STEPS) + 1):
+                with open("%s-%03d-%d" % (stem, at, step), "rb") as f:
+                    cover = struct.unpack("<%df" % (side * (h + 2 * MARGIN) * times), f.read())
+                strength = gain if step < len(STEPS) else 1.0
+                tried.append((bytes(min(255, max(0, int(value * strength * 255 + 0.5))) for value in cover)))
+            found = [match(alpha, original_rgba, width, x, y, w, h, times) for alpha in tried]
+            alpha, score = tried[0], found[0][0]
+            why, lead = verdict(found)
+            if why:
                 kept.append({"char": char, "box": [x, y, w, h], "why": why})
                 continue
             scores.append(score)
+            leads.append(lead)
             placed.append((x, y, w, h))
             for by in range(h * times):
                 for bx in range(w * times):
@@ -248,6 +282,7 @@ def draw(items, work, times=TIMES):
         note = {"table": name, "font": table["font"], "font_sha256": digest, "times": times, "drawn": len(scores),
                 "kept": sorted(kept, key=lambda k: k["box"]), "outside": outside,
                 "match": {"lowest": scores[0], "middle": scores[len(scores) // 2]} if scores else None,
+                "lead": round(min(leads), 2) if leads else None,
                 "spec_sha256": hashlib.sha256(json.dumps(table, sort_keys=True).encode()).hexdigest()}
         if digest != spec["fonts"][table["font"]]["sha256"]:
             note["font_not_as_fitted"] = True

@@ -444,12 +444,14 @@
    "states": [
     "",
     "hi-back_hilight_b",
-    "hi-back_2_hilight_b"
+    "hi-back_2_hilight_b",
+    "paper"
    ],
    "fitted_sha256": {
     "": "a628085dfad789621a359f80644fef1a88f092981f49dd37189d3cc03086906e",
     "hi-back_hilight_b": "fc292285b7f7847dd21115121786edea5e005746370793b3c62a970df29097ee",
-    "hi-back_2_hilight_b": "a4b39d0095b0d3c33df80d6da7f22a25a1d93858d27a2af984380dd22ceee757"
+    "hi-back_2_hilight_b": "a4b39d0095b0d3c33df80d6da7f22a25a1d93858d27a2af984380dd22ceee757",
+    "paper": "ebed73f6828ff0cfa723ab2a8b4d68857286579643897030727f8a269be5ed72"
    }
   },
   {

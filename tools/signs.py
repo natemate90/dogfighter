@@ -32,7 +32,10 @@ tools/signs.json
 For each target and state, the box is cut from the game's pictures and from
 the made 4x pictures, put together as the game lays them, drawn again, and
 put back into the pictures of that state only: the screen's own pictures for
-"", the state's pictures for a state.
+"", the state's pictures for a state. A picture of another state that lies
+over the box and shows exactly the screen's own pixels there holds a copy of
+the sign; it gets the box drawn for "" too. A state whose pictures show the
+sign with other pixels, such as a highlight, must be listed.
 
 A target is left as made in a state, and the run says why in one line, when
 the game's pixels in its box are not the fitted ones, a picture of it was not
@@ -82,6 +85,31 @@ def laid_out(target, state, screens, sources):
     return pieces, [path for path, _, _ in (over if state else own)]
 
 
+def copies(target, screen, originals, sources):
+    """{path: state} of the pictures of states not listed for target that lie over its box and show exactly the screen's own pixels there.
+
+    Such a picture holds a copy of the sign, as the paper of the briefing
+    does under PRIMARY OBJECTIVES. It gets the box drawn for the screen.
+    """
+    x0, y0, x1, y1 = target["box"]
+    own = [tuple(piece) for piece in screen["pieces"]]
+    for path, _, _ in own:
+        if path not in originals:
+            originals[path] = gti.to_rgba(gti.parse(sources[path]).best())
+    found = {}
+    for state, laid in sorted(screen["states"].items()):
+        if state in target["states"] or not all(path in sources for path, _, _ in laid):
+            continue
+        for path, _, _ in laid:
+            if path not in originals:
+                originals[path] = gti.to_rgba(gti.parse(sources[path]).best())
+        over = [path for path, x, y in laid if x < x1 and x + originals[path][0] > x0 and y < y1 and y + originals[path][1] > y0]
+        if over and paintings.composed(own + [tuple(piece) for piece in laid], originals, target["box"], 1) == \
+                paintings.composed(own, originals, target["box"], 1):
+            found.update((path, state) for path in over)
+    return found
+
+
 def draw(sources, made_of, tools, work, skip):
     """{path: (file, checksum, bytes, note)} for the pieces whose lettering was drawn again.
 
@@ -104,15 +132,21 @@ def draw(sources, made_of, tools, work, skip):
         print("  signs left as made: the Python environment is missing; --fetch-desk sets it up")
         return {}
 
-    originals, big, made_gti, ready = {}, {}, {}, []
+    originals, big, made_gti, ready, copied = {}, {}, {}, [], {}
     for target, state, pieces, into in wanted:
         label = "%s%s" % (target["name"], " (%s)" % state if state else "")
-        if any(made_of(path) is None for path, _, _ in pieces):
+        extra = []
+        if not state:
+            copied[target["name"]] = copies(target, screens[target["screen"]], originals, sources)
+            into = into + sorted(copied[target["name"]])
+            extra = [(path, 0, 0) for path in sorted(copied[target["name"]])]
+        if any(made_of(path) is None for path, _, _ in pieces + extra):
             print("  sign %s left as made: a picture of it was not made" % label)
             continue
-        for path, _, _ in pieces:
+        for path, _, _ in pieces + extra:
             if path not in originals:
                 originals[path] = gti.to_rgba(gti.parse(sources[path]).best())
+            if path not in big:
                 with open(made_of(path)[0], "rb") as f:
                     made_gti[path] = gti.parse(f.read())
                 big[path] = gti.to_rgba(made_gti[path].best())
@@ -120,7 +154,7 @@ def draw(sources, made_of, tools, work, skip):
         if hashlib.sha256(own).hexdigest() != target["fitted_sha256"].get(state):
             print("  sign %s left as made: the game's pixels are not the ones it was fitted to" % label)
             continue
-        if any(big[path][:2] != (originals[path][0] * TIMES, originals[path][1] * TIMES) for path, _, _ in pieces):
+        if any(big[path][:2] != (originals[path][0] * TIMES, originals[path][1] * TIMES) for path, _, _ in pieces + extra):
             print("  sign %s left as made: it was not made %d times as large" % (label, TIMES))
             continue
         ready.append((target, state, pieces, into, own))
@@ -168,8 +202,10 @@ def draw(sources, made_of, tools, work, skip):
                            if path in into]:
             w, h, _ = big[path]
             current[path] = bytearray(paintings.laid_back(box, target["box"], TIMES, path, x, y, (w, h, bytes(current[path]))))
-            drawn_in.setdefault(path, []).append({"target": target["name"], "state": state, "match": line["match"],
-                                                   "made_match": line["made_match"]})
+            note = {"target": target["name"], "state": state, "match": line["match"], "made_match": line["made_match"]}
+            if not state and path in copied[target["name"]]:
+                note.update(state=copied[target["name"]][path], copy_of="")
+            drawn_in.setdefault(path, []).append(note)
     done = {}
     for path, targets in sorted(drawn_in.items()):
         w, h, pixels = big[path]
