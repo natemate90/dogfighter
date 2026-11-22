@@ -1,0 +1,1054 @@
+{
+ "fonts": {
+  "AlfaSlabOne-Regular.ttf": {
+   "folder": "alfaslabone",
+   "url": "https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/alfaslabone/AlfaSlabOne-Regular.ttf",
+   "sha256": "28664afa698a3393bd5a29eec750230a0645c5301d62200e5f2d3a027fb2299d",
+   "licence": {
+    "name": "SIL Open Font License 1.1",
+    "file": "OFL.txt",
+    "url": "https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/alfaslabone/OFL.txt",
+    "sha256": "e315abc82a78710c7242e2f2e6529651fd631d4d50e6ad98ea194f9b54c3d701"
+   }
+  },
+  "Arial Black.ttf": {
+   "system": "/System/Library/Fonts/Supplemental/Arial Black.ttf",
+   "sha256": "7d7db3ad96a31373c1437c6ab14266f6605495544c8e663558b047521174c42e"
+  },
+  "Arial Bold.ttf": {
+   "system": "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+   "sha256": "d72db21f9242aedd6b917d8549ad5921766b24d5f8d0becfda2ff4c620b3c2e0"
+  },
+  "Arial.ttf": {
+   "system": "/System/Library/Fonts/Supplemental/Arial.ttf",
+   "sha256": "525979822591a3447cfc49d943d6f7683508e25543407871c0ed8fed05fd2bd9"
+  },
+  "BebasNeue-Regular.ttf": {
+   "folder": "bebasneue",
+   "url": "https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/bebasneue/BebasNeue-Regular.ttf",
+   "sha256": "08e4623805102d819f58601e46e345648846075e363b2ceb23313c2d1c83ec73",
+   "licence": {
+    "name": "SIL Open Font License 1.1",
+    "file": "OFL.txt",
+    "url": "https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/bebasneue/OFL.txt",
+    "sha256": "72082f6cb4d04be2ecf7cc7d9e1e7d73787f0af8a5a278a47cade70c16b78341"
+   }
+  },
+  "Helvetica.ttc": {
+   "system": "/System/Library/Fonts/Helvetica.ttc",
+   "sha256": "25eceb458d4baf628ee0b6a135a9f8ac5ec7b2826646720834bd2bf00dfc825a"
+  },
+  "Menlo.ttc": {
+   "system": "/System/Library/Fonts/Menlo.ttc",
+   "sha256": "dc256e0b39c2a6fec947129d421fef41b8b429f58f9b6e5d1b148c87f775c1f6"
+  },
+  "Oswald[wght].ttf": {
+   "folder": "oswald",
+   "url": "https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/oswald/Oswald%5Bwght%5D.ttf",
+   "sha256": "5b38c246e255a12f5712d640d56bcced0472466fc68983d2d0410ec0457c2817",
+   "licence": {
+    "name": "SIL Open Font License 1.1",
+    "file": "OFL.txt",
+    "url": "https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/oswald/OFL.txt",
+    "sha256": "0fd731a904b729a4e02eaf5e8ebd06783edd9abe400e8882760160230675b652"
+   }
+  },
+  "StardosStencil-Bold.ttf": {
+   "folder": "stardosstencil",
+   "url": "https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/stardosstencil/StardosStencil-Bold.ttf",
+   "sha256": "6b15f50b1b358512d922b5f11937af17e90704587e1d7fb009f1715d2d5dfa74",
+   "licence": {
+    "name": "SIL Open Font License 1.1",
+    "file": "OFL.txt",
+    "url": "https://raw.githubusercontent.com/google/fonts/06bfe0d62a98375cb09c942fa18e68bd32cff057/ofl/stardosstencil/OFL.txt",
+    "sha256": "88d3abd47414e7912d0d2eb44ca89e0b1bd7c43cc2ebe58a8a75281ad75a0f60"
+   }
+  }
+ },
+ "textures": [
+  {
+   "name": "glue1",
+   "words": "HUMBROL / POLY CEMENT / WARNING: Product contains Butyl Acetate. See package insert before use.",
+   "paths": {
+    "Graphics\\Models\\PuGlue\\Textures\\glue1.gti": "5f34b563fca4ef5f0d12eebab445f94c87e7f9a381535740f2220a2bbc32e7f3"
+   },
+   "regions": [
+    {
+     "box": [2, 4, 80, 14],
+     "ink": [200, 0, 0],
+     "lines": [
+      {
+       "text": "HUMBROL",
+       "font": "AlfaSlabOne-Regular.ttf",
+       "size": 9.8972,
+       "stretch": 1.2757,
+       "weight": 0.0525,
+       "x": 1.6375,
+       "base": 9.0,
+       "track": -0.0938,
+       "shift": [0.0, 0.0, -0.125, 0.0, 0.25, 0.0, 0.0]
+      }
+     ]
+    },
+    {
+     "box": [2, 17, 80, 27],
+     "ink": [16, 32, 160],
+     "lines": [
+      {
+       "text": "POLY CEMENT",
+       "font": "Arial Bold.ttf",
+       "size": 10.7569,
+       "stretch": 0.935,
+       "weight": 0.075,
+       "x": 2.5875,
+       "base": 9.25,
+       "track": -0.0188,
+       "shift": [0.0, 0.125, 0.0, 0.0, 0.0, 0.125, 0.125, 0.0, 0.0, 0.0, 0.0]
+      }
+     ]
+    },
+    {
+     "box": [5, 39, 89, 58],
+     "ink": [16, 32, 160],
+     "lines": [
+      {
+       "text": "WARNING: Product contains",
+       "font": "Arial Bold.ttf",
+       "size": 6.324,
+       "stretch": 0.9455,
+       "weight": 0.135,
+       "x": 1.15,
+       "base": 6.0875,
+       "track": 0.0063,
+       "shift": [0.125, 0.0, 0.0, 0.0, 0.0, 0.0, 0.125, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.125, 0.125, 0.125, 0.0, 0.125, 0.125, 0.0, 0.125, 0.125, 0.0, 0.125, 0.125]
+      },
+      {
+       "text": "Butyl Acetate. See package",
+       "font": "Arial Bold.ttf",
+       "size": 6.249,
+       "stretch": 0.9639,
+       "weight": 0.1275,
+       "x": 1.325,
+       "base": 12.1,
+       "track": -0.0063,
+       "shift": [-0.125, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.125, -0.125, -0.125, 0.0, -0.125, -0.125, -0.125, -0.125, -0.125, -0.125, -0.125]
+      },
+      {
+       "text": "insert before use.",
+       "font": "Arial Bold.ttf",
+       "size": 6.249,
+       "stretch": 0.9639,
+       "weight": 0.1313,
+       "x": 1.3375,
+       "base": 18.1375,
+       "shift": [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, -0.125, -0.125, 0.0]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "humbrol1",
+   "words": "HUMBROL / Enamel",
+   "paths": {
+    "Graphics\\Models\\PuPaint\\Textures\\humbrol1.gti": "648f1c5910775a54c64565dc60c7c4a52c0079805d8b4e49109cf7d80291aef7"
+   },
+   "regions": [
+    {
+     "box": [17, 14, 92, 23],
+     "ink": [200, 0, 0],
+     "framed": [
+      "left",
+      "bottom"
+     ],
+     "lines": [
+      {
+       "text": "HUMBROL",
+       "font": "AlfaSlabOne-Regular.ttf",
+       "size": 10.7825,
+       "stretch": 1.1291,
+       "weight": -0.06,
+       "x": 1.2,
+       "base": 8.7,
+       "track": 0.2,
+       "shift": [0.0, -0.125, -0.125, 0.0, 0.375, 0.125, -0.125],
+       "layers": [
+        {
+         "colour": [225, 60, 121],
+         "to": [227, 127, 79]
+        },
+        {
+         "colour": [200, 0, 0],
+         "spread": -0.4
+        }
+       ]
+      }
+     ]
+    },
+    {
+     "box": [25, 38, 80, 50],
+     "ink": [0, 0, 0],
+     "lines": [
+      {
+       "text": "Enamel",
+       "font": "Helvetica.ttc",
+       "size": 15.0049,
+       "stretch": 1.0683,
+       "weight": 0.0637,
+       "x": 1.375,
+       "base": 10.625,
+       "shift": [0.0, 0.125, 0.0, 0.125, -0.125, -0.125],
+       "face": 0
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "fridge01",
+   "words": "COOLMAN",
+   "paths": {
+    "Graphics\\Textures\\fridge01.gti": "901d4f41bb049d5b3b5c2274d348f65ded584aedba700970f523852a391c790f"
+   },
+   "regions": [
+    {
+     "box": [76, 23, 107, 27],
+     "ink": [224, 224, 200],
+     "threshold": 0.3,
+     "framed": true,
+     "lines": [
+      {
+       "text": "COOLMAN",
+       "font": "Arial Black.ttf",
+       "size": 4.2,
+       "stretch": 1.2169,
+       "weight": 0.0,
+       "x": 0.7,
+       "base": 4.0,
+       "track": 0.1625
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "MEDAL",
+   "words": "CHAMPIONS / 1942",
+   "paths": {
+    "Graphics\\Textures\\MEDAL.gti": "66cc5e06c009677ce46bd75723ceb6dec887f6863ff0b6dfef523bec4139ce48"
+   },
+   "regions": [
+    {
+     "box": [17, 59, 50, 65],
+     "ink": [128, 96, 56],
+     "threshold": 0.35,
+     "lines": [
+      {
+       "text": "CHAMPIONS",
+       "font": "Menlo.ttc",
+       "size": 5.0686,
+       "stretch": 1.1798,
+       "weight": 0.015,
+       "x": 0.3375,
+       "base": 5.0875,
+       "shift": [0.0, 0.375, -0.25, 0.125, 0.5, 0.375, 0.0, -0.25, -0.125],
+       "face": 1
+      }
+     ]
+    },
+    {
+     "box": [26, 65, 41, 71],
+     "ink": [128, 96, 56],
+     "threshold": 0.35,
+     "lines": [
+      {
+       "text": "1942",
+       "font": "Menlo.ttc",
+       "size": 4.9686,
+       "stretch": 1.0624,
+       "weight": 0.0037,
+       "x": 1.0375,
+       "base": 4.8625,
+       "track": -0.075,
+       "shift": [0.0, -0.125, -0.125, 1.0],
+       "face": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "particleobj",
+   "words": "LASER / POINT",
+   "paths": {
+    "Graphics\\Models\\WpParticleBeam\\textures\\particleobj.gti": "feb5bfd982130777454418250246497b6ffa7e76047198d293c55308fcab30be",
+    "Graphics\\Models\\PuParticlebeam\\Textures\\particleobj.gti": "fce23b87b28ecb1153dc59e7cc6b76d3f16110412f0f4326fe4452ef58c85a5e"
+   },
+   "regions": [
+    {
+     "box": [62, 24, 112, 37],
+     "ink": [224, 32, 0],
+     "lines": [
+      {
+       "text": "LASER",
+       "font": "Arial Bold.ttf",
+       "size": 13.4134,
+       "stretch": 1.0175,
+       "weight": 0.1837,
+       "x": 2.2375,
+       "base": 11.725,
+       "track": 0.2
+      }
+     ]
+    },
+    {
+     "box": [91, 41, 120, 48],
+     "ink": [224, 32, 0],
+     "lines": [
+      {
+       "text": "POINT",
+       "font": "Arial Bold.ttf",
+       "size": 7.8879,
+       "stretch": 1.0852,
+       "weight": 0.0638,
+       "x": 2.4625,
+       "base": 6.9375,
+       "track": 0.0625,
+       "shift": [0.0, -0.125, 0.0, 0.0, 0.0]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "AirConTower1",
+   "words": "23",
+   "paths": {
+    "Graphics\\Models\\GuAxisBase\\Textures\\AirConTower1.gti": "7290e1c9b4fb601b1b75c34bb1df1495d7ca7ad834fe6f76cc58f6350343da57",
+    "Graphics\\Models\\GuAllyBase\\Textures\\AirConTower1.gti": "77956cfc3c38cd41c9c15da7bf37e21197d9b61f6b9f12ad63d6bd87413dbf1b",
+    "Graphics\\Models\\GuAirConTower\\Textures\\AirConTower1.gti": "80ee28c1adda791b98ca8093aa9cce8c1c5596760e9c110dc7b942f6fa2a946e",
+    "Graphics\\Models\\GuRadartower\\Textures\\AirConTower1.gti": "4f405344966ab01f9ec4d956b43c479b53e500075dc2c011bfa124884728b54b"
+   },
+   "regions": [
+    {
+     "box": [2, 225, 48, 252],
+     "ink": [0, 0, 0],
+     "lines": [
+      {
+       "text": "23",
+       "font": "Helvetica.ttc",
+       "size": 33.1417,
+       "stretch": 1.0366,
+       "weight": -0.0112,
+       "x": 4.625,
+       "base": 25.7,
+       "track": 0.6187,
+       "face": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "AirConTowerD",
+   "words": "23",
+   "paths": {
+    "Graphics\\Models\\GuAxisBase\\Textures\\AirConTowerD.gti": "62232df2f862164ef4d4a0ef8ebbe0546392ca05f54848b1729639a271caa0bf",
+    "Graphics\\Models\\GuAllyBase\\Textures\\AirConTowerD.gti": "4fe90db087044120a3dec2c3e6bd422b643e9b768d059659e6bff033eb191a75"
+   },
+   "regions": [
+    {
+     "box": [5, 113, 46, 126],
+     "ink": [0, 0, 0],
+     "lines": [
+      {
+       "text": "23",
+       "font": "Helvetica.ttc",
+       "size": 17.0956,
+       "stretch": 1.9849,
+       "weight": -0.0075,
+       "x": 1.7125,
+       "base": 12.5125,
+       "track": 0.8937,
+       "face": 1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Mailbox",
+   "words": "U.S. MAIL (embossed; taken from the plain filter, no font)",
+   "paths": {
+    "Graphics\\Textures\\Mailbox.gti": "ae79cecbd8fd3d7d1a911a265c4d7578d8cf7d0db6d8341d7e528b54b67e4b2f"
+   },
+   "regions": [
+    {
+     "box": [90, 28, 124, 52],
+     "copy": "plain"
+    }
+   ]
+  },
+  {
+   "name": "firecr1",
+   "words": "PUFF",
+   "paths": {
+    "Graphics\\Models\\PuBomb\\Textures\\firecr1.gti": "2bb838f0f308a9444055af3567793536796bf1d1dccd888ed24688dafd9a8efe",
+    "Graphics\\Models\\WpBomb\\textures\\firecr1.gti": "2f740797dc08c197f9fbc4e38ea23144ce9582a05c7212d119fe9c8590234a05"
+   },
+   "regions": [
+    {
+     "box": [19, 6, 42, 26],
+     "ink": [2, 9, 0],
+     "framed": true,
+     "lines": [
+      {
+       "text": "PUFF",
+       "font": "StardosStencil-Bold.ttf",
+       "size": 22.8899,
+       "stretch": 0.3737,
+       "weight": 0.0938,
+       "x": 1.0,
+       "base": 18.175,
+       "track": 0.1563,
+       "shift": [0.0, 0.0, 0.25, -0.25]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "firecr2",
+   "words": "BANG",
+   "paths": {
+    "Graphics\\Models\\PuBomb\\Textures\\firecr2.gti": "d0e4556ea1005b04025236a052330c6d47f4a169417076a1cf241ebb31ca6539",
+    "Graphics\\Models\\WpBomb\\textures\\firecr2.gti": "fda3ca4baa1a033dc3916736833920b1860f49fe6d3f00d5577ba709f5de587e"
+   },
+   "regions": [
+    {
+     "box": [21, 6, 56, 26],
+     "ink": [0, 0, 0],
+     "framed": true,
+     "lines": [
+      {
+       "text": "BANG",
+       "font": "StardosStencil-Bold.ttf",
+       "size": 23.1774,
+       "stretch": 0.5217,
+       "weight": 0.1087,
+       "x": 1.2375,
+       "base": 17.9625,
+       "track": 0.0063,
+       "shift": [0.0, 0.25, -0.375, 0.125]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "firecr3",
+   "words": "BOOM",
+   "paths": {
+    "Graphics\\Models\\PuBomb\\Textures\\firecr3.gti": "8172164919078968a249e76e70e84b9abd830639269f6290da03f66b4329c46d",
+    "Graphics\\Models\\WpBomb\\textures\\firecr3.gti": "a5ddf346067c6d309705542bc4b32c9e05f9670b62cee652663b1b9616f794ea"
+   },
+   "regions": [
+    {
+     "box": [38, 4, 100, 27],
+     "ink": [0, 0, 0],
+     "framed": true,
+     "lines": [
+      {
+       "text": "BOOM",
+       "font": "StardosStencil-Bold.ttf",
+       "size": 26.5262,
+       "stretch": 0.7171,
+       "weight": 0.24,
+       "x": 2.6875,
+       "base": 20.4375,
+       "track": 0.2,
+       "shift": [-0.125, 0.375, -0.125, -0.25]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "rocket123",
+   "words": "BOOM / BANG / PUFF",
+   "paths": {
+    "Graphics\\Models\\PuCannon\\Textures\\rocket123.gti": "66a5c7994ead1d498354f8e0a17acc03374adb2371203767dfe595989a091762",
+    "Graphics\\Models\\WpRocket\\textures\\rocket123.gti": "b7984bf75bf8f2ef78a924f6f4afbc0fdc6f94bfd73abe76d17c8392823d5c24",
+    "Graphics\\Models\\PuRocket\\Textures\\rocket123.gti": "09b4f2ea1e9f420493582b79dd32bb8b94ecca50b9faff5f4b4f00a5dd726dc6"
+   },
+   "regions": [
+    {
+     "box": [9, 6, 41, 17],
+     "ink": [0, 0, 0],
+     "framed": true,
+     "lines": [
+      {
+       "text": "BOOM",
+       "font": "StardosStencil-Bold.ttf",
+       "size": 9.5563,
+       "stretch": 0.9425,
+       "weight": 0.105,
+       "x": 3.775,
+       "base": 8.975,
+       "track": -0.075,
+       "shift": [-0.125, 0.0, 0.125, -0.375]
+      }
+     ]
+    },
+    {
+     "box": [9, 28, 41, 39],
+     "ink": [0, 0, 0],
+     "framed": true,
+     "lines": [
+      {
+       "text": "BANG",
+       "font": "StardosStencil-Bold.ttf",
+       "size": 9.9063,
+       "stretch": 0.9517,
+       "weight": 0.045,
+       "x": 3.5,
+       "base": 9.05,
+       "track": 0.0375,
+       "shift": [0.0, 0.0, -0.125, 0.125]
+      }
+     ]
+    },
+    {
+     "box": [9, 49, 41, 60],
+     "ink": [0, 0, 0],
+     "framed": true,
+     "lines": [
+      {
+       "text": "PUFF",
+       "font": "StardosStencil-Bold.ttf",
+       "size": 10.0438,
+       "stretch": 1.0033,
+       "weight": 0.0412,
+       "x": 4.6125,
+       "base": 8.975,
+       "track": -0.1812,
+       "shift": [-0.125, 0.0, 0.125, -0.25]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "abomb",
+   "words": "ATOM",
+   "paths": {
+    "Graphics\\Models\\WpAbomb\\Textures\\abomb.gti": "39274700eea488143d525aa0cd901b51476cb767d96a62db5cbb75634b149718",
+    "Graphics\\Models\\PuAbomb\\Textures\\abomb.gti": "957ae24facf2b2f58ab2c47ae80f7e408f7b4c5b7c9b0dfa6b58d7bd7821fdf2"
+   },
+   "regions": [
+    {
+     "box": [40, 4, 101, 27],
+     "ink": [0, 0, 0],
+     "framed": true,
+     "lines": [
+      {
+       "text": "ATOM",
+       "font": "StardosStencil-Bold.ttf",
+       "size": 21.3862,
+       "stretch": 0.9263,
+       "weight": 0.2737,
+       "x": 2.5,
+       "base": 18.9125,
+       "track": -0.0312,
+       "shift": [-0.125, 0.125, 0.625, -0.75]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "books01",
+   "words": "ADVENTURE SERIES VOL 1-4 on four spines; 1-10 on ten spines",
+   "paths": {
+    "Graphics\\Textures\\books01.gti": "1a11659733f631aeba73e6b9f7d601d3f69bedd2c45c0be1316a7875ff898ac0"
+   },
+   "regions": [
+    {
+     "box": [3, 88, 17, 128],
+     "turn": 1,
+     "ink": [170, 155, 133],
+     "lines": [
+      {
+       "text": "ADVENTURE",
+       "font": "BebasNeue-Regular.ttf",
+       "size": 5.3607,
+       "stretch": 1.7222,
+       "weight": -0.03,
+       "x": 1.0375,
+       "base": 5.8875,
+       "track": -0.1
+      },
+      {
+       "text": "SERIES VOL 1",
+       "font": "BebasNeue-Regular.ttf",
+       "size": 6.8143,
+       "stretch": 1.2891,
+       "weight": -0.075,
+       "x": 2.1375,
+       "base": 12.0375
+      }
+     ]
+    },
+    {
+     "box": [23, 88, 37, 128],
+     "turn": 1,
+     "ink": [170, 155, 133],
+     "lines": [
+      {
+       "text": "ADVENTURE",
+       "font": "BebasNeue-Regular.ttf",
+       "size": 5.3607,
+       "stretch": 1.7222,
+       "weight": -0.03,
+       "x": 1.0375,
+       "base": 5.8875,
+       "track": -0.1
+      },
+      {
+       "text": "SERIES VOL 2",
+       "font": "BebasNeue-Regular.ttf",
+       "size": 6.8268,
+       "stretch": 1.3015,
+       "weight": -0.0713,
+       "x": 2.025,
+       "base": 12.125
+      }
+     ]
+    },
+    {
+     "box": [43, 88, 57, 128],
+     "turn": 1,
+     "ink": [170, 155, 133],
+     "lines": [
+      {
+       "text": "ADVENTURE",
+       "font": "BebasNeue-Regular.ttf",
+       "size": 5.3607,
+       "stretch": 1.7222,
+       "weight": -0.03,
+       "x": 1.0375,
+       "base": 5.8875,
+       "track": -0.1
+      },
+      {
+       "text": "SERIES VOL 3",
+       "font": "BebasNeue-Regular.ttf",
+       "size": 6.8018,
+       "stretch": 1.2998,
+       "weight": -0.075,
+       "x": 2.05,
+       "base": 12.1125,
+       "track": 0.0188
+      }
+     ]
+    },
+    {
+     "box": [63, 88, 77, 128],
+     "turn": 1,
+     "ink": [170, 155, 133],
+     "lines": [
+      {
+       "text": "ADVENTURE",
+       "font": "BebasNeue-Regular.ttf",
+       "size": 5.3607,
+       "stretch": 1.7222,
+       "weight": -0.0262,
+       "x": 1.0375,
+       "base": 5.8875,
+       "track": -0.1
+      },
+      {
+       "text": "SERIES VOL 4",
+       "font": "BebasNeue-Regular.ttf",
+       "size": 6.9268,
+       "stretch": 1.2677,
+       "weight": -0.09,
+       "x": 2.1,
+       "base": 12.05
+      }
+     ]
+    },
+    {
+     "box": [1, 43, 8, 51],
+     "ink": [180, 160, 125],
+     "threshold": 0.3,
+     "lines": [
+      {
+       "text": "1",
+       "font": "Arial Bold.ttf",
+       "size": 4.4,
+       "stretch": 1.1,
+       "weight": 0.06,
+       "x": 1.1,
+       "base": 5.95
+      }
+     ]
+    },
+    {
+     "box": [9, 43, 17, 51],
+     "ink": [180, 160, 125],
+     "threshold": 0.3,
+     "lines": [
+      {
+       "text": "2",
+       "font": "Arial Bold.ttf",
+       "size": 4.4,
+       "stretch": 1.1,
+       "weight": 0.06,
+       "x": 3.05,
+       "base": 6.05
+      }
+     ]
+    },
+    {
+     "box": [18, 43, 26, 51],
+     "ink": [180, 160, 125],
+     "threshold": 0.3,
+     "lines": [
+      {
+       "text": "3",
+       "font": "Arial Bold.ttf",
+       "size": 4.4,
+       "stretch": 1.1,
+       "weight": 0.06,
+       "x": 3.0,
+       "base": 6.1
+      }
+     ]
+    },
+    {
+     "box": [27, 43, 35, 51],
+     "ink": [180, 160, 125],
+     "threshold": 0.3,
+     "lines": [
+      {
+       "text": "4",
+       "font": "Arial Bold.ttf",
+       "size": 4.4,
+       "stretch": 1.1,
+       "weight": 0.06,
+       "x": 2.9875,
+       "base": 6.175
+      }
+     ]
+    },
+    {
+     "box": [36, 43, 44, 51],
+     "ink": [180, 160, 125],
+     "threshold": 0.3,
+     "lines": [
+      {
+       "text": "5",
+       "font": "Arial Bold.ttf",
+       "size": 4.4,
+       "stretch": 1.1,
+       "weight": 0.06,
+       "x": 3.2625,
+       "base": 6.0625
+      }
+     ]
+    },
+    {
+     "box": [45, 43, 53, 51],
+     "ink": [180, 160, 125],
+     "threshold": 0.3,
+     "lines": [
+      {
+       "text": "6",
+       "font": "Arial Bold.ttf",
+       "size": 4.4,
+       "stretch": 1.1,
+       "weight": 0.06,
+       "x": 3.475,
+       "base": 6.1375
+      }
+     ]
+    },
+    {
+     "box": [54, 43, 62, 51],
+     "ink": [180, 160, 125],
+     "threshold": 0.3,
+     "lines": [
+      {
+       "text": "7",
+       "font": "Arial Bold.ttf",
+       "size": 4.4,
+       "stretch": 1.1,
+       "weight": 0.06,
+       "x": 2.9625,
+       "base": 6.0625
+      }
+     ]
+    },
+    {
+     "box": [63, 43, 71, 51],
+     "ink": [180, 160, 125],
+     "threshold": 0.3,
+     "lines": [
+      {
+       "text": "8",
+       "font": "Arial Bold.ttf",
+       "size": 4.4,
+       "stretch": 1.1,
+       "weight": 0.06,
+       "x": 2.725,
+       "base": 5.9625
+      }
+     ]
+    },
+    {
+     "box": [72, 43, 80, 51],
+     "ink": [180, 160, 125],
+     "threshold": 0.3,
+     "lines": [
+      {
+       "text": "9",
+       "font": "Arial Bold.ttf",
+       "size": 4.4,
+       "stretch": 1.1,
+       "weight": 0.06,
+       "x": 2.9,
+       "base": 5.8
+      }
+     ]
+    },
+    {
+     "box": [81, 43, 91, 51],
+     "ink": [180, 160, 125],
+     "threshold": 0.3,
+     "lines": [
+      {
+       "text": "10",
+       "font": "Arial Bold.ttf",
+       "size": 4.4,
+       "stretch": 1.1,
+       "weight": 0.06,
+       "x": 2.4,
+       "base": 5.9,
+       "track": -0.1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "books03",
+   "words": "1 2 3 on three spines",
+   "paths": {
+    "Graphics\\Textures\\books03.gti": "b082e0d6686694e6d0a5d0e080b42c641b0719a74778cd176d4218e271ebabc5"
+   },
+   "regions": [
+    {
+     "box": [16, 29, 27, 39],
+     "ink": [0, 0, 0],
+     "threshold": 0.35,
+     "lines": [
+      {
+       "text": "1",
+       "font": "Arial Bold.ttf",
+       "size": 11.1319,
+       "stretch": 0.7518,
+       "weight": 0.1313,
+       "x": 3.2,
+       "base": 8.8625
+      }
+     ]
+    },
+    {
+     "box": [28, 29, 39, 39],
+     "ink": [0, 0, 0],
+     "threshold": 0.35,
+     "lines": [
+      {
+       "text": "2",
+       "font": "Arial Bold.ttf",
+       "size": 11.1069,
+       "stretch": 1.0374,
+       "weight": -0.0638,
+       "x": 2.1875,
+       "base": 9.1875
+      }
+     ]
+    },
+    {
+     "box": [40, 29, 50, 39],
+     "ink": [0, 0, 0],
+     "threshold": 0.35,
+     "lines": [
+      {
+       "text": "3",
+       "font": "Arial Bold.ttf",
+       "size": 11.6694,
+       "stretch": 0.9648,
+       "weight": -0.015,
+       "x": 2.6625,
+       "base": 9.35
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "hud-fuel",
+   "words": "FUEL",
+   "paths": {
+    "Graphics\\Ingame\\HUD\\clock1.gti": "98763bcee2f4c12ba1972c0b394418cbca995f90a040776f642e3659dd7662e5"
+   },
+   "regions": [
+    {
+     "box": [20, 56, 46, 62],
+     "ink": [12, 10, 3],
+     "lines": [
+      {
+       "text": "FUEL",
+       "font": "Arial Black.ttf",
+       "size": 6.6,
+       "stretch": 1.0634,
+       "weight": 0.1875,
+       "x": 2.425,
+       "base": 5.675,
+       "track": 0.05,
+       "shift": [0.0, -0.125, 0.0, 0.0]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "hud-primary",
+   "words": "PRIMARY",
+   "paths": {
+    "Graphics\\Ingame\\HUD\\weapon1.gti": "7a518ce219295292ff406fb828d8874115c7b0fbe4cd1112a892677b960b5c2a"
+   },
+   "regions": [
+    {
+     "box": [13, 56, 48, 62],
+     "ink": [0, 0, 0],
+     "lines": [
+      {
+       "text": "PRIMARY",
+       "font": "Arial Black.ttf",
+       "size": 6.6,
+       "stretch": 1.0675,
+       "weight": 0.06,
+       "x": 1.6,
+       "base": 5.7,
+       "shift": [0.0, 0.25, 0.0, -0.25, 0.0, -0.125, 0.0]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "hud-tech",
+   "words": "TECH",
+   "paths": {
+    "Graphics\\Ingame\\HUD\\techstar.gti": "aa5123061e254296098f45712dc7a9de04d482ed1e131878a9ab06bc04b86fc0",
+    "Graphics\\Ingame\\HUD\\techcross.gti": "fafc18d19b2618b0c94aa9cebe054e4bf1f3da9093de5c6934e4574bf9552fc0"
+   },
+   "regions": [
+    {
+     "box": [21, 56, 45, 62],
+     "ink": [0, 0, 0],
+     "lines": [
+      {
+       "text": "TECH",
+       "font": "Arial Black.ttf",
+       "size": 6.6,
+       "stretch": 1.0244,
+       "weight": 0.105,
+       "x": 0.15,
+       "base": 5.7,
+       "track": 0.1
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "hud-secondary",
+   "words": "SECONDARY",
+   "paths": {
+    "Graphics\\Ingame\\HUD\\weapon2.gti": "4ba05167e8b79de5c0ecf423b3d4b6f9349f6be1eb6f8686cad986eef050e6f4"
+   },
+   "regions": [
+    {
+     "box": [7, 56, 54, 62],
+     "ink": [0, 0, 0],
+     "lines": [
+      {
+       "text": "SECONDARY",
+       "font": "Arial Black.ttf",
+       "size": 6.6,
+       "stretch": 1.0641,
+       "weight": 0.0412,
+       "x": 1.3875,
+       "base": 5.825,
+       "shift": [0.0, 0.125, 0.0, 0.0, 0.0, 0.0, 0.0, 0.125, 0.125]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "hud-speed",
+   "words": "SPEED",
+   "paths": {
+    "Graphics\\Ingame\\HUD\\clock2.gti": "97f4a141a66b5fea20e4dbf534df91d53ec980de5703a0afc3d2bd1ea4c77a10"
+   },
+   "regions": [
+    {
+     "box": [19, 56, 49, 62],
+     "ink": [0, 0, 0],
+     "lines": [
+      {
+       "text": "SPEED",
+       "font": "Arial Black.ttf",
+       "size": 6.6,
+       "stretch": 1.06,
+       "weight": 0.06,
+       "x": 0.4,
+       "base": 5.9,
+       "shift": [-0.125, 0.0, 0.0, 0.0, -0.125]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "hud-armor",
+   "words": "ARMOR",
+   "paths": {
+    "Graphics\\Ingame\\HUD\\armour.gti": "94f562a0ab11d77d10624eabcf4d3cda20b7fe499e903182ffe8578baac60ccb"
+   },
+   "regions": [
+    {
+     "box": [47, 120, 80, 126],
+     "ink": [0, 0, 0],
+     "lines": [
+      {
+       "text": "ARMOR",
+       "font": "Arial Black.ttf",
+       "size": 6.6,
+       "stretch": 1.0676,
+       "weight": 0.1012,
+       "x": 2.15,
+       "base": 5.6625,
+       "shift": [0.0, 0.125, 0.0, -0.125, 0.125]
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

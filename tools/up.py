@@ -18,9 +18,18 @@ Flag bit 0 marks packed data. Packed data is a row of records:
 The game looks for a file as cache\\<path> on disk first, then <path> on disk,
 then in the packs. Paths are relative to the game folder and not case-sensitive.
 """
+import hashlib
 import os
 import struct
 import sys
+
+
+def sha256_of(path):
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for block in iter(lambda: f.read(1 << 20), b""):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 def safe_parts(path):

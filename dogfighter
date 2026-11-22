@@ -3,36 +3,102 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures] [--original]
+Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [--windowed=WxH] [--wide]
+                  [--hd-textures|--no-hd-textures] [--hd-videos|--no-hd-videos] [--original]
+                  [--smooth=0|2|4] [--deep-z] [--keep-shape|--no-keep-shape] [--fps=N]
+                  [--no-pointer-match] [--mute] [--no-auto-joystick]
                   [--setup] [--no-focusfix] [--wine=NAME] [--wine-rule=KEY=VALUE]
                   [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|move-test|start-test|stall-test|crash-test|fallback-test|draw-test|press-ok|press-cancel]]
-                  [--diag-keys=SECONDS:SCANCODE,...] [--diag-mouse=SECONDS:DX:DY[:c|:o],...]
-                  [--diag-console=SECONDS:COMMAND] [--diag-display=right] [--diag-hold]
+                  [--diag-keys=SECONDS:SCANCODE[:HOLDSECONDS],...] [--diag-mouse=SECONDS:DX:DY[:c|:o],...]
+                  [--diag-console=SECONDS:COMMAND] [--diag-display=right] [--diag-hold] [--diag-sound]
+                  [--diag-hd-dir=FOLDER] [--diag-draws] [--diag-shot-on=TEXT]
+                  [--diag-intros-shown=COUNT]
+                  [--diag-end=SECONDS] [--diag-zoom=SECONDS] [--diag-drag=SECONDS]
                   [--join=ADDRESS] [--winecfg] [--stop]
        dogfighter [--wine=NAME] --doctor
        dogfighter --backup | --restore[=FILE]
 
-  (no option)       Play in a normal Mac window that you can resize. The picture is
-                    scaled to fill it, so menu text stays readable.
+  (no option)       Play in a normal Mac window that you can resize, with the best
+                    picture: full resolution, the larger textures when they are
+                    made, and smooth edges. Menu text stays readable.
                     Ctrl+Option frees the mouse, and gives it back to the game.
   --res=WxH         Use this game resolution in flight, e.g. --res=1440x900.
                     The menus are always 640x480.
-  --sharp           Use Retina pixels: a sharper picture in flight.
+  --full-res        On by default. Draw the 3D picture, in flight and in the
+                    menus, with as many pixels as the window has on a Retina
+                    screen, and keep the HUD, the menus and all letters at their
+                    normal size. The game goes on working in its own resolution;
+                    the helper enlarges what it draws. The picture follows the
+                    window when you resize or zoom it. --sharp, --retina and
+                    --original turn it off unless --full-res is given too.
+  --no-full-res     Draw the picture in the game's own resolution and scale it
+                    to fill the window.
+  --sharp           Use Retina pixels: a sharper picture in flight. The HUD and
+                    the letters in a flight are then half size; full resolution
+                    does not have that. Turns full resolution off.
+  --retina          Draw the window with the Retina screen's own pixels, but keep
+                    the game's resolution, so the HUD keeps its size. The picture
+                    is then scaled once, by Wine, and not a second time by macOS.
+                    Turns full resolution off. Not judged by eye yet.
   --windowed=WxH    Start with the picture at most this big, e.g. --windowed=1024x768.
+                    The size is in points, the unit of Mac window sizes. On a
+                    Retina screen a point is two pixels wide.
   --wide            Widen the view angle for a 16:10 or 16:9 picture. It shows more at
                     the sides and the top. The bottom edge of the picture may show a
                     stretched band in some scenes. It stays opt-in until a person has
                     judged it.
-  --hd-textures     Use the larger textures in hd-textures/. Make them once with
-                    python3 tools/upscale-textures.py. Without this option the game
-                    uses its own textures.
+  --hd-textures     On by default. Use the larger textures in hd-textures/, which
+                    ./setup.sh makes. Without a complete set there, the game uses
+                    its own textures and the launcher says how to make them.
+                    --original turns them off unless --hd-textures is given too.
+  --no-hd-textures  Use the game's own textures.
+  --hd-videos       On by default. Play the sharper intro videos in hd-videos/,
+                    which the texture tool makes with --videos, before the game
+                    starts, in a window like the game's. Esc, a click or any key
+                    skips one. The game then leaves out its own copies. Without
+                    them, or when one does not play, the game plays its own.
+                    --original turns them off unless --hd-videos is given too.
+                    A --diag run always leaves them out.
+  --no-hd-videos    Let the game play its own intro videos.
   --original        Leave the picture as the game made it: 16-bit colour, the normal
-                    draw distance, no light shafts, blurry ground in the distance.
+                    draw distance, no light shafts, blurry ground in the distance,
+                    jagged edges, its own resolution, its own textures and its
+                    own intro videos.
                     Without this the launcher turns these up at every start.
+  --smooth=N        Smooth the jagged edges of 3D shapes with N samples per pixel
+                    (multisampling). The launcher uses 4 by itself. 0 turns it
+                    off, as --original does. The HUD and the menus keep their size.
+  --deep-z          Give the game a 24-bit depth buffer where it asks for 16 bits.
+                    No difference was seen in the first mission; not tested
+                    elsewhere.
+  --keep-shape      On by default. Keep the window in the shape of the game's
+                    picture when you resize or zoom it: drag one side and the
+                    other follows. A resize and a zoom done by the test tool
+                    kept the shape. A drag by hand is not tried yet.
+  --no-keep-shape   Let the window take any shape. The picture is then stretched
+                    to fill it.
+  --fps=N           Show at most N pictures a second, from 15 to 1000, e.g.
+                    --fps=60. Without it the game draws as fast as the screen
+                    shows pictures, 120 a second on a ProMotion display.
+  --no-pointer-match
+                    Leave the speed of the pointer in the menus to the game.
+                    Without this the helper makes that pointer move as far
+                    over the picture as the Mac pointer moves over the window.
+                    The slider "Menu mouse sensitivity" in the game's Options
+                    makes it slower or faster than that.
+                    Steering with the mouse in a flight is never changed.
+  --mute            Start the game without sound: no videos, music or effects are
+                    heard. Other apps keep their sound, and the next start without
+                    this option has sound again. Every --diag run is muted.
+  --no-auto-joystick
+                    Leave the game's Joystick option as it is. Without this the
+                    launcher turns it on when a controller is connected. It never
+                    turns it off.
   --setup           Show the game's setup dialog (driver, language, advanced settings)
                     and wait for OK. Without this the launcher presses OK itself.
   --no-focusfix     Start without the helper. The picture is not scaled, the window
                     has no title bar and the game stops when it loses the focus.
+                    The picture is the game's own, as with --original.
   --wine=NAME       Pick the Wine build. Without it the launcher uses Mach9, a Wine
                     that needs no Rosetta, when wine-mach9/ is there and macOS is
                     26.4 or later, and the Rosetta Wine otherwise. If the game does
@@ -54,6 +120,8 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
                     the Multiplayer screen then lists the server.
   --doctor          Check the installation and print a fix for each problem.
                     Does not start the game. With --wine=NAME it checks that build.
+                    It also lists the game controllers Wine sees, and says
+                    whether joystick input is on in the game.
   --backup          Copy pilots, levels, photos, stickers and settings to a dated
                     zip file in backups/.
   --restore[=FILE]  Put a backup back: the newest one, or FILE. The current saves
@@ -87,6 +155,11 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
   --diag-keys=LIST  Press keys in a test run, e.g. --diag-keys=30:1c,45:3b presses
                     Enter 30 seconds after the first picture and F1 at 45 seconds.
                     The codes are keyboard scan codes in hex. 1d38 presses Ctrl+Option.
+                    Codes from 80 up are the extended keys: c8 Up, d0 Down, cb Left,
+                    cd Right. A third number holds the key down that long:
+                    --diag-keys=45:20:20,60:c8:5 holds D from 45 to 65 seconds and Up
+                    from 60 to 65. Keys whose times overlap are down together.
+                    Both times can have decimals, e.g. 45.5:39:0.25.
   --diag-mouse=LIST Move the mouse in a test run, e.g. --diag-mouse=20:300:150:c moves
                     it 300 right and 150 down at 20 seconds and then clicks. Without
                     :c it only moves. :o in place of :c first puts the system pointer
@@ -94,14 +167,51 @@ Usage: dogfighter [--res=WxH] [--sharp] [--windowed=WxH] [--wide] [--hd-textures
                     the mouse, not the keyboard.
   --diag-console=SECONDS:COMMAND
                     Run a game console command in a test run, e.g.
-                    --diag-console=30:mode+Singleplayer, with + for each space.
-                    Can be given more than once.
+                    --diag-console=30:mode+Singleplayer, with + for each space
+                    and ++ for a + itself. --diag-console=40:++thrustinc starts
+                    the game's held action +thrustinc as a key press does, and
+                    45:-thrustinc ends it as the key's release does. Of three
+                    + in a row the first is the space: bind+x+++fire is
+                    "bind x +fire". A command with a real space in it is taken
+                    as written, and every + in it is a + itself:
+                    --diag-console='40:bind x +fire'. SECONDS can have decimals.
+                    Letters, digits, spaces and _ . + - are allowed. Give the
+                    commands in order of time.
+                    "pointer" is not a game command: the helper writes to the
+                    log where the game's menu pointer is.
+                    Can be given more than once. A command that is due while
+                    the game still plays its intro videos waits for the main
+                    menu: on Mach9 a mission started during them ends the game.
   --diag-display=right
                     Open the game window on the display furthest to the right, so a
                     test run stays off the screen you work on.
   --diag-hold       Hold the mouse in a test run, as a normal start does.
+  --diag-end=SECONDS
+                    End the game this long after its first picture, without the
+                    game's own quit, so it does not write its settings.
+  --diag-zoom=SECONDS
+                    Zoom the window this long after the first picture.
+  --diag-drag=SECONDS
+                    Ask for seven window sizes as a drag of an edge or a corner
+                    does, and log what the window became. The pointer is not moved.
+  --diag-sound      Keep the sound in a test run, as a normal start does.
                     With any --diag option the log also says, five times a second,
                     whether macOS shows its pointer and which app is in front.
+  --diag-hd-dir=FOLDER
+                    Look for the larger textures in FOLDER, a full path, in place
+                    of hd-textures/. An empty folder tests a start without them.
+                    The link to FOLDER is removed when the run ends.
+  --diag-draws      Write to the log where the game first draws each flat picture:
+                    its place on the game's screen and its size. Needs the larger
+                    textures to be on.
+  --diag-shot-on=TEXT
+                    With --full-res: save the full-size picture a few frames after
+                    the game loads a picture whose path holds TEXT, e.g.
+                    --diag-shot-on=loadingscreen. It lands in logs/shots/. Works
+                    with and without the larger textures.
+  --diag-intros-shown=COUNT
+                    Start the game as if the launcher had played the first COUNT
+                    sharper intro videos, 1 or 2, so the game leaves its own out.
   --winecfg         Open Wine's settings for this game's prefix instead of playing.
   --stop            End a running game and all Wine processes of this prefix.
 EOF
@@ -112,10 +222,14 @@ WINDOW_SIZE=
 GAME_RES=
 FOCUSFIX=1
 SHARP=0
+RETINA_WINDOW=0
 SETUP=accept
 ORIGINAL=0
 WIDE=0
-HD_TEXTURES=0
+HD_TEXTURES=auto
+HD_VIDEOS=auto
+MUTE=0
+AUTO_JOYSTICK=1
 DEBUG=
 DIAG=
 DIAG_KEYS=
@@ -123,6 +237,20 @@ DIAG_MOUSE=
 DIAG_CONSOLE=()
 DIAG_DISPLAY=
 DIAG_HOLD=0
+DIAG_SOUND=0
+DIAG_HD_DIR=
+DIAG_END=
+DIAG_ZOOM=
+DIAG_DRAG=
+DIAG_DRAWS=0
+DIAG_SHOT_ON=
+DIAG_INTROS_SHOWN=
+FULL_RES=auto
+SMOOTH=4
+DEEP_Z=0
+KEEP_SHAPE=auto
+FPS=
+POINTER_MATCH=1
 WINE_NAME=
 WINE_RULES=
 JOIN=
@@ -137,9 +265,15 @@ for arg in "$@"; do
     --windowed=*) WINDOW_SIZE="${arg#--windowed=}" ;;
     --res=*) GAME_RES="${arg#--res=}" ;;
     --sharp) SHARP=1 ;;
+    --retina) RETINA_WINDOW=1 ;;
     --original) ORIGINAL=1 ;;
     --wide) WIDE=1 ;;
     --hd-textures) HD_TEXTURES=1 ;;
+    --no-hd-textures) HD_TEXTURES=0 ;;
+    --hd-videos) HD_VIDEOS=1 ;;
+    --no-hd-videos) HD_VIDEOS=0 ;;
+    --mute) MUTE=1 ;;
+    --no-auto-joystick) AUTO_JOYSTICK=0 ;;
     --setup) SETUP=show ;;
     --no-focusfix) FOCUSFIX=0 ;;
     --wine=*) WINE_NAME="${arg#--wine=}" ;;
@@ -161,6 +295,22 @@ for arg in "$@"; do
     --diag-console=*) DIAG_CONSOLE+=("${arg#--diag-console=}") ;;
     --diag-display=right) DIAG_DISPLAY=right ;;
     --diag-hold) DIAG_HOLD=1 ;;
+    --diag-sound) DIAG_SOUND=1 ;;
+    --diag-hd-dir=*) DIAG_HD_DIR="${arg#--diag-hd-dir=}" ;;
+    --diag-end=*) DIAG_END="${arg#--diag-end=}" ;;
+    --diag-zoom=*) DIAG_ZOOM="${arg#--diag-zoom=}" ;;
+    --diag-drag=*) DIAG_DRAG="${arg#--diag-drag=}" ;;
+    --diag-draws) DIAG_DRAWS=1 ;;
+    --diag-shot-on=*) DIAG_SHOT_ON="${arg#--diag-shot-on=}" ;;
+    --diag-intros-shown=*) DIAG_INTROS_SHOWN="${arg#--diag-intros-shown=}" ;;
+    --full-res) FULL_RES=1 ;;
+    --no-full-res) FULL_RES=0 ;;
+    --smooth=*) SMOOTH="${arg#--smooth=}" ;;
+    --deep-z) DEEP_Z=1 ;;
+    --keep-shape) KEEP_SHAPE=1 ;;
+    --no-keep-shape) KEEP_SHAPE=0 ;;
+    --fps=*) FPS="${arg#--fps=}" ;;
+    --no-pointer-match) POINTER_MATCH=0 ;;
     --winecfg) MODE=winecfg ;;
     --doctor) MODE=doctor ;;
     --backup) MODE=backup ;;
@@ -179,22 +329,52 @@ for arg in "$@"; do
   esac
 done
 if [ "$FOCUSFIX" = 0 ]; then ORIGINAL=1; fi
+if [ "$KEEP_SHAPE" = auto ]; then KEEP_SHAPE="$FOCUSFIX"; fi
+FULL_RES_GIVEN="$FULL_RES"
+if [ "$FULL_RES" = auto ]; then
+  FULL_RES=1
+  if [ "$ORIGINAL" = 1 ] || [ "$SHARP" = 1 ] || [ "$RETINA_WINDOW" = 1 ]; then FULL_RES=0; fi
+fi
+if [ "$FULL_RES" = 1 ]; then RETINA_WINDOW=1; fi
+if [ "$HD_TEXTURES" = auto ]; then
+  HD_TEXTURES=1
+  if [ "$ORIGINAL" = 1 ]; then HD_TEXTURES=0; fi
+fi
+if [ "$HD_VIDEOS" = auto ]; then
+  HD_VIDEOS=1
+  if [ "$ORIGINAL" = 1 ]; then HD_VIDEOS=0; fi
+fi
 if [ -n "$END_AFTER_SETUP_FIRST_TRY" ] && [ "$SETUP" = show ]; then DIAG="$DIAG press-ok"; fi
 for size in "$WINDOW_SIZE" "$GAME_RES"; do
   [[ -z "$size" || "$size" =~ ^[0-9]+x[0-9]+$ ]] || { echo "Bad size: $size" >&2; exit 2; }
 done
 if [ -n "$DIAG_KEYS" ]; then
-  [[ "$DIAG_KEYS" =~ ^[0-9]+:[0-9a-fA-F]+(,[0-9]+:[0-9a-fA-F]+)*$ ]] || { echo "Bad key list: $DIAG_KEYS" >&2; exit 2; }
+  KEY_RE='[0-9]+(\.[0-9]+)?:[0-9a-fA-F]+(:[0-9]+(\.[0-9]+)?)?'
+  [[ "$DIAG_KEYS" =~ ^$KEY_RE(,$KEY_RE)*$ ]] || { echo "Bad key list: $DIAG_KEYS" >&2; exit 2; }
   DIAG="${DIAG:-log} keys=$DIAG_KEYS"
 fi
-if [ "$DIAG_HOLD" = 1 ]; then DIAG="${DIAG:-log}"; fi
+if [ "$DIAG_HOLD" = 1 ] || [ "$DIAG_SOUND" = 1 ] || [ -n "$DIAG_HD_DIR" ] || [ "$DIAG_DRAWS" = 1 ] || [ -n "$DIAG_SHOT_ON" ]; then DIAG="${DIAG:-log}"; fi
+[[ "$DIAG_INTROS_SHOWN" =~ ^[12]?$ ]] || { echo "Bad number of intro videos: $DIAG_INTROS_SHOWN. Use 1 or 2." >&2; exit 2; }
+if [ -n "$DIAG_INTROS_SHOWN" ]; then DIAG="${DIAG:-log}"; fi
+[[ "$DIAG_SHOT_ON" =~ ^[A-Za-z0-9_.\\-]{0,60}$ ]] || { echo "Bad text: $DIAG_SHOT_ON" >&2; exit 2; }
+[[ -z "$DIAG_HD_DIR" || "$DIAG_HD_DIR" == /* ]] || { echo "Bad folder: $DIAG_HD_DIR. Give a full path." >&2; exit 2; }
 if [ -n "$DIAG_MOUSE" ]; then
   [[ "$DIAG_MOUSE" =~ ^[0-9]+:-?[0-9]+:-?[0-9]+(:[co])?(,[0-9]+:-?[0-9]+:-?[0-9]+(:[co])?)*$ ]] || { echo "Bad mouse list: $DIAG_MOUSE" >&2; exit 2; }
   DIAG="${DIAG:-log} mouse=$DIAG_MOUSE"
 fi
+for timed in "end=$DIAG_END" "zoom=$DIAG_ZOOM" "drag=$DIAG_DRAG"; do
+  [ -n "${timed#*=}" ] || continue
+  [[ "${timed#*=}" =~ ^[0-9]+$ ]] || { echo "Bad number of seconds: ${timed#*=}" >&2; exit 2; }
+  DIAG="${DIAG:-log} $timed"
+done
+[[ "$SMOOTH" =~ ^(0|2|4)$ ]] || { echo "Bad --smooth value: $SMOOTH. Use 0, 2 or 4." >&2; exit 2; }
+if [ -n "$FPS" ]; then
+  [[ "$FPS" =~ ^[1-9][0-9]{1,3}$ ]] && [ "$FPS" -ge 15 ] && [ "$FPS" -le 1000 ] ||
+    { echo "Bad --fps value: $FPS. Use a number from 15 to 1000." >&2; exit 2; }
+fi
 for command in ${DIAG_CONSOLE[@]+"${DIAG_CONSOLE[@]}"}; do
-  [[ "$command" =~ ^[0-9]+:[A-Za-z0-9_.+\ ]+$ ]] || { echo "Bad console command: $command" >&2; exit 2; }
-  DIAG="${DIAG:-log} console=${command// /+}"
+  [[ "$command" =~ ^[0-9]+(\.[0-9]+)?:[A-Za-z0-9_.+\ -]+$ ]] || { echo "Bad console command: $command" >&2; exit 2; }
+  DIAG="${DIAG:-log} console=${command// //}"
 done
 [[ -z "$WINE_NAME" || "$WINE_NAME" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "Bad Wine name: $WINE_NAME" >&2; exit 2; }
 [[ -z "$WINE_RULES" || "$WINE_RULES" =~ ^(\;[a-z0-9_]+=[A-Za-z0-9_.,=-]*)+$ ]] || { echo "Bad Wine rule: ${WINE_RULES#;}" >&2; exit 2; }
@@ -205,6 +385,14 @@ fi
 [[ "$DIAG" != *wait=* || "$DIAG" =~ wait=[0-9]+(\ |$) ]] || { echo "Bad number of seconds: $DIAG" >&2; exit 2; }
 if [ "$FOCUSFIX" = 0 ] && [ "$HD_TEXTURES" = 1 ]; then
   echo "--hd-textures needs the helper; leave out --no-focusfix." >&2
+  exit 2
+fi
+if [ "$FOCUSFIX" = 0 ] && [ "$HD_VIDEOS" = 1 ]; then
+  echo "--hd-videos needs the helper; leave out --no-focusfix." >&2
+  exit 2
+fi
+if [ "$FOCUSFIX" = 0 ] && { [ "$RETINA_WINDOW" = 1 ] || [ "$KEEP_SHAPE" = 1 ] || [ -n "$FPS" ]; }; then
+  echo "--retina, --full-res, --keep-shape and --fps need the helper; leave out --no-focusfix." >&2
   exit 2
 fi
 if [ "$FOCUSFIX" = 0 ] && [[ "$DIAG" == *-test* || "$DIAG" == *=* ]]; then
@@ -265,16 +453,31 @@ PICTURE_BEFORE="$HERE/game/dogfighter-picture-before.txt"
 HD_DIR="$HERE/hd-textures"
 CACHE_LINK="$HERE/game/cache"
 CACHE_TARGET=../hd-textures/cache
+HD_SHOWN=hd-textures/
+if [ -n "$DIAG_HD_DIR" ]; then
+  HD_DIR="${DIAG_HD_DIR%/}"
+  CACHE_TARGET="$HD_DIR/cache"
+  HD_SHOWN="$HD_DIR/"
+fi
+RUNNING="$HERE/game/.dogfighter-running"
 FOCUSFIX_EXE="$HERE/build/focusfix.exe"
 FOCUSHOOK_DLL="$HERE/build/focushook.dll"
 WINDIAG_EXE="$HERE/build/windiag.exe"
+JOYLIST_EXE="$HERE/build/joylist.exe"
 CRASHLOG_DLL="$HERE/build/crashlog.dll"
+INTRO_PLAYER="$HERE/build/intro-player"
+VIDEO_DIR="$HERE/hd-videos"
+INTROS="companies airfix"
 BACKUPS="$HERE/backups"
 SAVED="User user.ini system.ini"
 SIZES="2560x1600 2560x1440 1920x1200 1920x1080 1680x1050 1600x1200 1600x900 1440x900
        1280x1024 1280x960 1280x800 1280x720 1024x768 800x600 640x480"
 
 export WINEPREFIX="$HERE/prefix$SUFFIX"
+# Wine reads controllers in a background process. Mach9's SDL reads an Xbox
+# controller through Apple's GameController, which gives input only to the
+# app in front unless this is set.
+export SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS=1
 if [ "$MODE" = stop ]; then
   if [ -x "$WINESERVER" ]; then "$WINESERVER" -k 2>/dev/null || true; fi
   if [ "$WINE_PICKED" = 1 ]; then
@@ -283,6 +486,7 @@ if [ "$MODE" = stop ]; then
       if [ -x "${other%%:*}" ]; then WINEPREFIX="${other#*:}" "${other%%:*}" -k 2>/dev/null || true; fi
     done
   fi
+  rm -f "$RUNNING"
   exit 0
 fi
 
@@ -301,11 +505,25 @@ helper_fresh() {
     [ "$FOCUSHOOK_DLL" -nt "$HERE/src/focusfix/focushook.c" ]
 }
 
+intro_player_fresh() { [ "$INTRO_PLAYER" -nt "$HERE/tools/intro-player.m" ]; }
+
+known_intro_list() {
+  [ "$(od -An -tx1 -j 0x42544 -N 52 "$HERE/game/Dogfighter.exe" 2>/dev/null | tr -d ' \n')" = \
+    766964656f5c636f6d70616e6965732e61766900766964656f5c6169726669782e61766900000000442544005825440000000000 ]
+}
+
 save_folders_ok() {
   local dir
   for dir in Rosters Save/Levels Save/Photos Save/Stickers; do
     [ -d "$HERE/game/User/$dir" ] && [ -w "$HERE/game/User/$dir" ] || return 1
   done
+}
+
+user_get() {
+  [ -f "$USER_INI" ] || return 0
+  LC_ALL=C awk -v k="$1" '
+    { sub(/\r$/, "") }
+    $1 == "sets" && $2 == k { v = $3; gsub(/"/, "", v); print v; exit }' "$USER_INI"
 }
 
 CHECKS=0
@@ -319,6 +537,35 @@ check() {
   else
     FAILED=$((FAILED + 1))
     echo "FAIL  $name. Fix: $fix"
+  fi
+}
+
+list_controllers() {
+  local lines line n=0
+  if [ ! -f "$JOYLIST_EXE" ] || [ ! -f "$WINEPREFIX/system.reg" ] || ! "$WINE" --version >/dev/null 2>&1; then
+    echo "      Controllers: not checked. That needs ./setup.sh and one start of the game."
+    return 0
+  fi
+  lines="$(WINEDEBUG=-all "$WINE" "$JOYLIST_EXE" 2>/dev/null | tr -d '\r' || true)"
+  if [ "$lines" = "no controller found" ]; then
+    echo "      Controllers: no controller found. Connect one, then run this again."
+    return 0
+  fi
+  while IFS= read -r line; do
+    [[ "$line" == "controller "* ]] || continue
+    n=$((n + 1))
+    if [ "$n" = 1 ]; then
+      echo "      Controller 1: ${line#controller 1: }. The game uses this one."
+    else
+      echo "      Controller $n: ${line#controller $n: }. Not used: the game takes the first one."
+    fi
+  done <<<"$lines"
+  if [ "$n" = 0 ] && [[ "$lines" == error:* ]]; then
+    echo "      Controllers: not checked. Wine ran, but its DirectInput did not start."
+  elif [ "$n" = 0 ]; then
+    echo "      Controllers: not checked. Wine did not start the program that lists them."
+  elif [ "$(user_get option_joystick)" != true ]; then
+    echo "      Joystick input is off in the game. The next start turns it on, unless it has --no-auto-joystick."
   fi
 }
 
@@ -344,10 +591,21 @@ doctor() {
   check "Ten music tracks in music/" "./setup.sh" has_files "$HERE/music" "${tracks[@]}"
   check "Music player (game/winmm.dll, game/Music)" "./setup.sh" \
     has_files "$HERE/game" winmm.dll Music/Track02.ogg
-  check "Helper is built in build/" "./setup.sh" has_files "$HERE/build" focusfix.exe focushook.dll
+  check "Helper is built in build/" "./setup.sh" has_files "$HERE/build" focusfix.exe focushook.dll joylist.exe
   check "Helper is newer than its source" \
     "delete build/focusfix.exe and build/focushook.dll, then ./setup.sh" helper_fresh
   check "Save folders in game/User" "./setup.sh" save_folders_ok
+  if [ -f "$VIDEO_DIR/companies.mov" ] || [ -f "$VIDEO_DIR/airfix.mov" ]; then
+    check "Intro video player is built in build/" "./setup.sh" intro_player_fresh
+    check "game/Dogfighter.exe is the build whose intros the helper can leave out" \
+      "none; the game plays its own intro videos after the sharper ones, or use --no-hd-videos" known_intro_list
+    for name in $INTROS; do
+      [ -f "$VIDEO_DIR/$name.mov" ] && intro_player_fresh || continue
+      check "hd-videos/$name.mov plays" "delete it, then python3 tools/upscale-textures.py --videos" \
+        "$INTRO_PLAYER" --check "$VIDEO_DIR/$name.mov"
+    done
+  fi
+  list_controllers
   if [ "$FAILED" = 0 ]; then
     if [ "$WINE_PICKED" = 1 ]; then
       echo "All $CHECKS checks passed. Start the game with: ./dogfighter"
@@ -424,8 +682,38 @@ case "$MODE" in
   restore) restore_saves "$RESTORE_FILE"; exit ;;
 esac
 
+# One game per installation: every Wine build shares game/, its settings and
+# the game/cache link. The fallback to the Rosetta Wine
+# keeps this process id through exec, so it finds its own lock.
+take_lock() {
+  [ -d "$HERE/game" ] || return 0
+  if [ "$(cat "$RUNNING" 2>/dev/null || true)" != $$ ] && ! /usr/bin/shlock -p $$ -f "$RUNNING"; then
+    echo "Dogfighter is already running. Stop it with ./dogfighter --stop." >&2
+    exit 1
+  fi
+  LOCKED=1
+}
+
+LOCKED=0
+WATCH_PID=
+finish() {
+  if [ -n "$WATCH_PID" ]; then kill $WATCH_PID 2>/dev/null || true; fi
+  if [ -n "$DIAG_HD_DIR" ] && [ -L "$CACHE_LINK" ] && [ "$(readlink "$CACHE_LINK")" = "$CACHE_TARGET" ]; then
+    rm -f "$CACHE_LINK"
+    if [ -n "${LOG:-}" ]; then echo "Removed game/cache, the link to the test textures." >>"$LOG"; fi
+  fi
+  if [ "$LOCKED" = 1 ] && [ "$(cat "$RUNNING" 2>/dev/null || true)" = $$ ]; then rm -f "$RUNNING"; fi
+}
+take_lock
+trap finish EXIT
+
 export WINEDEBUG="${DEBUG:-${WINEDEBUG:-fixme-all}}"
 export WINEDLLOVERRIDES="winmm=n,b;mscoree=;mshtml=;ddraw=b"
+# A muted start runs without mmdevapi, the one door from Wine's sound DLLs to
+# the Mac's audio, and with Wine's own winmm in place of the music player. Both
+# are set for this one start only, so the prefix is never changed.
+if [ -n "$DIAG" ] && [ "$DIAG_SOUND" = 0 ]; then MUTE=1; fi
+if [ "$MUTE" = 1 ]; then export WINEDLLOVERRIDES="winmm=b;mmdevapi=;mscoree=;mshtml=;ddraw=b"; fi
 unset WINE_COMPATDB WINE_COMPATDB_FILE WINE_PROF_SERVICE
 if [ -n "$WINE_RULES" ] && [ "$MACH9" = 0 ]; then
   echo "--wine-rule needs Mach9, the Wine that runs without Rosetta: --wine=mach9." >&2
@@ -476,13 +764,6 @@ ini_drop_section() {
   mv "$tmp" "$1"
 }
 
-user_get() {
-  [ -f "$USER_INI" ] || return 0
-  LC_ALL=C awk -v k="$1" '
-    { sub(/\r$/, "") }
-    $1 == "sets" && $2 == k { v = $3; gsub(/"/, "", v); print v; exit }' "$USER_INI"
-}
-
 user_set() {
   local tmp
   tmp="$(mktemp "$USER_INI.XXXXXX")"
@@ -506,6 +787,48 @@ address_book_add() {
   done
   user_set "address_$n" "$1"
   say "Added $1 to the game's Address book: address_$n in game/user.ini."
+}
+
+first_controller() {
+  /usr/bin/hidutil list --matching \
+    '[{"DeviceUsagePage":1,"DeviceUsage":4},{"DeviceUsagePage":1,"DeviceUsage":5},{"DeviceUsagePage":1,"DeviceUsage":8}]' \
+    2>/dev/null | LC_ALL=C awk '
+    /^VendorID / { from = index($0, " Product ") + 1; to = index($0, " UserClass ") + 1; next }
+    from > 1 && to > from {
+      name = substr($0, from, to - from); sub(/ +$/, "", name)
+      if (name == "" || name == "(null)") name = "a controller"
+      print name; exit
+    }' || true
+}
+
+joystick_on_for_controller() {
+  local name
+  [ "$AUTO_JOYSTICK" = 1 ] && [ -f "$USER_INI" ] || return 0
+  [ "$(user_get option_joystick)" != true ] || return 0
+  name="$(first_controller)"
+  [ -n "$name" ] || return 0
+  user_set option_joystick true
+  say "Found $name, so Joystick is now on in the game's Options. --no-auto-joystick leaves it as it is."
+}
+
+# The game takes a screenshot only for a key that game/user.ini binds to it,
+# and it writes that file again at every quit. A file that lost the line has
+# no screenshot key at all.
+screenshot_key_back() {
+  local tmp
+  [ -f "$USER_INI" ] || return 0
+  LC_ALL=C awk '
+    { sub(/\r$/, "") }
+    $1 == "bind" && (tolower($2) == "f12" || tolower($0) ~ /"screenshot"/) { found = 1 }
+    END { exit !found }' "$USER_INI" && return 0
+  tmp="$(mktemp "$USER_INI.XXXXXX")"
+  LC_ALL=C awk '
+    NR == FNR { if ($1 == "bind") last = FNR; next }
+    FNR == 1 && !last { print "bind F12  \"screenshot\"\r" }
+    { print }
+    FNR == last { print "bind F12  \"screenshot\"\r" }' "$USER_INI" "$USER_INI" >"$tmp"
+  mv "$tmp" "$USER_INI"
+  say "No key took screenshots, so F12 does again: bind F12 \"screenshot\" added to game/user.ini."
 }
 
 picture_get() {
@@ -543,24 +866,139 @@ restore_picture_settings() {
   rm -f "$PICTURE_BEFORE"
 }
 
+hd_set_complete() {
+  [ -f "$HD_DIR/manifest.json" ] && python3 -I "$HERE/tools/upscale-textures.py" --check --out "$HD_DIR" 2>/dev/null
+}
+
+own_photos() {
+  [ -d "$HERE/game/User/Save/Photos" ] || return 0
+  python3 -I - "$HD_DIR/manifest.json" "$HERE/game/User/Save/Photos" <<'EOF' 2>/dev/null || true
+import hashlib, json, os, sys
+under = "user\\save\\photos\\"
+with open(sys.argv[1]) as f:
+    made = {record["path"].lower()[len(under):]: record["source_sha256"] for record in json.load(f)["textures"]
+            if record["path"].lower().startswith(under) and record["way"] != "none"}
+for name in sorted(os.listdir(sys.argv[2])):
+    path = os.path.join(sys.argv[2], name)
+    if name.lower() in made and os.path.isfile(path):
+        with open(path, "rb") as f:
+            if hashlib.sha256(f.read()).hexdigest() != made[name.lower()]:
+                print(name)
+EOF
+}
+
+link_cache_without() {
+  local view="$1" at="" part next item name own
+  shift
+  rm -rf "$view"
+  shopt -s nocasematch
+  for part in User Save Photos ""; do
+    mkdir -p "$view/$at"
+    next=
+    for item in "$HD_DIR/cache/$at"*; do
+      [ -e "$item" ] || continue
+      name="${item##*/}"
+      if [ -n "$part" ] && [[ "$name" == "$part" ]]; then next="$at$name/"; continue; fi
+      if [ -z "$part" ]; then
+        for own in "$@"; do
+          if [[ "$name" == "$own" || "$name" == "$own".[24]x ]]; then continue 2; fi
+        done
+      fi
+      ln -s "$item" "$view/$at$name"
+    done
+    [ -n "$next" ] || break
+    at="$next"
+  done
+  shopt -u nocasematch
+}
+
+# Without the larger textures no link may stay: the game would still load the
+# files behind it, without the raised size limit the helper sets for them.
 link_hd_textures() {
-  local limit
+  local limit own
+  limit="$(cat "$HD_DIR/texture-limit" 2>/dev/null || true)"
+  if [ "$HD_TEXTURES" = 1 ] && [ -e "$CACHE_LINK" ] && [ ! -L "$CACHE_LINK" ]; then
+    say "game/cache is a folder of your own, so the larger textures stay off. Move it away to use them."
+    HD_TEXTURES=0
+  elif [ "$HD_TEXTURES" = 1 ] && ! hd_set_complete; then
+    say "No complete set of larger textures in $HD_SHOWN. Run ./setup.sh to make it."
+    HD_TEXTURES=0
+  fi
   if [ "$HD_TEXTURES" = 0 ]; then
-    if [ -L "$CACHE_LINK" ] && [ "$(readlink "$CACHE_LINK")" = "$CACHE_TARGET" ]; then rm -f "$CACHE_LINK"; fi
+    if [ -L "$CACHE_LINK" ]; then
+      echo "Removed game/cache, a link to $(readlink "$CACHE_LINK")." >>"$LOG"
+      rm -f "$CACHE_LINK"
+    fi
     return 0
   fi
-  limit="$(cat "$HD_DIR/texture-limit" 2>/dev/null || true)"
-  if [ ! -d "$HD_DIR/cache" ] || { [ "$limit" != 512 ] && [ "$limit" != 1024 ]; }; then
-    say "No larger textures in hd-textures/. Make them first: python3 tools/upscale-textures.py"
-    exit 1
-  fi
-  if [ -e "$CACHE_LINK" ] && [ ! -L "$CACHE_LINK" ]; then
-    say "game/cache is a folder of your own. Move it away to use --hd-textures."
-    exit 1
+  own="$(own_photos)"
+  if [ -n "$own" ]; then
+    CACHE_TARGET="$WINEPREFIX/drive_c/dogfighter-cache"
+    link_cache_without "$CACHE_TARGET" $own
+    say "Your own pilot photos in game/User/Save/Photos stay in use: ${own//$'\n'/, }. The larger copies of the game's photos with those names are left out."
   fi
   ln -sfn "$CACHE_TARGET" "$CACHE_LINK"
   export DOGFIGHTER_TEXTURE_LIMIT="$limit"
-  say "Larger textures on: up to $limit pixels a side, from hd-textures/cache."
+  say "Larger textures on: up to $limit pixels a side, from ${HD_SHOWN}cache."
+}
+
+own_intros_from() {
+  local i=0 name list=
+  for name in $INTROS; do
+    if [ "$i" -ge "$1" ]; then list="${list:+$list and }$name.avi"; fi
+    i=$((i + 1))
+  done
+  echo "$list"
+}
+
+INTROS_SHOWN=0
+play_hd_intros() {
+  local name names=($INTROS) files=() args=() status=0 why box
+  if [[ "${DOGFIGHTER_INTROS_SHOWN:-}" =~ ^[0-9]+$ ]]; then
+    INTROS_SHOWN="$DOGFIGHTER_INTROS_SHOWN"
+    return 0
+  fi
+  if [ -n "$DIAG_INTROS_SHOWN" ]; then
+    INTROS_SHOWN="$DIAG_INTROS_SHOWN"
+    return 0
+  fi
+  [ "$HD_VIDEOS" = 1 ] || return 0
+  for name in $INTROS; do
+    [ -f "$VIDEO_DIR/$name.mov" ] || break
+    files+=("$VIDEO_DIR/$name.mov")
+  done
+  if [ "${#files[@]}" = 0 ] && [ ! -f "$VIDEO_DIR/airfix.mov" ]; then return 0; fi
+  if [ -n "$DIAG" ]; then
+    echo "A test run leaves out the sharper intro videos." >>"$LOG"
+    return 0
+  fi
+  if [ "${#files[@]}" -lt 2 ]; then
+    say "hd-videos/${names[${#files[@]}]}.mov is missing, so the game plays its own $(own_intros_from "${#files[@]}")."
+    [ "${#files[@]}" -gt 0 ] || return 0
+  fi
+  if ! intro_player_fresh || ! helper_fresh; then
+    say "The sharper intro videos need the newest build/ helpers, so the game plays its own. Run ./setup.sh to build them."
+    return 0
+  fi
+  if ! known_intro_list; then
+    say "game/Dogfighter.exe is not the known build, so the game plays its own intro videos."
+    return 0
+  fi
+  box="${WINDOW_SIZE:-$LIMIT}"
+  if [ "$RETINA" = y ]; then box="$((${box%x*} / 2))x$((${box#*x} / 2))"; fi
+  args=(--box="$box")
+  if [ "$MUTE" = 1 ]; then args+=(--mute); fi
+  say "Playing the sharper intro videos. Esc, a click or any key skips one."
+  why="$("$INTRO_PLAYER" "${args[@]}" "${files[@]}" 2>&1 >/dev/null)" || status=$?
+  if [ -n "$why" ]; then echo "$why" >>"$LOG"; fi
+  if [ "$status" -gt "${#files[@]}" ]; then
+    say "The intro video player stopped (status $status), so the game plays its own intro videos."
+    return 0
+  fi
+  INTROS_SHOWN="$status"
+  if [ "$INTROS_SHOWN" -lt "${#files[@]}" ]; then
+    say "hd-videos/$(basename "${files[$INTROS_SHOWN]}") did not play: ${why##*$'\n'}. The game plays its own $(own_intros_from "$INTROS_SHOWN")."
+  fi
 }
 
 game_section() {
@@ -607,7 +1045,7 @@ set_user_reg() {
 }
 
 fits() {
-  [ "${1%x*}" -le "${LIMIT%x*}" ] && [ "${1#*x}" -le "${LIMIT#*x}" ]
+  [ "${1%x*}" -le "${RES_LIMIT%x*}" ] && [ "${1#*x}" -le "${RES_LIMIT#*x}" ]
 }
 
 largest_fit() {
@@ -702,6 +1140,7 @@ if [ "$MODE" = winecfg ]; then
 fi
 clean_wrapper_leftovers
 link_hd_textures
+if [ "$MUTE" = 1 ]; then say "Sound is off for this start: Wine runs without its audio layer (mmdevapi) and the music player is not loaded."; fi
 if [ -n "$JOIN" ]; then
   if [ ! -f "$USER_INI" ]; then
     say "game/user.ini is not there yet. Start the game once, quit it, then use --join."
@@ -709,15 +1148,21 @@ if [ -n "$JOIN" ]; then
   fi
   address_book_add "$JOIN"
 fi
+joystick_on_for_controller
+screenshot_key_back
 
 SCREEN="$(screen_info)"
 LIMIT=1024x768
+RES_LIMIT=1024x768
 RETINA=n
 if [[ "$SCREEN" =~ ^([12])\ ([0-9]+)\ ([0-9]+)$ ]]; then
   scale="${BASH_REMATCH[1]}"
-  [ "$SHARP" = 1 ] || scale=1
+  [ "$SHARP" = 1 ] || [ "$RETINA_WINDOW" = 1 ] || scale=1
   if [ "$scale" = 2 ]; then RETINA=y; fi
   LIMIT="$((BASH_REMATCH[2] * scale))x$((BASH_REMATCH[3] * scale))"
+  RES_LIMIT="$LIMIT"
+  if [ "$SHARP" = 0 ]; then RES_LIMIT="${BASH_REMATCH[2]}x${BASH_REMATCH[3]}"; fi
+  if [ -n "$WINDOW_SIZE" ] && [ "$RETINA" = y ]; then WINDOW_SIZE="$((${WINDOW_SIZE%x*} * 2))x$((${WINDOW_SIZE#*x} * 2))"; fi
 else
   say "Could not read the screen size; assuming room for a $LIMIT picture."
 fi
@@ -725,7 +1170,7 @@ fi
 if [ -z "$GAME_RES" ]; then
   GAME_RES="$(largest_fit)"
 elif ! fits "$GAME_RES"; then
-  say "$GAME_RES does not fit on this screen ($LIMIT max); using $(largest_fit)."
+  say "$GAME_RES does not fit on this screen ($RES_LIMIT max); using $(largest_fit)."
   GAME_RES="$(largest_fit)"
 fi
 SECTION="$(game_section || true)"
@@ -757,11 +1202,14 @@ fi
 set_user_reg 'Software\Wine\WineDbg' ShowCrashDialog 0 REG_DWORD
 if [ "$REG_CHANGED" = 1 ]; then "$WINESERVER" -w; fi
 
+play_hd_intros
+export DOGFIGHTER_INTROS_SHOWN="$INTROS_SHOWN"
+if [ "$INTROS_SHOWN" -gt 0 ]; then export DOGFIGHTER_SKIP_INTROS="$INTROS_SHOWN"; fi
+
 if [ -n "$DIAG" ]; then
   cp "$WINDIAG_EXE" "$WINEPREFIX/drive_c/dogfighter-windiag.exe"
   cp "$CRASHLOG_DLL" "$WINEPREFIX/drive_c/dogfighter-crashlog.dll"
 fi
-WATCH_PID=
 if [ "$FOCUSFIX" = 1 ]; then
   FLAG="$WINEPREFIX/drive_c/dogfighter-focusfix.flag"
   cp "$FOCUSFIX_EXE" "$WINEPREFIX/drive_c/dogfighter-focusfix.exe"
@@ -774,6 +1222,23 @@ if [ "$FOCUSFIX" = 1 ]; then
   if [ -n "$DIAG_DISPLAY" ]; then export DOGFIGHTER_TEST_DISPLAY="$DIAG_DISPLAY"; fi
   if [ -n "$DIAG" ] && [ "$DIAG_HOLD" = 0 ]; then export DOGFIGHTER_TEST_LEAVES_MOUSE=1; fi
   if [ "$ORIGINAL" = 0 ]; then export DOGFIGHTER_ANISOTROPY=16; fi
+  if [ "$ORIGINAL" = 0 ] && [ "$SMOOTH" != 0 ]; then export DOGFIGHTER_EDGE_SAMPLES="$SMOOTH"; fi
+  if [ "$KEEP_SHAPE" = 1 ]; then export DOGFIGHTER_KEEP_SHAPE=1; fi
+  if [ "$POINTER_MATCH" = 1 ]; then export DOGFIGHTER_MATCH_POINTER=1; fi
+  if [ -n "$FPS" ]; then
+    export DOGFIGHTER_FPS="$FPS"
+    say "Frame rate: at most $FPS pictures a second."
+  fi
+  if [ "$FULL_RES" = 1 ]; then
+    export DOGFIGHTER_FULL_SIZE=1
+    say "Full resolution on: the 3D picture gets every pixel of the window."
+  else
+    say "Full resolution off: the picture is drawn in the game's own resolution and scaled to the window."
+  fi
+  if [ "$FULL_RES_GIVEN" = 1 ] && [ -n "$DIAG" ]; then export DOGFIGHTER_TEST_FULL_SIZE_SHOTS=1; fi
+  if [ "$DEEP_Z" = 1 ]; then export DOGFIGHTER_DEEP_Z=1; fi
+  if [ "$DIAG_DRAWS" = 1 ]; then export DOGFIGHTER_TEST_NOTES_DRAWS=1; fi
+  if [ -n "$DIAG_SHOT_ON" ]; then export DOGFIGHTER_TEST_SHOT_ON="$DIAG_SHOT_ON"; fi
   if [ -n "$DIAG" ]; then export DOGFIGHTER_DIAG="$DIAG"; fi
   GAME_CMD=('C:\dogfighter-focusfix.exe' 'C:\dogfighter-focusfix.flag' "$GAME_DOS\\Dogfighter.exe")
   if [ "$DIAG" = draw-test ]; then
@@ -787,7 +1252,6 @@ if [ "$FOCUSFIX" = 1 ]; then
     watch_mac_pointer &
     WATCH_PID="$WATCH_PID $!"
   fi
-  trap 'kill $WATCH_PID 2>/dev/null || true' EXIT
 else
   GAME_CMD=(explorer "/desktop=Dogfighter,$GAME_RES" start /wait /d "$GAME_DOS" "$GAME_DOS\\Dogfighter.exe")
 fi
@@ -806,6 +1270,11 @@ run_wine() {
     "$WINEPREFIX/drive_c/dogfighter-windiag.log" "$WINEPREFIX/drive_c/dogfighter-crash.log" \
     >>"$LOG" 2>/dev/null || true
   rm -f "$WINEPREFIX"/drive_c/dogfighter-{focusfix,focushook,windiag,crash}.log
+  for shot in "$WINEPREFIX"/drive_c/dogfighter-full-size-*.tga; do
+    [ -f "$shot" ] || continue
+    mkdir -p "$HERE/logs/shots"
+    mv "$shot" "$HERE/logs/shots/$(basename "${LOG%.log}")-${shot##*dogfighter-}" || true
+  done
 }
 
 # Under Rosetta, Wine sometimes runs its 32-to-64-bit switch as 32-bit code
@@ -845,7 +1314,7 @@ if [ -n "$WATCH_PID" ]; then
   kill $WATCH_PID 2>/dev/null || true
   wait $WATCH_PID 2>/dev/null || true
 fi
-if [ -f "$HERE/game/winmm.log" ]; then
+if [ "$MUTE" = 0 ] && [ -f "$HERE/game/winmm.log" ]; then
   cp "$HERE/game/winmm.log" "${LOG%.log}-music.log"
 fi
 if [ "$FALLBACK" = 1 ] && [ "$STARTED" = 0 ]; then
@@ -855,5 +1324,11 @@ if [ "$FALLBACK" = 1 ] && [ "$STARTED" = 0 ]; then
   done
   say "The game did not start on Mach9. Starting it with the Rosetta Wine in wine/ instead${WINE_RULES:+, without the --wine-rule settings: they are for Mach9 only}."
   exec "$HERE/dogfighter" --wine=stable ${KEPT[@]+"${KEPT[@]}"}
+fi
+if grep -q 'GL_INVALID_FRAMEBUFFER_OPERATION (0x506) from glClear' "$LOG"; then
+  echo "About the err:d3d lines with glClear above: Wine clears each new Direct3D window once, and the game's window is not on the screen yet. The clear is left out and nothing is missing from the picture." >>"$LOG"
+fi
+if grep -q 'err:ntoskrnl:ZwLoadDriver.*winebth' "$LOG"; then
+  echo "About the err:ntoskrnl line with winebth above: Wine's Bluetooth driver does not load on a Mac. The game does not use it; controllers come in another way." >>"$LOG"
 fi
 say "Done. Log: $LOG"
