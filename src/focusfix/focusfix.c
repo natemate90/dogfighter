@@ -88,7 +88,7 @@ static void start_diagnostics(void)
 {
     STARTUPINFOA si = { sizeof(si) };
     PROCESS_INFORMATION pi;
-    char mode[1024], cmd[1100];
+    char mode[8192], cmd[8300];
 
     if (!GetEnvironmentVariableA("DOGFIGHTER_DIAG", mode, sizeof(mode))) return;
     snprintf(cmd, sizeof(cmd), "C:\\dogfighter-windiag.exe %s", mode);

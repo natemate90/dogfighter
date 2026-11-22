@@ -1064,6 +1064,9 @@ static BOOL install_hooks(void)
     return TRUE;
 }
 
+/* The game's console does not know "+primattack". For a key bound to it the
+   game runs "primattack 1" when the key goes down and "primattack 0" when it
+   comes up, and so does this for "+name" and "-name". */
 static void run_console_command(const char *command)
 {
     HMODULE engine = GetModuleHandleA("AfEngine.dll");
@@ -1073,6 +1076,12 @@ static void run_console_command(const char *command)
     void *main;
 
     if (!get_main || !get_console || !execute || !(main = get_main())) return;
+    if ((*command == '+' || *command == '-') && command[1] && !strchr(command, ' '))
+    {
+        say("running the console command: %s, as the game does for a key: %s %d", command, command + 1, *command == '+');
+        execute(get_console(main), "%s %d", command + 1, *command == '+');
+        return;
+    }
     say("running the console command: %s", command);
     execute(get_console(main), "%s", command);
 }
