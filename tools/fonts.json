@@ -19,7 +19,8 @@
    "face": 0,
    "size": 11.17,
    "stretch": 1.015,
-   "weight": 0.02,
+   "weight": 0.18,
+   "gain": 0.71,
    "pictures": {"Graphics\\Fonts\\typewriter.gti": "29cb30beeda23966a44351a8eca688489f4c0c8776f4335965fd966bd512e041", "Graphics\\Fonts\\typewriter_2.gti": "b3b4e6b466293b19dc7341d69a3ba5aee4f300d4d675b3d39731810924fdd316"},
    "glyphs": [
     ["typewriter", 1, 1, 9, 8, "A", 0.0, 8.0, 11.17, 94.09],
@@ -139,7 +140,8 @@
    "face": 0,
    "size": 12.25,
    "stretch": 0.975,
-   "weight": 0.0,
+   "weight": 0.18,
+   "gain": 0.69,
    "pictures": {"Graphics\\Fonts\\typewriter_small.gti": "40f19aeaa4b05ed1f180a0926f0de796926d42ae8b27b2cdbf48a4a56602b4ed", "Graphics\\Fonts\\typewriter_small_2.gti": "fc6f7d7944f2da56777aa1d30256188e681f93c9b6ef87a9fe517c642da5de7f"},
    "glyphs": [
     ["typewriter_small", 1, 1, 10, 9, "A", 0.0, 8.5, 12.25, 94.68],
@@ -257,7 +259,8 @@
    "face": 0,
    "size": 16.12,
    "stretch": 1.0,
-   "weight": 0.0,
+   "weight": 0.3,
+   "gain": 0.69,
    "pictures": {"Graphics\\Fonts\\system.gti": "a628240ad2dc55dfeb3149973953a431c70fc175b3538661eb9f44e23976af1c"},
    "glyphs": [
     ["system", 0, 0, 11, 12, "A", 0.0, 11.75, 16.12, 94.81],
@@ -339,7 +342,8 @@
    "face": 0,
    "size": 16.26,
    "stretch": 0.97,
-   "weight": 0.0,
+   "weight": 0.3,
+   "gain": 0.68,
    "pictures": {"Graphics\\Fonts\\system12.gti": "30f5a4cd3363233ff2a0ed4c40278b20a68df4f9eab4c59c6725dfe8d2aa0804"},
    "glyphs": [
     ["system12", 1, 2, 7, 12, "a", -0.5, 11.5, 15.447, 85.73],

@@ -132,6 +132,14 @@ desk's Python environment. Without them the paintings stay as made. The
 manifest lists such a piece with way "painting". --no-paintings leaves them
 as made. --menus-only and --lettering-only draw them too.
 
+The signs: the hand lettering of the menu signs, such as CAMPAIGN, and the
+stencil headings of the briefing papers are drawn again over the made 4x
+pictures from the game's own pixels, by tools/signs.py and
+tools/signs-draw.py with the boxes in tools/signs.json, in the desk's Python
+environment. The desk, the paintings and the stamps are drawn over them. The
+manifest lists such a piece with way "sign". --no-signs leaves them as made.
+--menus-only and --lettering-only draw them too.
+
 The stamps: the round ink stamps on the Axis and US Airforce pages of the
 mission book are drawn again over the made 4x pictures as sharp ink, by
 tools/stamps.py and tools/stamps-draw.py with the numbers in
@@ -185,6 +193,7 @@ import gti  # noqa: E402
 import lettering  # noqa: E402
 import menus  # noqa: E402
 import paintings  # noqa: E402
+import signs  # noqa: E402
 import stamps  # noqa: E402
 import up  # noqa: E402
 import videos  # noqa: E402
@@ -211,7 +220,7 @@ SCREEN_NUMBERS = 100000
 FONT_WAY = "waifu2x"
 OWN = ("way", "why", "scores", "failed", "bytes", "file_sha256")
 GENERATIVE = "generative"
-REPLACING = ("override", lettering.WAY, fonts.WAY, desk.WAY, paintings.WAY, stamps.WAY)
+REPLACING = ("override", lettering.WAY, fonts.WAY, desk.WAY, paintings.WAY, stamps.WAY, signs.WAY)
 COUNTED = WAYS + (GENERATIVE,) + REPLACING + ("none",)
 GENERATIVE_LIST = os.path.join(HERE, "generative-surfaces.json")
 GENERATIVE_SCALE = 4
@@ -946,7 +955,7 @@ def spread(values):
 def summary(records):
     counts = {way: sum(1 for record in records if record["way"] == way) for way in COUNTED}
     print("Ways: %d ai, %d waifu2x, %d plain, %d generative, %d override, %d lettering, %d font, %d desk, %d painting, %d stamp, "
-          "%d not written." % tuple(
+          "%d sign, %d not written." % tuple(
         counts[way] for way in COUNTED))
     for way in WAYS + (GENERATIVE,):
         scored = [record["scores"] for record in records if record["way"] == way]
@@ -998,7 +1007,7 @@ def main():
     parser.add_argument("--no-lettering", action="store_true", help="leave the textures of tools/lettering.json as made")
     parser.add_argument("--fetch-fonts", action="store_true", help="download the pinned lettering fonts to upscale-tools/fonts/, then stop")
     parser.add_argument("--lettering-only", action="store_true",
-                        help="redraw only the lettering, the font letters, the desk, the paintings and the stamps of the complete set in the "
+                        help="redraw only the lettering, the font letters, the signs, the desk, the paintings and the stamps of the complete set in the "
                              "output folder, keeping the settings that made it")
     parser.add_argument("--no-font-redraw", action="store_true",
                         help="leave the font pictures of tools/fonts.json as made instead of drawing their letters from the typefaces")
@@ -1015,6 +1024,9 @@ def main():
     parser.add_argument("--fetch-paintings", action="store_true",
                         help="download the pinned box art for the paintings to upscale-tools/paintings/ and set up its Python "
                              "packages, then stop")
+    parser.add_argument("--no-signs", action="store_true",
+                        help="leave the hand lettering of the menu signs and paper headings as made instead of drawing it again "
+                             "from the game's pixels")
     parser.add_argument("--no-stamps", action="store_true",
                         help="leave the ink stamps of the mission book as made instead of drawing them again")
     parser.add_argument("--fetch-stamps", action="store_true",
@@ -1416,31 +1428,41 @@ def redraw_fonts(args, setup, sources, records, skip):
     return fonts.draw(items, setup["work"], args.font_times)
 
 
-def made_of(setup, records):
-    """A function that gives (made file, its checksum) of a path, or None for a picture that was not made."""
+def made_of(setup, records, signed=None):
+    """A function that gives (made file, its checksum) of a path, or None for a picture that was not made.
+
+    A piece in signed gives the one with its signs drawn again, so later steps draw over those.
+    """
     def found(path):
+        if signed and path in signed:
+            return signed[path][:2]
         record = records[path]
         file = where(setup, record) if record["way"] != "none" else None
         return (file, record["file_sha256"]) if file else None
     return found
 
 
-def draw_desk(args, setup, sources, records, old, skip):
+def draw_signs(args, setup, sources, records, skip):
+    """{path: (file, checksum, bytes, note)} for the menu pieces whose hand lettering was drawn again from the game's pixels."""
+    return signs.draw({entry.path: data for _, entry, data in sources}, made_of(setup, records), args.tools, setup["work"], skip)
+
+
+def draw_desk(args, setup, sources, records, old, skip, signed):
     """{path: (file, checksum, bytes, note)} for the pieces of the main menu whose kit boxes and paint tins were drawn again."""
-    return desk.draw({entry.path: data for _, entry, data in sources}, made_of(setup, records), lettering_fonts(args.tools), args.tools,
-                     setup["work"], setup["out"], old, skip)
+    return desk.draw({entry.path: data for _, entry, data in sources}, made_of(setup, records, signed), lettering_fonts(args.tools),
+                     args.tools, setup["work"], setup["out"], old, skip)
 
 
-def draw_paintings(args, setup, sources, records, old, skip):
+def draw_paintings(args, setup, sources, records, old, skip, signed):
     """{path: (file, checksum, bytes, note)} for the pieces whose plane painting was drawn again from box art."""
-    return paintings.draw({entry.path: data for _, entry, data in sources}, made_of(setup, records), args.tools, setup["work"],
-                          setup["out"], old, skip)
+    return paintings.draw({entry.path: data for _, entry, data in sources}, made_of(setup, records, signed), args.tools,
+                          setup["work"], setup["out"], old, skip)
 
 
-def draw_stamps(args, setup, sources, records, old, skip):
+def draw_stamps(args, setup, sources, records, old, skip, signed):
     """{path: (file, checksum, bytes, note)} for the pieces whose ink stamp was drawn again."""
-    return stamps.draw({entry.path: data for _, entry, data in sources}, made_of(setup, records), args.tools, setup["work"],
-                       setup["out"], old, skip)
+    return stamps.draw({entry.path: data for _, entry, data in sources}, made_of(setup, records, signed), args.tools,
+                       setup["work"], setup["out"], old, skip)
 
 
 def plain_picture(setup, data, scale, tiles):
@@ -1482,13 +1504,14 @@ def settle(args, setup, settings, key, sources, records, run, old):
     overrides = fitting_overrides(args, sources, records) if os.path.isdir(args.overrides) else {}
     lettered = {} if args.no_lettering else letter(args, setup, sources, records, overrides)
     fonted = {} if args.no_font_redraw else redraw_fonts(args, setup, sources, records, set(overrides) | set(lettered))
-    desked = {} if args.no_desk else draw_desk(args, setup, sources, records, old, set(overrides) | set(lettered) | set(fonted))
+    signed = {} if args.no_signs else draw_signs(args, setup, sources, records, set(overrides) | set(lettered) | set(fonted))
+    desked = {} if args.no_desk else draw_desk(args, setup, sources, records, old, set(overrides) | set(lettered) | set(fonted), signed)
     painted = {} if args.no_paintings else draw_paintings(args, setup, sources, records, old,
-                                                           set(overrides) | set(lettered) | set(fonted) | set(desked))
+                                                           set(overrides) | set(lettered) | set(fonted) | set(desked), signed)
     stamped = {} if args.no_stamps else draw_stamps(args, setup, sources, records, old,
-                                                     set(overrides) | set(lettered) | set(fonted) | set(desked) | set(painted))
-    replacing = dict(overrides, **{path: done[:3] for path, done in list(lettered.items()) + list(fonted.items()) + list(desked.items())
-                                   + list(painted.items()) + list(stamped.items())})
+                                                     set(overrides) | set(lettered) | set(fonted) | set(desked) | set(painted), signed)
+    replacing = dict(overrides, **{path: done[:3] for path, done in list(signed.items()) + list(lettered.items()) + list(fonted.items())
+                                   + list(desked.items()) + list(painted.items()) + list(stamped.items())})
 
     final = []
     for record in ordered:
@@ -1496,7 +1519,7 @@ def settle(args, setup, settings, key, sources, records, run, old):
             _, digest, size = replacing[record["path"]]
             way = ("override" if record["path"] in overrides else lettering.WAY if record["path"] in lettered
                    else fonts.WAY if record["path"] in fonted else desk.WAY if record["path"] in desked
-                   else paintings.WAY if record["path"] in painted else stamps.WAY)
+                   else paintings.WAY if record["path"] in painted else stamps.WAY if record["path"] in stamped else signs.WAY)
             taken = {name: value for name, value in record.items() if name not in OWN}
             taken.update(way=way, bytes=size, file_sha256=digest,
                          out=record.get("out") or [side * record.get("marked", scale) for side in record["size"]],
@@ -1509,6 +1532,8 @@ def settle(args, setup, settings, key, sources, records, run, old):
                 taken[paintings.WAY] = painted[record["path"]][3]
             if record["path"] in stamped:
                 taken[stamps.WAY] = stamped[record["path"]][3]
+            if record["path"] in signed:
+                taken[signs.WAY] = signed[record["path"]][3]
             if record["path"] in fonted:
                 taken[fonts.WAY] = fonted[record["path"]][3]
                 taken["out"] = [side * taken[fonts.WAY]["times"] for side in record["size"]]

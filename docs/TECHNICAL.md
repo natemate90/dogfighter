@@ -467,14 +467,17 @@ How it works:
 - The glyphs are drawn with the CoreText helper `tools/lettering-draw.c`.
 - The `.fnt` tables do not change. Each glyph is drawn into its own box. Pixels outside the drawn boxes come from the made picture.
 - Where several characters share a box, the one that fits best is drawn. So `system` draws Y where its table says Ü, as the game does.
-- Alpha is the glyph's coverage. The colour is the one the original picture has at that alpha, so a font whose colour follows its alpha keeps doing so.
+- Alpha is the glyph's coverage times the font's gain. The colour is the one the original picture has at that alpha, so a font whose colour follows its alpha keeps doing so.
+- Each glyph is drawn heavier than the typeface and only partly opaque. The game enlarges its small letters the smooth way, so on screen their strokes are about one original pixel wide and grey, not black.
+- `weight` (original pixels added round each stroke) and `gain` (the alpha of a fully covered pixel) set that per font. For each weight, the gain that keeps the original's amount of ink was taken, and the pair whose glyphs, softened by one pixel at 4x, came closest to the original enlarged 4x the smooth way.
+- The two typewriter fonts use weight 0.18 with gain 0.71 and 0.69. That fit was lightest at weight 0.35 to 0.4 with gain 0.5, but those letters looked lighter than the original's in the game. `system` and `system12` use weight 0.3 with gain 0.69 and 0.68.
 - The made 2x picture stays in `hd-textures/replaced/`, and the manifest lists the picture with the way `font`.
 
 Checks, for each glyph:
 - The glyph is drawn with 3 pixels of room around its box and shrunk to the original size.
 - Inside the box it is compared with the original alpha. Ink outside the box counts as difference, since the box cuts it off.
-- The match runs from 0 to 100: 100 × (1 − difference / sum of both). It must reach 75.
-- At most 5% of the glyph's ink may fall outside the box.
+- The match runs from 0 to 100: 100 × (1 − difference / sum of both). It must reach 65. The drawn glyphs score 65 to 94. The same glyphs moved by one original pixel score 11 to 74, half of them under 57.
+- At most 25% of the glyph's ink may fall outside the box. The heavier strokes put up to 24% there, and the box cuts it off as the game's own glyphs are cut.
 - A glyph that fails keeps the made pixels. The kept glyphs in the table fail one of these.
 - Outside the drawn boxes, the new picture must equal the made picture pixel for pixel. Else the whole picture stays as made.
 
@@ -489,8 +492,8 @@ Options and runs:
 In the game, with full resolution:
 - The Pilot Login, the Pilot Roster, the mission book, the briefing, the message line in flight, Mission Info and the console in `system12` and `system` were compared against the 2x set.
 - Every text stood in the same place. The letters were sharp, and shapes that waifu2x had bent, such as `w` and `W`, were right.
-- The strokes look thinner than in the 2x set, though they carry the same amount of ink: the soft edge of the 2x letters made them look heavier.
-- The pictures are in `logs/shots/fonts-final/`. `11-clipped-glyphs-fixed.png` shows the accented capitals that the first version cut at the box edge.
+- The first version drew the strokes thin and opaque. In a play test they looked too thin and too dark next to the original. With the weight and gain above, the briefing papers and the Pilot Login were compared again with the original game: the strokes carry the same ink, and their darkest pixels are within about 20 levels of the original's.
+- The pictures are in `logs/shots/fonts-final/` and `logs/lettering-compare/`. `11-clipped-glyphs-fixed.png` shows the accented capitals that the first version cut at the box edge.
 
 ### Menus and loading screens
 
@@ -611,6 +614,39 @@ The made texture waits in `hd-textures/replaced/`.
 - `--lettering-only` redraws just the labels and the font letters of a complete set, with the settings stored in its manifest. Nothing else is made again, and the set keeps its key, so a set made with `--scale 4` or `--upscaler vimage` stays that set.
 - `./setup.sh` runs `--fetch-fonts` and `--lettering-only` on a complete set. A font that cannot be fetched leaves only its labels as made.
 - It works at 2x and at 4x. On scratch sets made with `--scale 4`, with `--upscaler vimage` and with the defaults, `--lettering-only` drew all 26 and changed no other file; a later run with each set's own settings found it complete.
+
+### Hand lettering on the menus
+
+The upscaler draws shapes of its own into small hand lettering. It turned the G of CAMPAIGN into a spiral and gave the stencil headings of the briefing papers light edges and stripes.
+So `tools/signs.py` draws those letters again over the made 4x pictures, from the game's own pixels alone. No AI and no font is used.
+
+| Screen | Boxes |
+| --- | --- |
+| Main menu | the eight signs: PILOT ROSTER, HOUSE EDITOR, CAMPAIGN, MULTI-PLAYER, OPTIONS, LOG OUT, CREDITS, PAINT ROOM, each also in its highlight |
+| Mission selection | QUICK BRIEF, the BACK and OK signs and their highlights |
+| Mission briefing | MISSION BRIEFING, PRIMARY OBJECTIVES, SECONDARY OBJECTIVES, MODEL, the BACK, CHANGE MODEL and OK signs and their highlights |
+
+How a box is drawn, by `tools/signs-draw.py`:
+- The box is cut from the game's pictures and from the made pictures, laid together as the game lays them.
+- The sheet is the largest patch of paper-coloured pixels and everything inside its convex hull. Wood, cork and desk round a sign stay as made.
+- Each game pixel is split into paper, the lettering's ink and other inks such as a sign's black frame. The ink colour is taken from the box itself, so a highlight gets its own lighter ink.
+- The lettering's share is enlarged 4x the smooth way and cut at the level that keeps its amount of ink, with a soft edge. So the strokes keep the original's shapes and weight.
+- Where the made picture shows the lettering's ink near the game's letters, it gets the game's paper, enlarged smoothly. Then the new letters are laid over.
+- The result goes back only into the pictures of that state: the screen's own tiles, or the highlight.
+
+What it needs and checks:
+- `tools/signs.json` holds the boxes, a rough ink colour per box, the states and the numbers of the drawing.
+- It runs in the desk's Python environment, `upscale-tools/desk/venv`. Without it the signs stay as made.
+- The game's pixels in each box must match a checksum per state. Another language's signs stay as made.
+- A box stays as made when its letters touch its edge, it holds too little lettering, or it scores under 18 dB against the game's pixels after shrinking. The drawn boxes score 24 to 38 dB.
+- The desk, the paintings and the stamps are drawn over these pictures. Seven desk pieces carry new signs too and are listed with the way `desk` and a `sign` note.
+
+- The manifest lists a changed picture with the way `sign` and the boxes drawn in it.
+- `--no-signs` puts the made pictures back. `--menus-only` and `--lettering-only` draw them.
+- Two runs gave the same bytes. Drawing the 35 boxes takes a few seconds.
+
+In the game, with full resolution, the main menu, the mission selection and the briefing were compared with the original game. The letters had the original's shapes, CAMPAIGN's G among them, and the headings had no light edges or stripes.
+Left as made: the stencil words in the mission books (SELECT AIRFORCE, ALLIES, AXIS, SELECT MISSION). The books are laid out differently in each state, so their boxes would differ per state.
 
 ### The desk on the main menu
 
@@ -1065,7 +1101,7 @@ Test runs follow the same picture defaults as a normal start.
 | `--diag=press-cancel` | For `--setup`: presses Cancel there. |
 | `--diag-keys=SECONDS:SCANCODE[:HOLDSECONDS],...` | Presses keys, as scan codes in hex. `1d38` presses Ctrl+Option. Codes from 80 up are the extended keys, such as `c8` Up and `d0` Down. With HOLDSECONDS the key stays down that long. Keys whose times overlap are down together. Both times can have decimals. |
 | `--diag-mouse=SECONDS:DX:DY[:c\|:o],...` | Moves the mouse, and with `:c` clicks. |
-| `--diag-console=SECONDS:COMMAND` | Runs a game console command, with `+` for each space and `++` for a `+` itself. `40:++thrustinc` starts the game's held action `+thrustinc` as a key press does, and `45:-thrustinc` ends it. The game's console does not know these names, so the helper runs `thrustinc 1` and `thrustinc 0`, as the game does for a bound key. Of three `+` in a row the first is the space. A command with a real space in it is taken as written, and every `+` in it is a `+` itself: `--diag-console='40:bind x +fire'`. SECONDS can have decimals. Letters, digits, spaces and `_ . + -` are allowed. A command that is due during the game's intro videos waits for the main menu. On Mach9 a mission started during them ends the game with exit code -1. `pointer` is not a game command: the helper writes to the log where the game's menu pointer is and what it did to the mouse moves. |
+| `--diag-console=SECONDS:COMMAND` | Runs a game console command, with `+` for each space and `++` for a `+` itself. `40:++thrustinc` starts the game's held action `+thrustinc` as a key press does, and `45:-thrustinc` ends it. The game's console does not know these names, so the helper runs `thrustinc 1` and `thrustinc 0`, as the game does for a bound key. Of three `+` in a row the first is the space. A command with a real space in it is taken as written, and every `+` in it is a `+` itself: `--diag-console='40:bind x +fire'`. SECONDS can have decimals. Letters, digits, spaces and `_ . + -` are allowed. A command that is due during the game's intro videos waits for the main menu. On Mach9 a mission started during them ends the game with exit code -1. `pointer` is not a game command: the helper writes to the log where the game's menu pointer is and what it did to the mouse moves. `fullshot` is not one either: with full resolution, the helper saves the full-size picture two frames later to `logs/shots/`. |
 | `--diag-display=right` | Opens the game window on the display furthest to the right. |
 | `--diag-hold` | Holds the mouse, as a normal start does. |
 | `--diag-sound` | Keeps the sound, as a normal start does. |
@@ -1099,7 +1135,8 @@ Collected from the sections above.
 - `--wide`: not judged by a person.
 - `--deep-z`: only the first mission was compared.
 - `--scale 4` and the generative textures: longer missions.
-- Letters drawn from the fonts: the multiplayer screens, and `--font-times 2` in the game.
+- Letters drawn from the fonts: the multiplayer screens, `--font-times 2` in the game, and the console fonts `system` and `system12` with their heavier strokes.
+- Hand lettering on the menus: the highlights other than CAMPAIGN were only looked at as pictures, not in the game.
 - Sharper letters at 2x: `system8` (the console) and `aeroplane` (window titles) were seen in test runs but not compared. `digital_large` and `digital_small` were never loaded in a test run.
 - Redrawn labels: not yet looked at in the game.
 - The desk on the main menu: not yet looked at in the game.

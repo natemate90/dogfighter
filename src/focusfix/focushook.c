@@ -1248,6 +1248,12 @@ static void run_console_command(const char *command)
         say_where_pointer_is();
         return;
     }
+    if (!strcmp(command, "fullshot"))
+    {
+        say(full_size ? "the full-size picture is saved in two frames" : "fullshot needs full resolution; nothing is saved");
+        if (full_size) test_shot_in = 2;
+        return;
+    }
     if (!get_main || !get_console || !execute || !(main = get_main())) return;
     if ((*command == '+' || *command == '-') && command[1] && !strchr(command, ' '))
     {
