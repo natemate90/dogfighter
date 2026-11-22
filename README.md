@@ -129,6 +129,7 @@ Your pilots, saves and key settings stay as they are.
 - With Mach9 (macOS 26.4 or later) two intro videos play. Press Esc to skip them.
 - If you made the sharper intro videos, they play first, in their own window, on either Wine. Esc, a click or any key skips one. The game then leaves out its own copies. That part was tested on Mach9. Nobody has tried the video window itself yet. How to make them is in [docs/TECHNICAL.md](docs/TECHNICAL.md#intro-videos).
 - The game opens in a normal Mac window. Drag an edge or click the green button to make it bigger. The picture grows with the window.
+- The window keeps the shape of the picture, so the picture is never stretched. Drag one side and the other follows.
 
 For a game without sound, start it with `./dogfighter --mute`.
 
@@ -193,6 +194,8 @@ It is not tested on an M1.
 - Click in the picture, or press Ctrl+Option again, to give the mouse back.
 - Cmd+Tab also frees the mouse. The game takes it back when you return.
 - The window title shows whether the game holds the mouse.
+- The pointer in the menus moves as far over the picture as the Mac pointer moves over the window. Its speed follows the Mac's own setting, in System Settings > Mouse or Trackpad.
+- The slider "Menu mouse sensitivity" in the game's Options makes it slower or faster than that. A new start has it at the matching speed.
 
 On a Mac keyboard, hold **Fn** for F1, F2 and F12.
 To use them without Fn, turn on "Use F1, F2, etc. keys as standard function keys".
@@ -352,7 +355,8 @@ The music slider in the game works.
 ## Saves and backups
 
 Your pilots, levels, photos and stickers are in `game/User`.
-Screenshots (Fn + F12) go to `game/ScreenShots`.
+Screenshots (Fn + F12) go to `game/ScreenShots`, as TGA pictures named `Img00000.tga` and up.
+Fn + F12 works in a flight, not in the menus.
 
 To make a backup:
 
@@ -416,6 +420,7 @@ It also lists the controllers the game can see.
 | The mouse is stuck in the window | Press Ctrl+Option. The game holds the mouse on purpose. |
 | The window cannot be dragged | Press Ctrl+Option first, then drag the title bar. |
 | The text is tiny | Make the window bigger. The picture grows with it. |
+| The Mac gets warm or loud | Start with `./dogfighter --fps=60`. The game then draws 60 pictures a second, not 120. |
 | The controller does nothing | See "Controllers and joysticks" above. Connect it before you start the game. |
 | No music | Check that the `music` folder holds ten `.ogg` files. If not, run `./setup.sh` again. |
 | The disc is not found | Delete the `cd` folder and run `./setup.sh` again. |
@@ -439,7 +444,9 @@ Add these after `./dogfighter`, for example `./dogfighter --mute`.
 | `--no-auto-joystick` | Do not turn on Joystick in the game's Options when a controller is connected. |
 | `--res=WxH` | Picture size in flight, for example `--res=1440x900`. Without it, the largest size that fits is used. |
 | `--windowed=WxH` | Start with the picture at most this big, in points, for example `--windowed=1024x768`. |
-| `--keep-shape` | Keep the window in the shape of the picture when you resize it. Not tried by hand yet. |
+| `--no-keep-shape` | Let the window take any shape. The picture is then stretched to fill it. |
+| `--fps=N` | Show at most N pictures a second, for example `--fps=60`. Without it the game draws as fast as the screen shows pictures. |
+| `--no-pointer-match` | Leave the speed of the pointer in the menus to the game. |
 | `--original` | Keep the game's own picture: its settings, resolution, textures and intro videos. |
 | `--setup` | Show the game's setup window. |
 | `--join=ADDRESS` | Add a server to the game's Address book, then start the game. |

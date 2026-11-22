@@ -119,7 +119,8 @@ static BOOL mode_set, dinput_wants_mouse, mouse_free, widen_view, test_on_right_
 static RECT test_display;
 static void *front_swapchain, *front_texture;
 static DWORD front_thread;
-static unsigned int anisotropy, texture_limit, edge_samples;
+static unsigned int anisotropy, texture_limit, edge_samples, frames_a_second;
+static BOOL match_pointer;
 static BOOL test_notes_draws;
 /* On Mach9 the game ends with exit code -1 when a mission is started while its
    intro videos play. It makes its first depth surface for the main menu, so
@@ -267,8 +268,8 @@ static void count_scaled(volatile LONG *counter, const char *path, const RECT *c
 {
     InterlockedIncrement(counter);
     if (InterlockedDecrement(&to_announce) >= 0)
-        say("%s: picture %ux%u drawn into client area %ldx%ld", path,
-            game_mode.width, game_mode.height, client->right, client->bottom);
+        say("%s: picture %ux%u drawn into client area %ldx%ld on thread %04lx", path,
+            game_mode.width, game_mode.height, client->right, client->bottom, GetCurrentThreadId());
 }
 
 /* After the window gets a new size, the OpenGL viewport is the size of the
@@ -288,6 +289,27 @@ static void set_viewport_again(void *swapchain)
     if (count && count <= ARRAYSIZE(viewports)) real_set_viewports(context, count, viewports);
 }
 
+/* --fps=N. Each frame is due a fixed time after the one before, not after
+   the end of the last wait, so a wait that runs long is made up for and the
+   rate is N, not a little under it. */
+static void wait_for_next_frame(void)
+{
+    static LARGE_INTEGER a_second, due;
+    LARGE_INTEGER now;
+    LONGLONG a_frame;
+
+    if (!frames_a_second) return;
+    if (!a_second.QuadPart) QueryPerformanceFrequency(&a_second);
+    a_frame = a_second.QuadPart / frames_a_second;
+    QueryPerformanceCounter(&now);
+    if (now.QuadPart < due.QuadPart)
+        Sleep((DWORD)(((due.QuadPart - now.QuadPart) * 1000 + a_second.QuadPart - 1) / a_second.QuadPart));
+    else if (now.QuadPart - due.QuadPart > a_frame) due = now;
+    due.QuadPart += a_frame;
+}
+
+static void read_pointer_step(void);
+
 static HRESULT __cdecl scaled_present(void *swapchain, const RECT *src, const RECT *dst,
                                       HWND override, unsigned int interval, uint32_t flags)
 {
@@ -300,6 +322,8 @@ static HRESULT __cdecl scaled_present(void *swapchain, const RECT *src, const RE
         dst = &client;
     }
     if (picture_is_scaled() && shown_picture_is_full_size) src = scaled_rect(src, &full);
+    read_pointer_step();
+    wait_for_next_frame();
     hr = real_present(swapchain, src, dst, override, interval, flags);
     if (full_size && dst == &client) scale_picture_to(client.right, client.bottom);
     set_viewport_again(swapchain);
@@ -367,6 +391,7 @@ static HRESULT __cdecl scaled_blt(void *context, void *dst, unsigned int dst_ind
     if (SUCCEEDED(hr))
     {
         count_scaled(&direct_draws, "direct draw", &client);
+        wait_for_next_frame();
         real_present(front_swapchain, NULL, &client, NULL, 0, 0);
         tell_helper_about_picture();
     }
@@ -389,8 +414,8 @@ static HRESULT __cdecl windowed_swapchain_create(void *device, struct wined3d_sw
                                                  void *state_parent, void *parent, const void *parent_ops,
                                                  void **swapchain)
 {
-    say("ddraw asked for a %s swapchain of %ux%u; wined3d gets a windowed one",
-        desc->windowed ? "windowed" : "fullscreen", desc->backbuffer_width, desc->backbuffer_height);
+    say("ddraw asked for a %s swapchain of %ux%u on thread %04lx; wined3d gets a windowed one",
+        desc->windowed ? "windowed" : "fullscreen", desc->backbuffer_width, desc->backbuffer_height, GetCurrentThreadId());
     desc->windowed = TRUE;
     swapchain_size.cx = desc->backbuffer_width;
     swapchain_size.cy = desc->backbuffer_height;
@@ -941,6 +966,144 @@ static BOOL WINAPI dinput_set_cursor_pos(int x, int y)
     return SetCursorPos(x, y);
 }
 
+/* The game moves its menu pointer by mouse_sensitivity / 1000 times the
+   square of each mouse move, in pixels of its own picture. It squares what
+   DirectInput hands it, and that is counted in the window's pixels: twice the
+   number on a Retina screen, so four times the way, in a picture that is no
+   larger on the screen. The slider cannot undo a square.
+   So while the game shows its pointer, each move is replaced by the one whose
+   square takes the pointer as far over the picture as the Mac pointer went
+   over the window. That is at the game's own mouse_sensitivity, 100; the
+   slider makes the way longer or shorter in proportion. What rounding leaves
+   over goes into the next move. In a flight the game hides its pointer, and
+   the moves stay as they are.
+   Wine's DirectInput takes a move as the place in the event minus the place
+   of the cursor, so the event gets another place. Only a build whose code
+   does that square is touched. */
+enum { GAME_SENSITIVITY = 100 };
+static HOOKPROC dinput_mouse_hook;
+static float pointer_step, pointer_speed;
+static volatile LONG moves_seen[2], moves_given[2];
+static void *(__cdecl *game_main)(void);
+static unsigned char (__thiscall *game_pointer_shown)(void *main);
+
+static void read_pointer_step(void)
+{
+    enum { MOVE_CODE = 0x45f81, STEP_FOR_ONE = 0x7dc60 };
+    static const BYTE before[] = { 0xdb, 0x44, 0x24, 0x10, 0x8b, 0x47, 0x10, 0x85, 0xc0, 0x89, 0x44, 0x24, 0x10, 0xd8, 0x0d };
+    static const BYTE after[] = { 0xdb, 0x44, 0x24, 0x10, 0xd9, 0xc0, 0xd8, 0xc9, 0xde, 0xca, 0xdd, 0xd8 };
+    static void *(__thiscall *get_console)(void *main);
+    static int (__thiscall *get_value)(void *console, const char *name);
+    static unsigned int frames;
+    static int said_for = -1, said;
+    static BOOL unknown;
+    BYTE *engine;
+    void *main, *console;
+    int sensitivity;
+
+    if (!match_pointer || unknown || frames++ % 32) return;
+    if (!get_value)
+    {
+        BYTE *code;
+
+        if (!(engine = (BYTE *)GetModuleHandleA("AfEngine.dll"))) return;
+        code = engine + MOVE_CODE;
+        game_main = (void *)GetProcAddress((HMODULE)engine, "?Get@NfMain@@SAPAV1@XZ");
+        get_console = (void *)GetProcAddress((HMODULE)engine, "?GetConsole@NfMain@@QAEPAVNfConsole@@XZ");
+        game_pointer_shown = (void *)GetProcAddress((HMODULE)engine, "?IsMouseCursorVisible@NfMain@@QAE_NXZ");
+        if (!game_main || !get_console || !game_pointer_shown || IsBadReadPtr(code, sizeof(before) + 4 + sizeof(after))
+            || memcmp(code, before, sizeof(before)) || *(BYTE **)(code + sizeof(before)) != engine + STEP_FOR_ONE
+            || memcmp(code + sizeof(before) + 4, after, sizeof(after)))
+        {
+            unknown = TRUE;
+            say("this is not the known game build; the menu pointer keeps the game's own speed");
+            return;
+        }
+        get_value = (void *)GetProcAddress((HMODULE)engine, "?GetValueVariable@NfConsole@@QAEHPAD@Z");
+        if (!get_value)
+        {
+            unknown = TRUE;
+            return;
+        }
+    }
+    engine = (BYTE *)GetModuleHandleA("AfEngine.dll");
+    if (!engine || !(main = game_main()) || !(console = get_console(main))) return;
+    sensitivity = get_value(console, "mouse_sensitivity");
+    pointer_speed = (float)sensitivity / GAME_SENSITIVITY;
+    pointer_step = sensitivity > 0 ? sensitivity * *(float *)(engine + STEP_FOR_ONE) : 0.0f;
+    if (sensitivity != said_for && said++ < 20)
+        say("the game's mouse_sensitivity is %d; its menu pointer is made to move %.2f times as far as the Mac pointer%s",
+            sensitivity, pointer_speed, dinput_mouse_hook ? "" : ", once DirectInput watches the mouse");
+    said_for = sensitivity;
+}
+
+static LONG move_for_game(LONG moved, LONG picture, LONG window, float step, float *owed)
+{
+    LONG give;
+
+    if (!moved) return 0;
+    *owed += (float)moved * picture / window * pointer_speed;
+    if ((*owed < 0) != (moved < 0)) return 0;
+    give = lroundf(sqrtf(fabsf(*owed) / step));
+    if (moved < 0) give = -give;
+    *owed -= give * labs(give) * step;
+    return give;
+}
+
+static LRESULT CALLBACK matched_mouse_hook(int code, WPARAM wp, LPARAM lp)
+{
+    static float owed_x, owed_y;
+    MSLLHOOKSTRUCT *event = (MSLLHOOKSTRUCT *)lp, given;
+    float step = pointer_step;
+    RECT client;
+    POINT at;
+    void *main;
+
+    if (code != HC_ACTION || wp != WM_MOUSEMOVE || !event || step <= 0.0f || !mode_set || !game_main
+        || !(main = game_main()) || !game_pointer_shown(main) || !picture_target(&client) || !GetCursorPos(&at))
+        return dinput_mouse_hook(code, wp, lp);
+    given = *event;
+    given.pt.x = at.x + move_for_game(event->pt.x - at.x, game_mode.width, client.right, step, &owed_x);
+    given.pt.y = at.y + move_for_game(event->pt.y - at.y, game_mode.height, client.bottom, step, &owed_y);
+    InterlockedExchangeAdd(&moves_seen[0], event->pt.x - at.x);
+    InterlockedExchangeAdd(&moves_seen[1], event->pt.y - at.y);
+    InterlockedExchangeAdd(&moves_given[0], given.pt.x - at.x);
+    InterlockedExchangeAdd(&moves_given[1], given.pt.y - at.y);
+    return dinput_mouse_hook(code, wp, (LPARAM)&given);
+}
+
+static HHOOK WINAPI dinput_set_hook(int id, HOOKPROC proc, HINSTANCE module, DWORD thread)
+{
+    if (id == WH_MOUSE_LL && proc && proc != matched_mouse_hook)
+    {
+        if (!dinput_mouse_hook) say("DirectInput watches the mouse through a hook; the menu pointer's moves go through the helper");
+        dinput_mouse_hook = proc;
+        proc = matched_mouse_hook;
+    }
+    return SetWindowsHookExW(id, proc, module, thread);
+}
+
+/* Test runs only: the console command "pointer" is not the game's. */
+static void say_where_pointer_is(void)
+{
+    HMODULE engine = GetModuleHandleA("AfEngine.dll");
+    void *(__cdecl *get_main)(void) = (void *)GetProcAddress(engine, "?Get@NfMain@@SAPAV1@XZ");
+    void *(__thiscall *get_place)(void *main, float *place) = (void *)GetProcAddress(engine, "?GetMousePos@NfMain@@QAE?AVCcCoord2d@@XZ");
+    unsigned char (__thiscall *shown)(void *main) = (void *)GetProcAddress(engine, "?IsMouseCursorVisible@NfMain@@QAE_NXZ");
+    float place[2] = { 0 };
+    void *main;
+
+    if (!get_main || !get_place || !shown || !(main = get_main()))
+    {
+        say("the game's pointer cannot be asked for its place");
+        return;
+    }
+    get_place(main, place);
+    say("the game's pointer is at %.1f,%.1f and %s; mouse moves changed by the helper add up to %ld,%ld and were handed on as %ld,%ld; the game takes a move of 1 as %.3f pixels",
+        place[0], place[1], shown(main) ? "shown" : "hidden", moves_seen[0], moves_seen[1],
+        moves_given[0], moves_given[1], pointer_step);
+}
+
 static BOOL patch_import(HMODULE module, const char *dll, const char *name, void *replacement)
 {
     BYTE *base = (BYTE *)module;
@@ -1061,6 +1224,11 @@ static BOOL install_hooks(void)
         say("dinput.dll does not import SetCursorPos; its pointer moves are not counted");
     if (!patch_import(dinput, "user32.dll", "ShowCursor", dinput_show_cursor))
         say("dinput.dll does not import ShowCursor; the system pointer cannot be given an empty picture");
+    if (match_pointer && !patch_import(dinput, "user32.dll", "SetWindowsHookExW", dinput_set_hook))
+    {
+        match_pointer = FALSE;
+        say("dinput.dll does not import SetWindowsHookExW; the menu pointer keeps the game's own speed");
+    }
     return TRUE;
 }
 
@@ -1075,6 +1243,11 @@ static void run_console_command(const char *command)
     void (__cdecl *execute)(void *, const char *, ...) = (void *)GetProcAddress(engine, "?Execute@NfConsole@@QAAXPADZZ");
     void *main;
 
+    if (!strcmp(command, "pointer"))
+    {
+        say_where_pointer_is();
+        return;
+    }
     if (!get_main || !get_console || !execute || !(main = get_main())) return;
     if ((*command == '+' || *command == '-') && command[1] && !strchr(command, ' '))
     {
@@ -1756,6 +1929,9 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
         if (edge_samples > 16) edge_samples = 0;
         deep_z = GetEnvironmentVariableA("DOGFIGHTER_DEEP_Z", NULL, 0) != 0;
         keep_shape = GetEnvironmentVariableA("DOGFIGHTER_KEEP_SHAPE", NULL, 0) != 0;
+        match_pointer = GetEnvironmentVariableA("DOGFIGHTER_MATCH_POINTER", NULL, 0) != 0;
+        frames_a_second = env_size("DOGFIGHTER_FPS").cx;
+        if (frames_a_second > 1000) frames_a_second = 0;
         full_size = GetEnvironmentVariableA("DOGFIGHTER_FULL_SIZE", NULL, 0) != 0;
         test_saves_full_size = GetEnvironmentVariableA("DOGFIGHTER_TEST_FULL_SIZE_SHOTS", NULL, 0) != 0;
         if (texture_limit != 512 && texture_limit != 1024) texture_limit = 0;
