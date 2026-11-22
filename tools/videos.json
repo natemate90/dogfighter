@@ -2,7 +2,7 @@
  "scale": 4,
  "fps": 60,
  "videos": [
-  {"name": "companies", "file": "Video/companies.avi", "level": 1,
+  {"name": "companies", "file": "Video/companies.avi", "level": 1, "no_interpolate": [[234, 408]],
    "sha256": "b4f27509ca66c06e4ef161f28b60878a0c0d82e328bb12a4a52398c0a0e9a66e"},
   {"name": "airfix", "file": "Video/airfix.avi", "level": 2,
    "sha256": "58f330ef306ded4da19302275978f38ee79ce71088541603f10f319bd874b6ea"},

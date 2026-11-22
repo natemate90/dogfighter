@@ -17,8 +17,11 @@ video with 22 kHz PCM sound. tools/videos.json says what is made of each:
                (also between its batches), tile the size in pixels of the
                pieces its VAE encodes and decodes. These three set its memory.
   videos       name, file in the game folder, level, the SHA-256 the settings
-               were checked on (another file is made too, with a note), and
-               clip: start and length in seconds, for a sample.
+               were checked on (another file is made too, with a note),
+               clip: start and length in seconds, for a sample, and
+               no_interpolate: ranges of first and last frame, counted from 0
+               in the game's file, whose frames are held instead of getting
+               RIFE frames between them, as the game shows them.
   cuts         how a cut between shots is found (see tools/videos-make.py).
   interpolate  the RIFE model that makes the frames between, 15 to 60.
   encode       x265 10-bit in a .mov, with the game's sound unchanged.
@@ -223,17 +226,20 @@ def make(args, tools, pinned, upscaler_command, build_helpers):
         keys = {"src": key_of(digest, first, count)}
         pixels = {name: value for name, value in level.items() if not name.startswith("mps_")}
         keys["up"] = key_of(keys["src"], spec["scale"], pixels, used, upscaler, spec["cuts"] if level["way"] == "seedvr2" else None)
-        keys["seg"] = key_of(keys["up"], spec["cuts"], spec["fps"], spec["interpolate"], spec["encode"])
+        still = video.get("no_interpolate", [])
+        keys["seg"] = key_of(keys["up"], spec["cuts"], spec["fps"], spec["interpolate"], spec["encode"], *([still] if still else []))
         shelf = "clips" if sample else "videos"
         entry = {"source": video["file"], "source_sha256": digest, "level": level_name, "settings": level, "upscaler": upscaler,
                  "clip_frames": [first, count] if clip else None, "scale": spec["scale"], "fps": spec["fps"], "cuts": spec["cuts"],
-                 "interpolate": spec["interpolate"], "encode": spec["encode"], "checksums": used, "key": keys["seg"]}
+                 "interpolate": spec["interpolate"], "no_interpolate": still, "encode": spec["encode"], "checksums": used,
+                 "key": keys["seg"]}
         old = manifest.get(shelf, {}).get(stem)
         if old and old.get("key") == keys["seg"] and os.path.isfile(target) and up.sha256_of(target) == old.get("sha256"):
             print("%s is already made with these settings." % target)
             continue
         entries[stem] = (shelf, entry)
         todo.append({"name": stem, "source": source, "first": first, "count": count, "clip": bool(clip), "keys": keys,
+                     "no_interpolate": still,
                      "level": level, "level_name": level_name, "target": target, "work": work, "esrgan": esrgan})
     if not todo:
         return None

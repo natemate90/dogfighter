@@ -771,6 +771,8 @@ What is checked differs per kind of file.
 Then for every video:
 - Cuts between shots are found on small copies of the frames.
 - RIFE makes three frames between each two, 15 to 60 a second. The frames of the game stay unchanged.
+- A video's `no_interpolate` ranges get no RIFE frames. Each frame there is shown four times, as the game shows it.
+  In the Paradox logo of `companies.avi`, frames 234 to 408, every third frame nearly repeats the one before. RIFE then moved the swarm of stars in stops and jumps. Its frames between also blurred the stars.
 - At a cut, RIFE would blend two shots. So the last frame of a shot is held until the next shot starts.
 - Every frame of the game keeps its own time, so sound and picture stay in sync.
 - x265 writes 10-bit HEVC. The `.mov` holds the game's sound unchanged.

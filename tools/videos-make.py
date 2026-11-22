@@ -10,7 +10,9 @@ finished is kept, so a run that stopped goes on where it stopped:
             levels 2 and 3 by SeedVR2, one chunk of a shot at a time, so its
             memory does not grow with the shot (see upscale_seedvr2)
   seg/      per shot: RIFE makes three frames between each two, the frames of
-            the shot itself are put back unchanged, and x265 encodes them
+            the shot itself are put back unchanged, and x265 encodes them.
+            A frame in one of the video's no_interpolate ranges is held until
+            the next one instead, as the game shows it
   the .mov  the shots joined with the original audio
 
 At a cut RIFE would blend two shots, so the last frame of a shot is held
@@ -464,6 +466,7 @@ def interpolate_and_encode(watch, job, video, up, seg, shots):
     spec, names = job["spec"], pictures(up)
     times = spec["fps"] // RATE
     encode = spec["encode"]
+    still = {k - video["first"] for first, last in video["no_interpolate"] for k in range(first, last + 1)}
     for number, (start, end) in enumerate(shots):
         target = os.path.join(seg, "%04d.mov" % number)
         if os.path.isfile(target):
@@ -476,12 +479,13 @@ def interpolate_and_encode(watch, job, video, up, seg, shots):
         for name in names[start:end]:
             os.link(os.path.join(up, name), os.path.join(feed, name))
         wanted = (end - start) * times
-        if end - start > 1:
+        held = [at == end - start - 1 or start + at in still for at in range(end - start)]
+        if not all(held):
             watch.run([job["rife"], "-i", feed, "-o", out, "-n", str(wanted), "-m", job["rife_model"], "-f", "%08d.png"]
                       + (["-u"] if spec["interpolate"]["uhd"] else []) + ([] if torch.backends.mps.is_available() else ["-g", "-1"]),
                       quiet=True)
         for at, name in enumerate(names[start:end]):
-            for step in range(times if at == end - start - 1 else 1):
+            for step in range(times if held[at] else 1):
                 frame = os.path.join(out, "%08d.png" % (at * times + step + 1))
                 if os.path.exists(frame):
                     os.remove(frame)
