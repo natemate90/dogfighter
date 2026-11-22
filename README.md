@@ -150,13 +150,14 @@ The game starts with the best picture by itself:
 - Jagged edges of 3D shapes are smoothed. The ground and walls stay sharp in the distance.
 - Text, menus and the gauges in flight keep their normal size.
 - The textures of the 3D world have twice the pixels.
-- The letters of the Pilot Login, the Pilot Roster, Mission Info, the message line in flight, the mission book and the briefing are drawn again from the Mac's own matching fonts, with four times the pixels, so they look sharp. The other letters have twice the pixels.
+- The letters of the Pilot Login, the Pilot Roster, Mission Info, the message line in flight, the mission book and the briefing are drawn again from the Mac's own matching fonts, with four times the pixels, so they look sharp. Their strokes keep the weight and the soft grey of the original letters. The other letters have twice the pixels.
 - The main menu, the loading screens, the mission books, the briefing, the medals, the pilot photos and the pictures of planes and weapons have four times the pixels.
 - Window frames, buttons and the mouse arrow have twice the pixels.
 - The gauges in flight have four times the pixels. Their labels, such as FUEL and SPEED, are redrawn with a matching font.
 - Labels with small writing, such as on the bombs, the glue tube and the book spines, are redrawn with matching fonts.
 - The model kit boxes and paint tins on the main menu's desk are drawn again from photos of real 1990s Airfix boxes and a Humbrol tin. Setup downloads the photos once.
 - The twelve plane paintings on the loading screens and in the model window are drawn again from Airfix's box art. Setup downloads the pictures once.
+- The hand-written signs on the main menu, such as CAMPAIGN, the BACK, OK and CHANGE MODEL signs, and the stencil headings of the briefing papers are drawn again from the game's own pixels. The upscaler had invented shapes in them.
 - The ink stamps on the Axis and US Airforce pages of the mission book are drawn again as sharp ink. The US page shows the wartime winged star instead of the 1947 seal.
 - Every start also turns some of the game's own settings up, such as the draw distance and the colour depth.
 
@@ -165,7 +166,7 @@ Setup makes the sharper textures once.
 - The textures and menu pictures take about 1 GB of disk space.
 - One run on an M4 Max took about eleven minutes.
 - If the upscalers do not run on your Mac, setup uses the Mac's own filter. Those textures are smoother, with less detail.
-- Running setup again keeps a finished set. It only adds missing menu pictures and draws the labels, letters, desk, paintings and stamps again.
+- Running setup again keeps a finished set. It only adds missing menu pictures and draws the labels, letters, signs, desk, paintings and stamps again.
 
 The textures are made on your Mac from your own game files. Nothing is uploaded.
 Your game files are never changed.

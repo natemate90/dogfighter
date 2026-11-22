@@ -1,0 +1,520 @@
+{
+ "look": {
+  "ink_share": 0.04,
+  "found": 0.1,
+  "removed": 0.08,
+  "spread": 1.5,
+  "soft": 0.12,
+  "clear_soft": 1.5,
+  "least_ink": 15,
+  "near": 2,
+  "paper_distance": 60,
+  "paper_share": 0.5,
+  "near_found": 0.3
+ },
+ "targets": [
+  {
+   "name": "mainmenu-pilot",
+   "screen": "mainmenu",
+   "box": [
+    161,
+    141,
+    213,
+    176
+   ],
+   "ink": [
+    110,
+    25,
+    15
+   ],
+   "other": [
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "states": [
+    "",
+    "pilot"
+   ],
+   "fitted_sha256": {
+    "": "50aba390295cb019baff900dfca3778ac681bd37cdb3ab6190ed4e830a466f81",
+    "pilot": "178c72e3e37c1194b8f1debbd243a564c4851d5c53543543c2025cb870bda790"
+   }
+  },
+  {
+   "name": "mainmenu-houseedit",
+   "screen": "mainmenu",
+   "box": [
+    319,
+    137,
+    364,
+    164
+   ],
+   "ink": [
+    110,
+    25,
+    15
+   ],
+   "other": [
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "states": [
+    "",
+    "houseedit"
+   ],
+   "fitted_sha256": {
+    "": "5d95cab77b19061d4d92c6367a3fb64ae0d47c971b017e039efad4c82c899f50",
+    "houseedit": "76477f19a47f9d22c3ed28f744754d7943436e6fbdcc22be9f90ea6d12e93c2f"
+   }
+  },
+  {
+   "name": "mainmenu-campaign",
+   "screen": "mainmenu",
+   "box": [
+    191,
+    303,
+    256,
+    328
+   ],
+   "ink": [
+    110,
+    25,
+    15
+   ],
+   "other": [
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "states": [
+    "",
+    "campaign"
+   ],
+   "fitted_sha256": {
+    "": "486e02babc409655ec9883d5bf7b4cd658467e836f481a86b5e64083320e4b55",
+    "campaign": "159248c849a7f2cfc675f5291cb13e62511f210015031f959b18ac80f7776724"
+   }
+  },
+  {
+   "name": "mainmenu-multi",
+   "screen": "mainmenu",
+   "box": [
+    369,
+    240,
+    420,
+    269
+   ],
+   "ink": [
+    110,
+    25,
+    15
+   ],
+   "other": [
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "states": [
+    "",
+    "multi"
+   ],
+   "fitted_sha256": {
+    "": "dd0cfe5afcfe90081d2c303fdc45817d8a473259695fb5630b2565aea5be12e9",
+    "multi": "2274073a3caadc01c8a05fb82e3e2ef7aad452c2d3da8cb509c1b815df0fc340"
+   }
+  },
+  {
+   "name": "mainmenu-options",
+   "screen": "mainmenu",
+   "box": [
+    447,
+    236,
+    499,
+    260
+   ],
+   "ink": [
+    110,
+    25,
+    15
+   ],
+   "other": [
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "states": [
+    "",
+    "options"
+   ],
+   "fitted_sha256": {
+    "": "3c1be4c28d0902a88d94fb8bcf45c3f313557e3c70ff4ebc9967c2d25414455a",
+    "options": "de80345810fd6b3567b5d0436c033b07ba6316f1f485d369a953820d0693aa14"
+   }
+  },
+  {
+   "name": "mainmenu-logout",
+   "screen": "mainmenu",
+   "box": [
+    587,
+    238,
+    623,
+    262
+   ],
+   "ink": [
+    110,
+    25,
+    15
+   ],
+   "other": [
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "states": [
+    "",
+    "logout"
+   ],
+   "fitted_sha256": {
+    "": "044463dc89d3f93aedf93a207763c838508d23e60a6e104c0b9512332be4a14a",
+    "logout": "5834e8e274d986a69ed40708899599807914aa9ee960c9acb268014df6de1b38"
+   }
+  },
+  {
+   "name": "mainmenu-credits",
+   "screen": "mainmenu",
+   "box": [
+    47,
+    332,
+    99,
+    352
+   ],
+   "ink": [
+    110,
+    25,
+    15
+   ],
+   "other": [
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "states": [
+    "",
+    "credits"
+   ],
+   "fitted_sha256": {
+    "": "7aa0c9c0895cffcf3dbb524ff7e314c29b07747066395745c8bd7c9874da6f6e",
+    "credits": "ee911aa29f31d18ad8d1043935ca6c82cb161fa1ed7f70bad84763292540f232"
+   }
+  },
+  {
+   "name": "mainmenu-paint",
+   "screen": "mainmenu",
+   "box": [
+    346,
+    334,
+    403,
+    370
+   ],
+   "ink": [
+    110,
+    25,
+    15
+   ],
+   "other": [
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "states": [
+    "",
+    "paint"
+   ],
+   "fitted_sha256": {
+    "": "cb35c45ac1cbed28d090a88f96d23589e70062c6b6da679d3674c7664679ed98",
+    "paint": "05e01b7556d5992edccb2426d2ad8022b187e7a3be5145d04f0eb80abb0a3162"
+   }
+  },
+  {
+   "name": "missionselection-quickbrief",
+   "screen": "missionselection",
+   "box": [
+    370,
+    76,
+    493,
+    114
+   ],
+   "ink": [
+    110,
+    75,
+    38
+   ],
+   "states": [
+    ""
+   ],
+   "fitted_sha256": {
+    "": "c2be89111ef11bb49fdbb55697ffb2af7ee5e79a71061b6541a098ba08bb5419"
+   }
+  },
+  {
+   "name": "missionselection-back",
+   "screen": "missionselection",
+   "box": [
+    28,
+    424,
+    83,
+    454
+   ],
+   "ink": [
+    110,
+    25,
+    15
+   ],
+   "other": [
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "states": [
+    "",
+    "hi-back_hilight_s"
+   ],
+   "fitted_sha256": {
+    "": "d25fd4b4c84967988fb46385c861f212c9292da1c00624e3dddf1b7b867095b5",
+    "hi-back_hilight_s": "4b4d23472eb7ecc9475e384a8f7ff98cc6415713050d470c50ecd50b6aa3cc3f"
+   }
+  },
+  {
+   "name": "missionselection-ok",
+   "screen": "missionselection",
+   "box": [
+    579,
+    437,
+    614,
+    461
+   ],
+   "ink": [
+    110,
+    25,
+    15
+   ],
+   "other": [
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "states": [
+    "",
+    "hi-ok_hilight_s",
+    "hi-ok_2_hilight_s"
+   ],
+   "fitted_sha256": {
+    "": "4fe3ba6f5cc2b02e98b74ed7da89e9532bd198e0c2bf3352d22ba6c7a267a448",
+    "hi-ok_hilight_s": "7274dd0eb68748e2edddb89c6d0c6f8e6506ade0db4e157eccaa8b018f87150b",
+    "hi-ok_2_hilight_s": "898141b129b8a41a81e7c33048b497dd901e1a3c31119ccea1d52875a4a0b749"
+   }
+  },
+  {
+   "name": "missionbriefing-missionbriefing",
+   "screen": "missionbriefing",
+   "box": [
+    85,
+    80,
+    243,
+    100
+   ],
+   "ink": [
+    110,
+    75,
+    38
+   ],
+   "states": [
+    ""
+   ],
+   "fitted_sha256": {
+    "": "229b3ad71a349792a1979253670be2475bae23ffa9ba9c588b0ebfebec0525e2"
+   }
+  },
+  {
+   "name": "missionbriefing-primary",
+   "screen": "missionbriefing",
+   "box": [
+    339,
+    220,
+    520,
+    240
+   ],
+   "ink": [
+    110,
+    75,
+    38
+   ],
+   "states": [
+    ""
+   ],
+   "fitted_sha256": {
+    "": "b31b0f5cd5a1a0a1691933e9cd3e662460e9d1039da404527c3cdef9cbf4af95"
+   }
+  },
+  {
+   "name": "missionbriefing-secondary",
+   "screen": "missionbriefing",
+   "box": [
+    338,
+    289,
+    544,
+    311
+   ],
+   "ink": [
+    110,
+    75,
+    38
+   ],
+   "states": [
+    ""
+   ],
+   "fitted_sha256": {
+    "": "0cee365563f67be44402c74eeaa117b6ddb34cf3bdf9cd28dea16df6c928463e"
+   }
+  },
+  {
+   "name": "missionbriefing-model",
+   "screen": "missionbriefing",
+   "box": [
+    338,
+    350,
+    403,
+    371
+   ],
+   "ink": [
+    110,
+    75,
+    38
+   ],
+   "states": [
+    ""
+   ],
+   "fitted_sha256": {
+    "": "2d63808e041ffb69323c6868d2738601c210d3d5e2ea6cabaa197e28959b5e58"
+   }
+  },
+  {
+   "name": "missionbriefing-back",
+   "screen": "missionbriefing",
+   "box": [
+    82,
+    435,
+    142,
+    460
+   ],
+   "ink": [
+    110,
+    25,
+    15
+   ],
+   "other": [
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "states": [
+    "",
+    "hi-back_hilight_b",
+    "hi-back_2_hilight_b"
+   ],
+   "fitted_sha256": {
+    "": "a628085dfad789621a359f80644fef1a88f092981f49dd37189d3cc03086906e",
+    "hi-back_hilight_b": "fc292285b7f7847dd21115121786edea5e005746370793b3c62a970df29097ee",
+    "hi-back_2_hilight_b": "a4b39d0095b0d3c33df80d6da7f22a25a1d93858d27a2af984380dd22ceee757"
+   }
+  },
+  {
+   "name": "missionbriefing-changemodel",
+   "screen": "missionbriefing",
+   "box": [
+    225,
+    433,
+    401,
+    461
+   ],
+   "ink": [
+    110,
+    25,
+    15
+   ],
+   "other": [
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "states": [
+    "",
+    "hi-change_hilight_1",
+    "hi-change_hilight_2",
+    "hi-change_hilight_1_2"
+   ],
+   "fitted_sha256": {
+    "": "fc36e36f65c873ec6f7e7647aaf3c5f9c9c619d5125a1ccbd60a472cad2e3c18",
+    "hi-change_hilight_1": "99b97020e51a12482bed78591193b28dd7615c19b9cbdc886809420a1dd4eb43",
+    "hi-change_hilight_2": "a9f273036dabd2d7e81d15ff3d27748f5c6dcece12cd87d038d0163fada84356",
+    "hi-change_hilight_1_2": "dd85e737a3af2fe500e83017fe2f543cd7368db1ef1e270a2b85cb47b0feecad"
+   }
+  },
+  {
+   "name": "missionbriefing-ok",
+   "screen": "missionbriefing",
+   "box": [
+    475,
+    432,
+    506,
+    459
+   ],
+   "ink": [
+    110,
+    25,
+    15
+   ],
+   "other": [
+    [
+     0,
+     0,
+     0
+    ]
+   ],
+   "states": [
+    "",
+    "hi-ok_hilight_b"
+   ],
+   "fitted_sha256": {
+    "": "f84cebf3782411459c0fe319cfaabe47cf964c07cebddbb88ab975f62567a911",
+    "hi-ok_hilight_b": "ccd46d50da2c2f005ffadfa880edfb05367227c24cdb514a386e384dfcadf427"
+   }
+  }
+ ]
+}

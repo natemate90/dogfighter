@@ -13,8 +13,9 @@ tools/fonts.json
   fonts   each typeface by file name, with its path on macOS and its
           SHA-256. It is only read to draw pixels.
   tables  per font table: the typeface and its face (the index in a .ttc),
-          size (em in original pixels), stretch and weight (original pixels
-          added around each stroke) for the whole font; the
+          size (em in original pixels), stretch, weight (original pixels
+          added around each stroke) and gain (the alpha of a fully covered
+          pixel, 1 for opaque) for the whole font; the
           pictures it covers with the SHA-256 of the game's own picture;
     glyphs  one row per box: picture, x, y, width, height, the character
             drawn, the left edge of its ink and its baseline in the box (in
@@ -25,9 +26,16 @@ tools/fonts.json
   drawn. The game's own mappings stay: system draws Y where its table
   says Ü.
 
-Colour: the alpha of a drawn pixel is the glyph's coverage. Its colour is the
-one the original picture gives that alpha, so a font whose colour follows its
-alpha keeps doing so.
+Colour: the alpha of a drawn pixel is the glyph's coverage times gain. Its
+colour is the one the original picture gives that alpha, so a font whose
+colour follows its alpha keeps doing so.
+
+Weight and gain: the game draws the small original letters enlarged and
+smoothed, so on screen their strokes are about one original pixel wide and
+only partly opaque: heavier and lighter than the thin, opaque strokes of the
+typeface. Both numbers were fitted once per font so that the drawn glyphs,
+softened by a Gaussian of one pixel at 4x, come closest to the original
+picture enlarged 4x the smooth way the game does.
 
 Checks, for each drawn glyph:
   match    the glyph is drawn with MARGIN original pixels around its box
@@ -58,8 +66,8 @@ import up
 HERE = os.path.dirname(os.path.abspath(__file__))
 SPEC = os.path.join(HERE, "fonts.json")
 WAY = "font"
-LIMIT = 75.0
-OUTSIDE = 0.05
+LIMIT = 65.0
+OUTSIDE = 0.25
 TIMES = 4
 MARGIN = 3
 
@@ -196,6 +204,7 @@ def draw(items, work, times=TIMES):
         base_rgba = enlarged(made_rgba, made_w, made_h, times // made_times)
         drawn = bytearray(base_rgba)
         palette = colours(original_rgba)
+        gain = table.get("gain", 1.0)
         inked, placed = {}, []
         kept = [{"char": row[5], "box": row[1:5], "why": row[6]} for row in table["kept"] if row[0] == picture]
         scores = []
@@ -206,7 +215,7 @@ def draw(items, work, times=TIMES):
             side = (w + 2 * MARGIN) * times
             with open("%s-%03d" % (stem, at), "rb") as f:
                 cover = struct.unpack("<%df" % (side * (h + 2 * MARGIN) * times), f.read())
-            alpha = bytes(min(255, max(0, int(value * 255 + 0.5))) for value in cover)
+            alpha = bytes(min(255, max(0, int(value * gain * 255 + 0.5))) for value in cover)
             score, spilt = match(alpha, original_rgba, width, x, y, w, h, times)
             if score < LIMIT or spilt > OUTSIDE:
                 why = "match %.1f is under %.1f" % (score, LIMIT) if score < LIMIT else "%.0f%% of its ink falls outside the box" % (100 * spilt)
