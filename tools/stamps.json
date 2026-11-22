@@ -1,0 +1,81 @@
+{
+ "references": {
+  "hap-arnold": {
+   "url": "https://upload.wikimedia.org/wikipedia/commons/1/1f/US_Army_Air_Corps_Hap_Arnold_Wings.svg",
+   "sha256": "c9fc0f511d57352abb558a3048635973152708c4a8096bc5f44be415e1c285b9",
+   "what": "the \"Hap Arnold\" winged star of the US Army Air Forces, vector drawing by the United States Air Force, public domain; Wikimedia Commons, File:US Army Air Corps Hap Arnold Wings.svg"
+  },
+  "reichsadler": {
+   "url": "https://upload.wikimedia.org/wikipedia/commons/4/40/Reichsadler_Deutsches_Reich_%281935%E2%80%931945%29.svg",
+   "sha256": "deb4c98a4996120a22a4ca7a15a8f0d3fb099f5843e32326fc5e9f8e8365bba8",
+   "what": "the Reichsadler of 1935-1945 on a wreathed swastika, vector drawing by RsVe., public domain; Wikimedia Commons, File:Reichsadler Deutsches Reich (1935-1945).svg"
+  }
+ },
+ "look": {
+  "seed": 1940,
+  "ink_step": 9,
+  "paper_reach": 1.4,
+  "clean_reach": 1.2,
+  "clean_feather": 0.08,
+  "edge_feather": 2,
+  "edge_step": 3,
+  "paper_sigma": 1.5,
+  "shade_sigma": 4,
+  "grain_sigma": 2,
+  "rough": {"soften": 0.35, "size": 0.6, "amount": 0.25},
+  "patches": [{"size": 12, "amount": 0.12}, {"size": 1, "amount": 0.22}],
+  "specks": {"size": 0.7, "above": 2.6}
+ },
+ "stamps": {
+  "axis": {
+   "ink": [60, 45, 38],
+   "layers": [
+    {"ring": [1.0, 0.95], "strength": 0.8},
+    {"ring": [0.8, 0.765], "strength": 0.8},
+    {"reference": "reichsadler", "from": [0, 0, 1297, 846], "to": [-0.638, -0.347, 0.724, 0.647], "inks": {"#000000": 1}}
+   ]
+  },
+  "us": {
+   "ink": [110, 80, 60],
+   "layers": [
+    {"ring": [1.0, 0.92]},
+    {"ring": [0.78, 0.73]},
+    {"reference": "hap-arnold", "from": [0.29, 0.25, 320.29, 320.25], "to": [-0.78, -0.8, 0.78, 0.76],
+     "inks": {"#005da3": 0, "#febe10": 1, "#ffffff": 1, "#f04a3a": 1}}
+   ]
+  }
+ },
+ "targets": [
+  {
+   "name": "axis-page",
+   "picture": "Graphics\\Frontend\\MissionSelection\\mission_sel_02.gti",
+   "box": [126, 54, 190, 108],
+   "stamp": "axis",
+   "corners": [[132.46, 58.7], [185.59, 63.61], [182.01, 102.48], [128.87, 97.58]],
+   "fitted_sha256": [
+    "a6dcd34eb9a5678557092a7d0d8be977b9ea7ec67b940b978f393819dec3d978",
+    "27c1c241b61f4b453d0fce2c8425ba3788ea90dfb04d2a71efbe1d54266359a8"
+   ]
+  },
+  {
+   "name": "axis-highlight",
+   "picture": "Graphics\\Frontend\\MissionSelection\\book_hilight_axis.gti",
+   "box": [126, 54, 190, 108],
+   "stamp": "axis",
+   "corners": [[132.46, 58.7], [185.59, 63.61], [182.01, 102.48], [128.87, 97.58]],
+   "fitted_sha256": [
+    "da4e3e1688c8ea408396a091dc6e1723850b106eaea39046d82b5b6bd7817b0e",
+    "d877a1fe59e544fd99b98f252c8522da94c4b609ee040697f1fe6a119af86fa8",
+    "5f2e611027ed1b50dee3ec8a5ed10b264f724b5a23dc848a6ef9b42852efaaab"
+   ]
+  },
+  {
+   "name": "us-page",
+   "picture": "Graphics\\Frontend\\MissionSelection\\mission_sel_18.gti",
+   "box": [122, 46, 196, 108],
+   "stamp": "us",
+   "corners": [[132.54, 48.5], [192.45, 60.53], [183.42, 105.55], [123.5, 93.52]],
+   "fitted_sha256": ["45d89852441eac16b2e96455d391c6e9ec92a5ad8464c8d479fb551b4d85d5f2"]
+  }
+ ]
+}

@@ -1,0 +1,267 @@
+{
+ "screen": "mainmenu",
+ "states": ["credits", "options", "paint"],
+ "fitted_sha256": "35569d49b69685212a569f4140c3e1f8166f08e190ca9a74cff5ad4ddbbfcc82",
+ "references": {
+  "fiat-01046-lid": {
+   "url": "https://i.ebayimg.com/images/g/J0kAAeSwGoxq1fLR/s-l1600.jpg",
+   "sha256": "8366b51323d717bf1619557d8917ab8a77243e5aad6b2b9d35b3548132bd4d98",
+   "what": "Airfix Fiat G50-bis 01046, 1990-94 box, lid straight on; eBay UK listing 840124422411"
+  },
+  "fiat-01046-side": {
+   "url": "https://i.ebayimg.com/images/g/6LQAAeSw0h1q1fLU/s-l1600.jpg",
+   "sha256": "c941a4967ea348116d5c6ad7e315da0f3fdef79e8dc64bb2aa2b4c7015e15889",
+   "what": "the same box, long side; eBay UK listing 840124422411"
+  },
+  "fiat-01046-token": {
+   "url": "https://i.ebayimg.com/images/g/TIcAAOSw3kpm5wRT/s-l1600.jpg",
+   "sha256": "ac95fc1637897099526125b8c52b43f5b75380c00c54134c3a3b73db807ad5b3",
+   "what": "Airfix Fiat G50-bis 01046, the printing with the \"1 Flying Hour\" token as in the game; eBay UK listing 276642496596"
+  },
+  "typhoon-01027-side": {
+   "url": "https://i.ebayimg.com/images/g/mCgAAOSwgb9mLnyw/s-l1600.jpg",
+   "sha256": "c4bbe4a8070c156edd017eabaa0cc4831e23b9155566066c1cd05672a7f8086f",
+   "what": "Airfix Hawker Typhoon Ib 01027, 1994-2003 box, long side; eBay listing 166821139371"
+  },
+  "typhoon-01027-end": {
+   "url": "https://i.ebayimg.com/images/g/M0sAAOSwYPhmLnym/s-l1600.jpg",
+   "sha256": "40dfca8d95f70b26e62bde941e8eb06fcbdb5677e11089265ad9869ae8ae6db3",
+   "what": "the same box, blue end panel; eBay listing 166821139371"
+  },
+  "me262-01030-lid": {
+   "url": "https://i.ebayimg.com/images/g/sm0AAOSwI3hhRLv1/s-l1600.jpg",
+   "sha256": "6622ef67fa4f8697727413080d812344906325104f236a1f62741c3bf8131642",
+   "what": "Airfix Me262 01030, 1994-2003 box, lid; eBay UK image, listing not recorded"
+  },
+  "fw190d-01064-lid": {
+   "url": "https://i.ebayimg.com/images/g/ZRMAAOSwQsNmrAxt/s-l1600.jpg",
+   "sha256": "c0439d89910a2dd711dade57e3e33493221baf16e0f683e7143df608beb7df5e",
+   "what": "Airfix Fw190D 01064, 1994-2003 box, lid; eBay image, listing not recorded"
+  },
+  "bf109g6-01072-lid": {
+   "url": "https://i.ebayimg.com/images/g/ysAAAeSwZkVqrrfm/s-l1600.jpg",
+   "sha256": "73a7ac7af4347e3c035af85d365267d191d1b6c7166cdb34150008325855b532",
+   "what": "Airfix Bf109G-6 01072, 1994-2003 box, lid; eBay UK listing 327365275750"
+  },
+  "zero-01028-lid": {
+   "url": "https://i.ebayimg.com/images/g/-hwAAeSwtyZqtovX/s-l1600.jpg",
+   "sha256": "36708a652fd0455433ccd6de2423d79e6aad308b1aeaf82bdb431ddf5b45edab",
+   "what": "Airfix A6M2 Zero 01028, 1996-2000 box, lid; eBay listing 407245065447"
+  },
+  "mustang-02098-lid": {
+   "url": "https://i.ebayimg.com/images/g/LgEAAeSwr0Np3nXg/s-l1600.jpg",
+   "sha256": "4d4bb3aed0532e38c58dfc7169b9b7d8716f3a74809767d83cef36b7e760de9e",
+   "what": "Airfix P-51D Mustang 02098, 1994-2003 box, lid; eBay listing 377113727311"
+  },
+  "spitfire-02081-lid": {
+   "url": "https://www.kingkit.co.uk/uploads/shop/large/6959346510SDC13468.JPG",
+   "sha256": "213c4e8defcb8d4b5bc4ad8755f7e631765125cbf5763689cec5e5b5fb191a7c",
+   "what": "Airfix Spitfire Mk IX 02081, 1994-2003 box, lid; Kingkit shop photo"
+  },
+  "humbrol-colour-system": {
+   "url": "https://i.ebayimg.com/images/g/iXYAAeSw4T1qnuJW/s-l1600.jpg",
+   "sha256": "498555cde57d5e83c3265f16dfaef8d8e6b32a000d54f8c8eb96944bb74e3cf8",
+   "what": "Humbrol \"The Colour System\" binder of about 1997, cover with a drawn Super Enamel tin; eBay UK listing 188899593421"
+  }
+ },
+ "fonts": ["Oswald[wght].ttf", "Arial.ttf", "Arial Bold.ttf", "Arial Black.ttf"],
+ "faces": [
+  {
+   "name": "lowleft-q-side",
+   "make": "type11_side",
+   "kit": "zero",
+   "shade_top": true,
+   "invented": true,
+   "quad": [[148, 1063], [436, 1022], [441, 1065], [154, 1098]]
+  },
+  {
+   "name": "lowleft-p-side",
+   "make": "type11_side",
+   "kit": "typhoon",
+   "shade_top": true,
+   "invented": true,
+   "quad": [[117, 1105], [452, 1067], [454, 1108], [121, 1155]]
+  },
+  {
+   "name": "box6-end",
+   "make": "type11_end",
+   "kit": "spitfire9",
+   "quad": [[168, 918], [196.5, 1064], [150, 1066], [104, 918]]
+  },
+  {"name": "box6-lid", "make": "spitfire_lid", "quad": [[168, 918], [343, 785], [373, 913], [198, 1065]]},
+  {
+   "name": "box5-side",
+   "make": "type11_side",
+   "kit": "bf109g6",
+   "shade_top": true,
+   "quad": [[1902, 1478], [2246, 1531], [2232, 1599], [1896, 1520]]
+  },
+  {
+   "name": "box4-side",
+   "make": "type11_side",
+   "kit": "fw190d",
+   "shade_top": true,
+   "quad": [[1932, 1463], [2277, 1477], [2265, 1527], [1926, 1508]]
+  },
+  {
+   "name": "box3-side",
+   "make": "type11_side",
+   "kit": "me262",
+   "shade_top": true,
+   "quad": [[1961, 1420], [2290, 1418], [2285, 1461], [1955, 1470]]
+  },
+  {
+   "name": "box2-side",
+   "make": "type10_side",
+   "kit": "mustang",
+   "shade_top": true,
+   "paper_from": "box3-side",
+   "invented": true,
+   "quad": [[1951, 1355], [2278, 1366], [2272, 1406], [1950, 1390]]
+  },
+  {"name": "box1-lid", "make": "fiat_lid", "quad": [[2010, 1210], [2282, 1230], [2250, 1362], [1985, 1338]]}
+ ],
+ "side_shade": {"top": [0.32, 10.0], "foot": [0.25, 5.0]},
+ "colour_fit": {"hi": 93, "lo": 7, "lo_mix": 0.5, "gain": [0.6, 1.25], "shade": 1.0},
+ "soften": 0.55,
+ "feather": [0.6, 0.9],
+ "title": {"font": "Oswald[wght].ttf", "yellow": [247, 200, 20], "outline": [60, 50, 30]},
+ "fiat_lid": {
+  "reference": "fiat-01046-lid",
+  "quad": [[0, 20], [1584, 46], [1592, 1140], [0, 1155]],
+  "size": [1590, 1130],
+  "token": {"reference": "fiat-01046-token", "crop": [562, 298, 692, 458], "rotate": 90, "place": [0.14, 0.3, 0.28, 0.47]}
+ },
+ "spitfire_lid": {"reference": "spitfire-02081-lid", "quad": [[0, 2], [600, 2], [600, 326], [0, 326]], "size": [600, 324]},
+ "type11_side": {
+  "reference": "typhoon-01027-side",
+  "quad": [[198, 436], [1556, 423], [1548, 678], [215, 698]],
+  "size": [1360, 262],
+  "clear": [226, 6, 1008, 258],
+  "number_box": [40, 188, 170, 250],
+  "strip": [[690, 0], [1008, 0], [905, 262], [585, 262]],
+  "layout": {
+   "centre": 405,
+   "title_width": 330,
+   "line1": [78, 28],
+   "line2": [70, 104],
+   "words": {"font": "Arial.ttf", "size": 17, "top": 200, "step": 20, "colour": [40, 40, 40]},
+   "number": {"font": "Arial.ttf", "size": 22, "at": [105, 214], "colour": [40, 40, 40]}
+  },
+  "kits": {
+   "me262": {
+    "number": "01030",
+    "line1": [["MESSERSCHMITT", [45, 45, 48]]],
+    "line2": [["Me262", [247, 200, 20]]],
+    "words": ["The world's first operational jet fighter,", "flown by the Luftwaffe from", "the summer of 1944."],
+    "lid": "me262-01030-lid",
+    "crop": [380, 300, 1240, 830]
+   },
+   "fw190d": {
+    "number": "01064",
+    "line1": [["FOCKE", [45, 45, 48]]],
+    "line2": [["WULF ", [247, 200, 20]], ["Fw190D", [45, 45, 48]]],
+    "words": ["The long-nosed \"Dora\" fighter", "served with the Luftwaffe", "in 1944 and 1945."],
+    "lid": "fw190d-01064-lid",
+    "crop": [400, 410, 1300, 900]
+   },
+   "bf109g6": {
+    "number": "01072",
+    "line1": [["MESSERSCHMITT", [45, 45, 48]]],
+    "line2": [["Bf109 ", [247, 200, 20]], ["G-6", [45, 45, 48]]],
+    "words": ["The most widely built version of", "the Bf109, in service on every", "front from 1943."],
+    "lid": "bf109g6-01072-lid",
+    "crop": [560, 400, 1270, 840]
+   },
+   "zero": {
+    "number": "01028",
+    "line1": [["MITSUBISHI", [45, 45, 48]]],
+    "line2": [["A6M2 ", [45, 45, 48]], ["ZERO", [247, 200, 20]]],
+    "words": ["The Imperial Japanese Navy's", "carrier fighter, feared in", "the Pacific from 1941."],
+    "lid": "zero-01028-lid",
+    "crop": [150, 210, 1250, 820]
+   }
+  }
+ },
+ "type10_side": {
+  "reference": "fiat-01046-side",
+  "quad": [[14, 500], [1536, 543], [1526, 811], [7, 811]],
+  "size": [1520, 290],
+  "clear": [272, 4, 1228, 286],
+  "layout": {
+   "title": {"font": "Arial Black.ttf", "size": 74, "width": 450, "at": [285, 42]},
+   "words": {"font": "Arial Bold.ttf", "size": 25, "left": 305, "top": 128, "step": 31, "colour": [35, 35, 35]},
+   "painting_blur": 14
+  },
+  "kits": {
+   "mustang": {
+    "title": [["N.A. P-51D ", [40, 50, 125]], ["MUSTANG", [205, 35, 45]]],
+    "words": [
+     "The P-51D Mustang escorted the",
+     "US bombers deep into Germany",
+     "from 1944 and became the best",
+     "known American fighter of the war."
+    ],
+    "painting": "mustang-02098-lid",
+    "crop": [60, 385, 1500, 860],
+    "place": [690, 6, 1220, 284]
+   }
+  }
+ },
+ "type11_end": {
+  "reference": "typhoon-01027-end",
+  "quad": [[204, 372], [1518, 366], [1518, 832], [204, 840]],
+  "size": [1314, 466],
+  "strip": [[530, 0], [1046, 0], [1046, 466], [350, 466]],
+  "number_box": [100, 360, 330, 440],
+  "wing": [[325, 110], [600, 110], [480, 300], [325, 300]],
+  "series_box": [1092, 284, 1244, 322],
+  "layout": {
+   "title_size": 60,
+   "title_width": 600,
+   "title_squeeze": 0.8,
+   "title_right": 1026,
+   "title_top": 18,
+   "series": {"font": "Arial Bold.ttf", "size": 30, "colour": [245, 245, 245]},
+   "number": {"font": "Arial Bold.ttf", "size": 34, "colour": [240, 240, 240]}
+  },
+  "kits": {
+   "spitfire9": {
+    "number": "02081",
+    "title": [["SUPERMARINE ", [45, 45, 48]], ["SPITFIRE ", [247, 200, 20]], ["Mk IX", [45, 45, 48]]],
+    "painting": "spitfire-02081-lid",
+    "crop": [40, 85, 520, 292],
+    "series": "SERIES 2"
+   }
+  }
+ },
+ "tins": {
+  "drawing": "humbrol-colour-system",
+  "drawn": {"cx": 655.0, "rx": 93.0, "yc": 712.0, "ry": 22.0, "ybot": 892.0},
+  "label_paper": 18,
+  "label_stretch": 1.0,
+  "label_from_top": 0.0,
+  "lid_red_luminance": 118.0,
+  "supersample": 4,
+  "side_dark": 0.7,
+  "grow": 1.0,
+  "grow_bottom": 3.0,
+  "lid": {"rim": 0.84, "groove": [0.62, 0.7], "groove_dark": 0.78, "back_light": 0.18, "paint_light": 1.1},
+  "silver": [175, 175, 172],
+  "colour_fit": {"hi": 85, "lo": 7, "lo_mix": 0.5, "gain": [0.6, 1.05], "shade": 0.7},
+  "soften": 0.45,
+  "feather": [0.3, 0.6],
+  "order": ["A", "D", "C", "B", "E", "F", "I", "G", "H"],
+  "tins": {
+   "A": {"cx": 1295, "rx": 22, "yc": 1344, "ry": 13.5, "yb": 1403},
+   "D": {"cx": 1787, "rx": 24, "yc": 1372, "ry": 14.5, "yb": 1430},
+   "C": {"cx": 1721, "rx": 24, "yc": 1381, "ry": 14, "yb": 1436},
+   "B": {"cx": 1263, "rx": 24, "yc": 1426, "ry": 15, "yb": 1483},
+   "E": {"cx": 1775, "rx": 25, "yc": 1417, "ry": 14, "yb": 1483},
+   "F": {"cx": 1554, "rx": 25, "yc": 1536, "ry": 14, "yb": 1595},
+   "I": {"cx": 1681, "rx": 25.5, "yc": 1553, "ry": 14, "yb": 1617},
+   "G": {"cx": 1505.5, "rx": 26, "yc": 1569, "ry": 14, "yb": 1639},
+   "H": {"cx": 1597, "rx": 25, "yc": 1589, "ry": 14, "yb": 1653}
+  }
+ }
+}

@@ -15,6 +15,7 @@
 /build/
 /logs/
 /hd-textures/
+/hd-textures-*/
 /backups/
 /Dogfighter.app/
 /src/*.tar.gz
@@ -24,3 +25,6 @@
 /.claude/
 .DS_Store
 __pycache__/
+/upscale-tools/
+/texture-overrides/
+/hd-videos/

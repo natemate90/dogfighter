@@ -1,0 +1,136 @@
+{
+ "screens": [
+  {
+   "name": "mainmenu", "times": 4, "ways": ["ai", "plain"], "grid": "Graphics\\Frontend\\MainMenu\\mainmenu%d.gti",
+   "states": {
+    "campaign": [["Graphics\\Frontend\\MainMenu\\hi_campaign.gti", 159, 255]],
+    "credits": [["Graphics\\Frontend\\MainMenu\\hi_credits.gti", 19, 266]],
+    "houseedit": [["Graphics\\Frontend\\MainMenu\\hi_houseedit_1.gti", 264, 124], ["Graphics\\Frontend\\MainMenu\\hi_houseedit_2.gti", 392, 124]],
+    "logout": [["Graphics\\Frontend\\MainMenu\\hi_logout_1.gti", 608, 43], ["Graphics\\Frontend\\MainMenu\\hi_logout_2.gti", 576, 171], ["Graphics\\Frontend\\MainMenu\\hi_logout_3.gti", 576, 299]],
+    "multi": [["Graphics\\Frontend\\MainMenu\\hi_multi.gti", 352, 194]],
+    "options": [["Graphics\\Frontend\\MainMenu\\hi_options.gti", 418, 199]],
+    "paint": [["Graphics\\Frontend\\MainMenu\\hi_paint_1.gti", 305, 274], ["Graphics\\Frontend\\MainMenu\\hi_paint_2.gti", 433, 274], ["Graphics\\Frontend\\MainMenu\\hi_paint_3.gti", 305, 402]],
+    "pilot": [["Graphics\\Frontend\\MainMenu\\hi_pilot.gti", 136, 124]]
+   }
+  },
+  {
+   "name": "load{n}", "range": [1, 25], "times": 4, "ways": ["ai", "plain"], "grid": "Graphics\\Frontend\\LoadingScreen\\load{n}_%d.gti"
+  },
+  {
+   "name": "missionselection", "times": 4, "ways": ["ai", "plain"],
+   "pieces": [
+    ["Graphics\\Frontend\\MissionSelection\\mission_sel_01.gti", 0, 0],
+    ["Graphics\\Frontend\\MissionSelection\\mission_sel_17.gti", 64, 0],
+    ["Graphics\\Frontend\\MissionSelection\\mission_sel_03.gti", 320, 0],
+    ["Graphics\\Frontend\\MissionSelection\\mission_sel_04.gti", 576, 0],
+    ["Graphics\\Frontend\\MissionSelection\\mission_sel_05.gti", 0, 256],
+    ["Graphics\\Frontend\\MissionSelection\\mission_sel_06.gti", 64, 256],
+    ["Graphics\\Frontend\\MissionSelection\\mission_sel_07.gti", 320, 256],
+    ["Graphics\\Frontend\\MissionSelection\\mission_sel_08.gti", 576, 256],
+    ["Graphics\\Frontend\\MissionSelection\\mission_sel_09.gti", 0, 384],
+    ["Graphics\\Frontend\\MissionSelection\\mission_sel_10.gti", 64, 384],
+    ["Graphics\\Frontend\\MissionSelection\\mission_sel_11.gti", 320, 384],
+    ["Graphics\\Frontend\\MissionSelection\\mission_sel_12.gti", 576, 384],
+    ["Graphics\\Frontend\\MissionSelection\\mission_sel_13.gti", 0, 448],
+    ["Graphics\\Frontend\\MissionSelection\\mission_sel_14.gti", 64, 448],
+    ["Graphics\\Frontend\\MissionSelection\\mission_sel_15.gti", 320, 448],
+    ["Graphics\\Frontend\\MissionSelection\\mission_sel_16.gti", 576, 448]
+   ],
+   "states": {
+    "book-axis": [["Graphics\\Frontend\\MissionSelection\\mission_sel_02.gti", 64, 0]],
+    "book-18": [["Graphics\\Frontend\\MissionSelection\\mission_sel_18.gti", 64, 0]],
+    "left-00": [["Graphics\\Frontend\\MissionSelection\\mission_sel_00.gti", 0, 0]],
+    "hi-book-allies": [["Graphics\\Frontend\\MissionSelection\\book_hilight_allies.gti", 64, 0]],
+    "hi-book-axis": [["Graphics\\Frontend\\MissionSelection\\book_hilight_axis.gti", 64, 0]],
+    "row01": [["Graphics\\Frontend\\MissionSelection\\row01.gti", 160, 241]],
+    "row02": [["Graphics\\Frontend\\MissionSelection\\row02.gti", 158, 254]],
+    "row03": [["Graphics\\Frontend\\MissionSelection\\row03.gti", 156, 266]],
+    "row04": [["Graphics\\Frontend\\MissionSelection\\row04.gti", 154, 277]],
+    "row05": [["Graphics\\Frontend\\MissionSelection\\row05.gti", 152, 293]],
+    "row06": [["Graphics\\Frontend\\MissionSelection\\row06.gti", 150, 305]],
+    "row07": [["Graphics\\Frontend\\MissionSelection\\row07.gti", 148, 319]],
+    "row08": [["Graphics\\Frontend\\MissionSelection\\row08.gti", 146, 333]],
+    "row09": [["Graphics\\Frontend\\MissionSelection\\row09.gti", 144, 346]],
+    "row10": [["Graphics\\Frontend\\MissionSelection\\row10.gti", 142, 359]],
+    "hi-ok_hilight_s": [["Graphics\\Frontend\\MissionSelection\\OK_hilight_s.gti", 567, 416]],
+    "hi-ok_2_hilight_s": [["Graphics\\Frontend\\MissionSelection\\OK_2_hilight_s.gti", 567, 416]],
+    "hi-back_hilight_s": [["Graphics\\Frontend\\MissionSelection\\back_hilight_s.gti", 23, 409]],
+    "hi-btn_left_light": [["Graphics\\Frontend\\MissionSelection\\btn_left_light.gti", 0, 416]],
+    "hi-btn_left_push": [["Graphics\\Frontend\\MissionSelection\\btn_left_push.gti", 0, 416]],
+    "hi-btn_right_light": [["Graphics\\Frontend\\MissionSelection\\btn_right_light.gti", 512, 416]],
+    "hi-btn_right_push": [["Graphics\\Frontend\\MissionSelection\\btn_right_push.gti", 512, 416]],
+    "paper": [["Graphics\\Frontend\\MissionSelection\\paper2_1_s.gti", 293, 0], ["Graphics\\Frontend\\MissionSelection\\paper2_2_s.gti", 549, 0], ["Graphics\\Frontend\\MissionSelection\\paper2_3_s.gti", 293, 256], ["Graphics\\Frontend\\MissionSelection\\paper2_4_s.gti", 549, 256], ["Graphics\\Frontend\\MissionSelection\\paper2_5_s.gti", 293, 384], ["Graphics\\Frontend\\MissionSelection\\paper2_6_s.gti", 549, 384]]
+   }
+  },
+  {
+   "name": "missionbriefing", "times": 4, "ways": ["ai", "plain"],
+   "pieces": [
+    ["Graphics\\Frontend\\MissionBriefing\\mission_brief_01.gti", 0, 0],
+    ["Graphics\\Frontend\\MissionBriefing\\mission_brief_02.gti", 256, 0],
+    ["Graphics\\Frontend\\MissionBriefing\\mission_brief_03.gti", 512, 0],
+    ["Graphics\\Frontend\\MissionBriefing\\mission_brief_04.gti", 0, 256],
+    ["Graphics\\Frontend\\MissionBriefing\\mission_brief_05.gti", 256, 256],
+    ["Graphics\\Frontend\\MissionBriefing\\mission_brief_06.gti", 512, 256]
+   ],
+   "states": {
+    "hi-ok_hilight_b": [["Graphics\\Frontend\\MissionBriefing\\ok_hilight_b.gti", 460, 416]],
+    "hi-back_hilight_b": [["Graphics\\Frontend\\MissionBriefing\\back_hilight_b.gti", 78, 416]],
+    "hi-back_2_hilight_b": [["Graphics\\Frontend\\MissionBriefing\\back_2_hilight_b.gti", 78, 416]],
+    "hi-change_hilight_1": [["Graphics\\Frontend\\MissionBriefing\\change_hilight_1.gti", 217, 416]],
+    "hi-change_hilight_2": [["Graphics\\Frontend\\MissionBriefing\\change_hilight_2.gti", 345, 416]],
+    "hi-change_hilight_1_2": [["Graphics\\Frontend\\MissionBriefing\\change_hilight_1_2.gti", 217, 416]],
+    "paper": [["Graphics\\Frontend\\MissionBriefing\\paper2_1_b.gti", 34, 0], ["Graphics\\Frontend\\MissionBriefing\\paper2_2_b.gti", 290, 0], ["Graphics\\Frontend\\MissionBriefing\\paper2_3_b.gti", 34, 256], ["Graphics\\Frontend\\MissionBriefing\\paper2_4_b.gti", 290, 256], ["Graphics\\Frontend\\MissionBriefing\\paper2_5_b.gti", 34, 384], ["Graphics\\Frontend\\MissionBriefing\\paper2_6_b.gti", 290, 384]],
+    "photo-pickup_abombsecret": [["Graphics\\Frontend\\MissionBriefing\\pickup_abombsecret.gti", 350, 65]],
+    "photo-pickup_glue": [["Graphics\\Frontend\\MissionBriefing\\pickup_glue.gti", 350, 65]],
+    "photo-pickup_hmissile": [["Graphics\\Frontend\\MissionBriefing\\pickup_hmissile.gti", 350, 65]],
+    "photo-pickup_kit": [["Graphics\\Frontend\\MissionBriefing\\pickup_kit.gti", 350, 65]],
+    "photo-pickup_paint": [["Graphics\\Frontend\\MissionBriefing\\pickup_paint.gti", 350, 65]],
+    "photo-pickup_paramines": [["Graphics\\Frontend\\MissionBriefing\\pickup_paramines.gti", 350, 65]],
+    "photo-pickup_particlebeam": [["Graphics\\Frontend\\MissionBriefing\\pickup_particlebeam.gti", 350, 65]],
+    "photo-pickup_plans": [["Graphics\\Frontend\\MissionBriefing\\pickup_plans.gti", 350, 65]],
+    "photo-pickup_teslacoil": [["Graphics\\Frontend\\MissionBriefing\\pickup_teslacoil.gti", 350, 65]],
+    "photo-pickup_weapschem": [["Graphics\\Frontend\\MissionBriefing\\pickup_weapschem.gti", 350, 65]],
+    "photo-room_attic": [["Graphics\\Frontend\\MissionBriefing\\room_attic.gti", 350, 65]],
+    "photo-room_byard": [["Graphics\\Frontend\\MissionBriefing\\room_byard.gti", 350, 65]],
+    "photo-room_cellar": [["Graphics\\Frontend\\MissionBriefing\\room_cellar.gti", 350, 65]],
+    "photo-room_dhall": [["Graphics\\Frontend\\MissionBriefing\\room_dhall.gti", 350, 65]],
+    "photo-room_dining": [["Graphics\\Frontend\\MissionBriefing\\room_dining.gti", 350, 65]],
+    "photo-room_fyard": [["Graphics\\Frontend\\MissionBriefing\\room_fyard.gti", 350, 65]],
+    "photo-room_garage": [["Graphics\\Frontend\\MissionBriefing\\room_garage.gti", 350, 65]],
+    "photo-room_kids": [["Graphics\\Frontend\\MissionBriefing\\room_kids.gti", 350, 65]],
+    "photo-room_kitchen": [["Graphics\\Frontend\\MissionBriefing\\room_kitchen.gti", 350, 65]],
+    "photo-room_laundry": [["Graphics\\Frontend\\MissionBriefing\\room_laundry.gti", 350, 65]],
+    "photo-room_living": [["Graphics\\Frontend\\MissionBriefing\\room_living.gti", 350, 65]],
+    "photo-room_parents": [["Graphics\\Frontend\\MissionBriefing\\room_parents.gti", 350, 65]],
+    "photo-room_sisters": [["Graphics\\Frontend\\MissionBriefing\\room_sisters.gti", 350, 65]],
+    "photo-room_toilet": [["Graphics\\Frontend\\MissionBriefing\\room_toilet.gti", 350, 65]],
+    "photo-room_uhall": [["Graphics\\Frontend\\MissionBriefing\\room_uhall.gti", 350, 65]],
+    "photo-unit_alliedairfield": [["Graphics\\Frontend\\MissionBriefing\\unit_alliedairfield.gti", 350, 65]],
+    "photo-unit_axisairfield": [["Graphics\\Frontend\\MissionBriefing\\unit_axisairfield.gti", 350, 65]],
+    "photo-unit_convoy": [["Graphics\\Frontend\\MissionBriefing\\unit_convoy.gti", 350, 65]],
+    "photo-unit_enterprisesecret": [["Graphics\\Frontend\\MissionBriefing\\unit_enterprisesecret.gti", 350, 65]],
+    "photo-unit_factory": [["Graphics\\Frontend\\MissionBriefing\\unit_factory.gti", 350, 65]],
+    "photo-unit_junkers1": [["Graphics\\Frontend\\MissionBriefing\\unit_junkers1.gti", 350, 65]],
+    "photo-unit_junkers2": [["Graphics\\Frontend\\MissionBriefing\\unit_junkers2.gti", 350, 65]],
+    "photo-unit_me262secret": [["Graphics\\Frontend\\MissionBriefing\\unit_me262secret.gti", 350, 65]],
+    "photo-unit_radarstation": [["Graphics\\Frontend\\MissionBriefing\\unit_radarstation.gti", 350, 65]],
+    "photo-unit_uboat": [["Graphics\\Frontend\\MissionBriefing\\unit_uboat.gti", 350, 65]],
+    "photo-unit_willysjeep": [["Graphics\\Frontend\\MissionBriefing\\unit_willysjeep.gti", 350, 65]],
+    "photo-unit_zeppelinsecret": [["Graphics\\Frontend\\MissionBriefing\\unit_zeppelinsecret.gti", 350, 65]]
+   }
+  },
+  {
+   "name": "credits", "times": 4, "ways": ["ai", "plain"], "grid": "Graphics\\Frontend\\CreditScreen\\creds_%d.gti"
+  }
+ ],
+ "pictures": [
+  {"under": "Graphics\\Frontend\\Window\\", "times": 2, "ways": ["waifu2x", "plain"]},
+  {"under": "Graphics\\Frontend\\Cursors\\", "times": 2, "ways": ["waifu2x", "plain"]},
+  {"under": "Graphics\\Frontend\\PilotRoster\\", "times": 4, "ways": ["ai", "waifu2x", "plain"]},
+  {"under": "Graphics\\Frontend\\ModelInfo\\", "times": 4, "ways": ["ai", "waifu2x", "plain"]},
+  {"under": "Graphics\\Frontend\\CreditScreen\\creds_text_", "times": 2, "ways": ["waifu2x", "plain"]},
+  {"under": "Graphics\\Ingame\\Maps\\", "times": 4, "ways": ["ai", "waifu2x", "plain"]},
+  {"under": "User\\Save\\Photos\\", "times": 4, "ways": ["ai", "waifu2x", "plain"]},
+  {"under": "Graphics\\Ingame\\HUD\\", "times": 4, "ways": ["ai", "waifu2x", "plain"]}
+ ]
+}

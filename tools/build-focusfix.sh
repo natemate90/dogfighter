@@ -9,7 +9,10 @@ mkdir -p "$ROOT/build"
 "$CC" -std=gnu99 -O2 -s -Wall -shared \
   -o "$ROOT/build/focushook.dll" "$ROOT/src/focusfix/focushook.c" -lgdi32
 "$CC" -std=gnu99 -O2 -s -Wall -mwindows \
-  -o "$ROOT/build/windiag.exe" "$ROOT/src/focusfix/windiag.c" -lddraw -ldxguid
+  -o "$ROOT/build/windiag.exe" "$ROOT/src/focusfix/windiag.c" -lddraw -ldxguid -lwinmm
 "$CC" -std=gnu99 -O2 -s -Wall -shared \
   -o "$ROOT/build/crashlog.dll" "$ROOT/src/focusfix/crashlog.c"
-file "$ROOT/build/crashlog.dll" "$ROOT/build/focusfix.exe" "$ROOT/build/focushook.dll" "$ROOT/build/windiag.exe"
+"$CC" -std=gnu99 -O2 -s -Wall -mconsole \
+  -o "$ROOT/build/joylist.exe" "$ROOT/src/focusfix/joylist.c" -ldinput -ldxguid
+file "$ROOT/build/crashlog.dll" "$ROOT/build/focusfix.exe" "$ROOT/build/focushook.dll" "$ROOT/build/windiag.exe" \
+  "$ROOT/build/joylist.exe"

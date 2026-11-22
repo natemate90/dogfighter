@@ -313,36 +313,120 @@ static BOOL window_test_step(int step)
     return TRUE;
 }
 
-static struct { DWORD second, scan; } keys[32];
-static int key_count, keys_pressed;
-
-static void read_keys(const char *list)
+static void drag_test(void)
 {
-    int used;
-
-    while (key_count < 32 && sscanf(list, "%lu:%lx%n", &keys[key_count].second, &keys[key_count].scan, &used) == 2)
+    static const struct { const char *what; WPARAM corner; int left, top, right, bottom; } drags[] =
     {
-        key_count++;
-        list += used;
-        if (*list == ',') list++;
+        { "bottom edge 120 down", WMSZ_BOTTOMRIGHT, 0, 0, 0, 120 },
+        { "bottom edge 120 up", WMSZ_BOTTOMRIGHT, 0, 0, 0, -120 },
+        { "right edge 160 out", WMSZ_BOTTOMRIGHT, 0, 0, 160, 0 },
+        { "left edge 160 out", WMSZ_BOTTOMLEFT, -160, 0, 0, 0 },
+        { "top edge 120 up", WMSZ_TOPRIGHT, 0, -120, 0, 0 },
+        { "bottom right corner 200,40 out", WMSZ_BOTTOMRIGHT, 0, 0, 200, 40 },
+        { "top left corner 40,150 out", WMSZ_TOPLEFT, -40, -150, 0, 0 },
+    };
+
+    for (unsigned int i = 0; i < ARRAYSIZE(drags); i++)
+    {
+        RECT window = { 0 }, asked, client = { 0 };
+        LRESULT answered;
+
+        GetWindowRect(game_hwnd, &window);
+        SetRect(&asked, window.left + drags[i].left, window.top + drags[i].top,
+                window.right + drags[i].right, window.bottom + drags[i].bottom);
+        window = asked;
+        answered = SendMessageA(game_hwnd, WM_SIZING, drags[i].corner, (LPARAM)&window);
+        SetWindowPos(game_hwnd, NULL, window.left, window.top, window.right - window.left, window.bottom - window.top,
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+        Sleep(300);
+        GetClientRect(game_hwnd, &client);
+        note("drag test, %s: asked for a window of %ldx%ld, answer %ld with %ldx%ld, client area now %ldx%ld",
+             drags[i].what, asked.right - asked.left, asked.bottom - asked.top, (long)answered,
+             window.right - window.left, window.bottom - window.top, client.right, client.bottom);
     }
 }
 
-static void press_key(DWORD scan)
+static DWORD seconds_to_ms(const char *text, char **end)
 {
-    INPUT key = { .type = INPUT_KEYBOARD, .ki.wScan = scan, .ki.dwFlags = KEYEVENTF_SCANCODE };
+    return (DWORD)(strtod(text, end) * 1000 + 0.5);
+}
 
-    if (scan == 0x1d38)
+static DWORD picture_ms(void)
+{
+    return sized_at ? GetTickCount() - sized_at : 0;
+}
+
+enum { TAP_MS = 150 };
+static struct { DWORD at, scan, hold, down_at; enum { WAITING, DOWN, DONE } state; } keys[64];
+static int key_count;
+
+static void read_keys(const char *list)
+{
+    char *end;
+
+    while (key_count < 64 && *list)
     {
-        press_ctrl_option();
-        note("pressed Ctrl+Option");
-        return;
+        keys[key_count].at = seconds_to_ms(list, &end);
+        if (end == list || *end != ':') return;
+        keys[key_count].scan = strtoul(end + 1, &end, 16);
+        keys[key_count].hold = *end == ':' ? seconds_to_ms(end + 1, &end) : 0;
+        key_count++;
+        list = *end == ',' ? end + 1 : end;
+        if (*end != ',') return;
     }
+}
+
+/* Codes from 80 up are the extended keys, as DirectInput numbers them: d0 is
+   the Down arrow. Windows wants those as the low seven bits plus the extended
+   flag. Sent as they are, Wine takes bit 7 for nothing and DirectInput in the
+   game never sees the key. */
+static void send_key(DWORD scan, BOOL down)
+{
+    INPUT key = { .type = INPUT_KEYBOARD, .ki.wScan = scan & 0x7f, .ki.dwFlags = KEYEVENTF_SCANCODE };
+
+    if (scan & 0x80) key.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
+    if (!down) key.ki.dwFlags |= KEYEVENTF_KEYUP;
     SendInput(1, &key, sizeof(INPUT));
-    Sleep(150);
-    key.ki.dwFlags |= KEYEVENTF_KEYUP;
-    SendInput(1, &key, sizeof(INPUT));
-    note("pressed the key with scan code %02lx", scan);
+}
+
+static void work_keys(void)
+{
+    DWORD now = picture_ms();
+
+    if (!sized_at) return;
+    for (int i = 0; i < key_count; i++)
+    {
+        if (keys[i].state == WAITING && now >= keys[i].at)
+        {
+            if (keys[i].scan == 0x1d38)
+            {
+                press_ctrl_option();
+                note("pressed Ctrl+Option");
+                keys[i].state = DONE;
+                continue;
+            }
+            send_key(keys[i].scan, TRUE);
+            keys[i].down_at = now = picture_ms();
+            keys[i].state = DOWN;
+            if (keys[i].hold) note("holding the key with scan code %02lx down at %.2f s", keys[i].scan, now / 1000.0);
+        }
+        if (keys[i].state == DOWN && now - keys[i].down_at >= (keys[i].hold ? keys[i].hold : TAP_MS))
+        {
+            send_key(keys[i].scan, FALSE);
+            now = picture_ms();
+            keys[i].state = DONE;
+            if (keys[i].hold)
+                note("let the key with scan code %02lx go at %.2f s, after %.2f s", keys[i].scan, now / 1000.0,
+                     (now - keys[i].down_at) / 1000.0);
+            else note("pressed the key with scan code %02lx at %.2f s", keys[i].scan, now / 1000.0);
+        }
+    }
+}
+
+static void let_keys_go(void)
+{
+    for (int i = 0; i < key_count; i++)
+        if (keys[i].state == DOWN) send_key(keys[i].scan, FALSE);
 }
 
 static struct { DWORD second; int dx, dy; BOOL click, outside; } moves[32];
@@ -398,26 +482,65 @@ static void move_mouse(int dx, int dy, BOOL click, BOOL outside)
     note("moved the mouse by %d,%d%s", dx, dy, click ? " and clicked" : "");
 }
 
-static struct { DWORD second; char text[200]; } commands[24];
+static struct { DWORD at; char text[200]; } commands[64];
 static int command_count, commands_sent;
 
+/* "+" is a space and "++" is a "+". In an odd run of them the first is the
+   space, so "bind+x+++fire" is "bind x +fire". */
 static void read_command(const char *arg)
 {
-    int used = 0;
+    char *end, *to, *last;
+    BOOL as_written;
 
-    if (command_count == 24 || sscanf(arg, "%lu:%n", &commands[command_count].second, &used) != 1 || !used) return;
-    snprintf(commands[command_count].text, sizeof(commands[0].text), "%s", arg + used);
-    for (char *c = commands[command_count].text; *c; c++) if (*c == '+') *c = ' ';
+    if (command_count == 64) return;
+    commands[command_count].at = seconds_to_ms(arg, &end);
+    if (end == arg || *end != ':') return;
+    as_written = strchr(end, '/') != NULL;
+    to = commands[command_count].text;
+    last = to + sizeof(commands[0].text) - 1;
+    for (const char *c = end + 1; *c && to < last; )
+    {
+        size_t run = as_written ? 0 : strspn(c, "+");
+
+        if (!run) { *to++ = *c == '/' ? ' ' : *c; c++; continue; }
+        c += run;
+        if (run % 2) *to++ = ' ';
+        for (run /= 2; run && to < last; run--) *to++ = '+';
+    }
+    *to = 0;
     command_count++;
 }
 
-static void send_command(char *text)
+/* FALSE when the helper wants the command again later: the game is still in
+   its intro videos, where starting a mission ends it on Mach9. */
+static BOOL send_command(char *text)
 {
+    enum { LATER = 2 };
+    static BOOL waiting;
+    static DWORD asked_at;
     COPYDATASTRUCT data = { 0x41664463, strlen(text) + 1, text };
     DWORD_PTR taken = 0;
+    DWORD at = picture_ms();
 
+    if (waiting && GetTickCount() - asked_at < 500) return FALSE;
     SendMessageTimeoutA(game_hwnd, WM_COPYDATA, 0, (LPARAM)&data, SMTO_ABORTIFHUNG, 5000, &taken);
-    note("console command for the game: %s: %s", text, taken ? "run" : "not taken");
+    if (taken == LATER)
+    {
+        if (!waiting) note("console command for the game: %s: waits until the game is in its main menu", text);
+        waiting = TRUE;
+        asked_at = GetTickCount();
+        return FALSE;
+    }
+    waiting = FALSE;
+    note("console command for the game at %.2f s: %s: %s", at / 1000.0, text, taken ? "run" : "not taken");
+    return TRUE;
+}
+
+static void work_commands(void)
+{
+    while (sized_at && commands_sent < command_count && picture_ms() >= commands[commands_sent].at
+           && send_command(commands[commands_sent].text))
+        commands_sent++;
 }
 
 static void draw_test(void)
@@ -466,11 +589,12 @@ static void draw_test(void)
 int main(int argc, char **argv)
 {
     BOOL seen = FALSE, window_test = FALSE, move_test = FALSE, start_test = FALSE, press_ok = FALSE, press_cancel = FALSE;
-    DWORD start = GetTickCount(), wait = 10;
+    DWORD start = GetTickCount(), wait = 10, end_after = 0, zoom_at = 0, drag_at = 0;
     int next_step = 0;
 
     logf = fopen("C:\\dogfighter-windiag.log", "w");
     if (!logf) return 1;
+    note("sound: Wine offers %u devices to play on", waveOutGetNumDevs());
     if (GetEnvironmentVariableA("DOGFIGHTER_DRAWTEST", NULL, 0))
     {
         draw_test();
@@ -484,6 +608,9 @@ int main(int argc, char **argv)
         if (!strcmp(argv[i], "press-ok")) press_ok = TRUE;
         if (!strcmp(argv[i], "press-cancel")) press_cancel = TRUE;
         if (!strncmp(argv[i], "wait=", 5)) wait = atoi(argv[i] + 5);
+        if (!strncmp(argv[i], "end=", 4)) end_after = atoi(argv[i] + 4);
+        if (!strncmp(argv[i], "zoom=", 5)) zoom_at = atoi(argv[i] + 5);
+        if (!strncmp(argv[i], "drag=", 5)) drag_at = atoi(argv[i] + 5);
         if (!strncmp(argv[i], "keys=", 5)) read_keys(argv[i] + 5);
         if (!strncmp(argv[i], "mouse=", 6)) read_moves(argv[i] + 6);
         if (!strncmp(argv[i], "console=", 8)) read_command(argv[i] + 8);
@@ -509,15 +636,27 @@ int main(int argc, char **argv)
             end_game("start test, the game drew for 8 seconds");
             start_test = FALSE;
         }
-        while (keys_pressed < key_count && shown >= keys[keys_pressed].second)
-            press_key(keys[keys_pressed++].scan);
+        if (end_after && shown >= end_after)
+        {
+            end_game("the test run's time is up");
+            end_after = 0;
+        }
+        if (zoom_at && shown >= zoom_at)
+        {
+            note("zooming the window");
+            ShowWindowAsync(game_hwnd, SW_MAXIMIZE);
+            zoom_at = 0;
+        }
+        if (drag_at && shown >= drag_at)
+        {
+            drag_test();
+            drag_at = 0;
+        }
         while (moves_done < move_count && shown >= moves[moves_done].second)
         {
             move_mouse(moves[moves_done].dx, moves[moves_done].dy, moves[moves_done].click, moves[moves_done].outside);
             moves_done++;
         }
-        while (commands_sent < command_count && shown >= commands[commands_sent].second)
-            send_command(commands[commands_sent++].text);
         while (window_test && shown >= wait && (int)(shown - wait) >= next_step)
             window_test = window_test_step(next_step++);
         while (move_test && shown >= wait && (int)(shown - wait) >= next_step)
@@ -530,8 +669,14 @@ int main(int argc, char **argv)
             fflush(logf);
             memcpy(before, now, sizeof(now));
         }
-        Sleep(500);
+        for (int i = 0; i < 25; i++)
+        {
+            work_keys();
+            work_commands();
+            Sleep(20);
+        }
     }
+    let_keys_go();
     note("game gone");
     fclose(logf);
     return 0;
