@@ -1009,7 +1009,7 @@ Test runs follow the same picture defaults as a normal start.
 | `--diag=press-cancel` | For `--setup`: presses Cancel there. |
 | `--diag-keys=SECONDS:SCANCODE,...` | Presses keys, as scan codes in hex. `1d38` presses Ctrl+Option. |
 | `--diag-mouse=SECONDS:DX:DY[:c\|:o],...` | Moves the mouse, and with `:c` clicks. |
-| `--diag-console=SECONDS:COMMAND` | Runs a game console command, with `+` for each space. |
+| `--diag-console=SECONDS:COMMAND` | Runs a game console command, with `+` for each space. A command that is due during the game's intro videos waits for the main menu. On Mach9 a mission started during them ends the game with exit code -1. |
 | `--diag-display=right` | Opens the game window on the display furthest to the right. |
 | `--diag-hold` | Holds the mouse, as a normal start does. |
 | `--diag-sound` | Keeps the sound, as a normal start does. |
@@ -1017,6 +1017,7 @@ Test runs follow the same picture defaults as a normal start.
 | `--diag-zoom=SECONDS` | Zooms the window this long after the first picture. |
 | `--diag-drag=SECONDS` | Asks for seven window sizes as a drag does, and logs what the window became. |
 | `--diag-draws` | Writes to the log where the game first draws each flat picture: its place on the game's screen and its size. |
+| `--diag-intros-shown=COUNT` | Starts the game as if the launcher had played the first COUNT sharper intro videos, 1 or 2, so the game leaves its own out. |
 | `--diag-shot-on=TEXT` | With `--full-res`: saves the full-size picture a few frames after the game loads a picture whose path holds TEXT. |
 | `--diag-hd-dir=FOLDER` | Looks for the larger textures in FOLDER, a full path, in place of `hd-textures/`. An empty folder tests a start without them. The link to FOLDER is removed when the run ends. |
 

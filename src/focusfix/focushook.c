@@ -38,6 +38,8 @@ struct wined3d_resource_desc_copy
 
 #define WINED3DERR_INVALIDCALL ((HRESULT)0x8876086c)
 #define CONSOLE_COMMAND 0x41664463
+#define CONSOLE_COMMAND_RUN 1
+#define CONSOLE_COMMAND_LATER 2
 #define WIDEN_VIEW (WM_APP + 0x4466)
 #define HIDE_POINTER (WM_APP + 0x4467)
 
@@ -119,6 +121,10 @@ static void *front_swapchain, *front_texture;
 static DWORD front_thread;
 static unsigned int anisotropy, texture_limit, edge_samples;
 static BOOL test_notes_draws;
+/* On Mach9 the game ends with exit code -1 when a mission is started while its
+   intro videos play. It makes its first depth surface for the main menu, so
+   console commands wait for one. */
+static BOOL no_depth_surface_yet;
 static char test_shot_on[64];
 static LONG test_shot_in;
 static volatile LONG flips, direct_draws, gdi_draws, unscaled_draws, to_announce, dinput_clips, dinput_moves;
@@ -502,6 +508,7 @@ static HRESULT __cdecl better_texture_create(void *device, const struct wined3d_
     SIZE full;
     HRESULT hr;
 
+    if (depth) no_depth_surface_yet = FALSE;
     if (desc->resource_type != TEXTURE_2D || desc->multisample_type || layers != 1 || levels != 1 || data
         || !(desc->bind_flags & (RENDER_TARGET | DEPTH_STENCIL)))
     {
@@ -1047,6 +1054,7 @@ static BOOL install_hooks(void)
     }
     if (!real_texture_create || !patch_import(ddraw, "wined3d.dll", "wined3d_texture_create", better_texture_create))
         say("ddraw.dll does not import wined3d_texture_create; edges and depth stay as the game makes them");
+    else no_depth_surface_yet = TRUE;
     if (!patch_import(dinput, "user32.dll", "ClipCursor", dinput_clip_cursor))
         say("dinput.dll does not import ClipCursor; the mouse is not kept inside the picture");
     if (!patch_import(dinput, "user32.dll", "SetCursorPos", dinput_set_cursor_pos))
@@ -1168,8 +1176,15 @@ static LRESULT CALLBACK hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     if (msg == WM_COPYDATA && ((COPYDATASTRUCT *)lp)->dwData == CONSOLE_COMMAND)
     {
         COPYDATASTRUCT *data = (COPYDATASTRUCT *)lp;
+        static BOOL said;
+        if (no_depth_surface_yet)
+        {
+            if (!said) say("the game has not reached its main menu yet; console commands wait until it has");
+            said = TRUE;
+            return CONSOLE_COMMAND_LATER;
+        }
         if (data->cbData && !((const char *)data->lpData)[data->cbData - 1]) run_console_command(data->lpData);
-        return TRUE;
+        return CONSOLE_COMMAND_RUN;
     }
     if (msg == WM_ACTIVATEAPP || msg == WM_ACTIVATE || msg == WM_KILLFOCUS || msg == WM_SETFOCUS)
         say("message %s wp=%lx lp=%lx", msg == WM_ACTIVATEAPP ? "WM_ACTIVATEAPP" : msg == WM_ACTIVATE ? "WM_ACTIVATE"
