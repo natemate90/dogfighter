@@ -127,7 +127,7 @@ Your pilots, saves and key settings stay as they are.
 - The first start takes about a minute longer. It prepares Wine for the game.
 - The very first start shows the game's setup window. Click OK. After that, the launcher clicks OK for you.
 - With Mach9 (macOS 26.4 or later) two intro videos play. Press Esc to skip them.
-- If you made the sharper intro videos, they play first, in their own window, on either Wine. Esc, a click or any key skips one. The game then leaves out its own copies. Nobody has tried this yet. How to make them is in [docs/TECHNICAL.md](docs/TECHNICAL.md#intro-videos).
+- If you made the sharper intro videos, they play first, in their own window, on either Wine. Esc, a click or any key skips one. The game then leaves out its own copies. That part was tested on Mach9. Nobody has tried the video window itself yet. How to make them is in [docs/TECHNICAL.md](docs/TECHNICAL.md#intro-videos).
 - The game opens in a normal Mac window. Drag an edge or click the green button to make it bigger. The picture grows with the window.
 
 For a game without sound, start it with `./dogfighter --mute`.
@@ -438,7 +438,7 @@ Add these after `./dogfighter`, for example `./dogfighter --mute`.
 | `--mute` | Play without any sound. The next start without it has sound again. |
 | `--no-auto-joystick` | Do not turn on Joystick in the game's Options when a controller is connected. |
 | `--res=WxH` | Picture size in flight, for example `--res=1440x900`. Without it, the largest size that fits is used. |
-| `--windowed=WxH` | Start with the picture at most this big, for example `--windowed=1024x768`. |
+| `--windowed=WxH` | Start with the picture at most this big, in points, for example `--windowed=1024x768`. |
 | `--keep-shape` | Keep the window in the shape of the picture when you resize it. Not tried by hand yet. |
 | `--original` | Keep the game's own picture: its settings, resolution, textures and intro videos. |
 | `--setup` | Show the game's setup window. |

@@ -141,8 +141,9 @@ The menus, sound, Ctrl+Option, dragging the window and the hidden pointer were s
 
 The launcher refuses a second start while a game runs: "Dogfighter is already running. Stop it with ./dogfighter --stop."
 - The lock is one per installation, not per Wine build, because both builds share `game/`, its settings and the `game/cache` link.
-- The lock is `game/.dogfighter-running`, a link whose target is the launcher's process id. It goes when the launcher ends.
-- A lock whose process is gone, or now runs another program, is taken over. So a crashed launcher does not block the next start.
+- The lock is `game/.dogfighter-running`, a file that holds the launcher's process id. macOS's `/usr/bin/shlock` makes it. It goes when the launcher ends.
+- A lock whose process is gone is taken over. So a crashed launcher does not block the next start.
+- If another program got that process id since, the lock still counts as held. `./dogfighter --stop` removes it.
 - `--stop`, `--doctor` and `--backup` work while a game runs. `--restore` refuses then, as before.
 - The fallback to the Rosetta Wine keeps the same process, so it keeps the lock.
 
@@ -180,6 +181,7 @@ A draw distance set in the game's Options menu is raised again at the next start
 
 `--res=WxH` sets the game resolution in flight, e.g. `--res=1440x900`. The menus are always 640x480. Without it, the largest size that fits the screen is used.
 `--windowed=WxH` starts with the picture at most this big, e.g. `--windowed=1024x768`.
+The size is in points, the unit of Mac window sizes. Where the launcher turns Wine's `RetinaMode` on, it hands the helper twice the numbers, because Wine counts pixels then.
 
 ### Full resolution
 
@@ -718,6 +720,7 @@ Use it for a texture the redrawn labels do not cover.
 
 - The game opens `cache\<path>` in its folder before it looks in its packs.
 - The launcher links `game/cache` to `hd-textures/cache`.
+- A pilot photo of your own in `game/User/Save/Photos` stays in use. The game would open the larger copy in `cache\` first, so the launcher compares each photo there with the game's photo the copy was made from. If one differs, `game/cache` links to `dogfighter-cache` in the Wine prefix's `drive_c` instead. That folder holds links to the whole set, without the copies and markers of those photos. The set itself is not changed.
 - When the larger textures are off, it removes any link at `game/cache`, wherever it points, and writes that to the log. A link left behind would let the game load those files without the raised size limit and the letter markers, so letters could come out twice as large.
 - If `game/cache` is a real folder, the launcher leaves it alone and keeps the larger textures off.
 - The helper changes the 256-pixel limit in the running game's memory. No game file is changed.
@@ -823,7 +826,8 @@ If Mach9 does not start and the launcher starts the Rosetta Wine, the videos are
 
 `--no-hd-videos` lets the game play its own intros. `--original` does too, unless `--hd-videos` is given.
 
-Nobody has run the player window, its decoding, the skipping or the game leaving out its own copies yet.
+The game leaving out its own copies was run with `--diag-intros-shown`: on Mach9 it went straight to the main menu.
+Nobody has run the player window, its decoding or the skipping yet.
 
 ## CD music
 
@@ -964,7 +968,7 @@ Not done for controllers:
 | `--no-full-res` | Draw in the game's own resolution and scale the picture to the window. |
 | `--sharp` | Use Retina pixels: a sharper picture in flight, with a half-size HUD. Turns full resolution off. |
 | `--retina` | Draw the window with the Retina screen's own pixels and keep the game's resolution. Turns full resolution off. |
-| `--windowed=WxH` | Start with the picture at most this big, e.g. `--windowed=1024x768`. |
+| `--windowed=WxH` | Start with the picture at most this big, in points, e.g. `--windowed=1024x768`. |
 | `--wide` | Widen the view angle for a 16:10 or 16:9 picture. |
 | `--hd-textures` | On by default. Use the larger textures when a complete set is there. Keeps them on with `--original`. |
 | `--no-hd-textures` | Use the game's own textures. |
@@ -1009,7 +1013,7 @@ Test runs follow the same picture defaults as a normal start.
 | `--diag=press-cancel` | For `--setup`: presses Cancel there. |
 | `--diag-keys=SECONDS:SCANCODE[:HOLDSECONDS],...` | Presses keys, as scan codes in hex. `1d38` presses Ctrl+Option. Codes from 80 up are the extended keys, such as `c8` Up and `d0` Down. With HOLDSECONDS the key stays down that long. Keys whose times overlap are down together. Both times can have decimals. |
 | `--diag-mouse=SECONDS:DX:DY[:c\|:o],...` | Moves the mouse, and with `:c` clicks. |
-| `--diag-console=SECONDS:COMMAND` | Runs a game console command, with `+` for each space and `++` for a `+` itself. `40:++thrustinc` starts the game's held action `+thrustinc` as a key press does, and `45:-thrustinc` ends it. The game's console does not know these names, so the helper runs `thrustinc 1` and `thrustinc 0`, as the game does for a bound key. Of three `+` in a row the first is the space. SECONDS can have decimals. Letters, digits, spaces and `_ . + -` are allowed. A command that is due during the game's intro videos waits for the main menu. On Mach9 a mission started during them ends the game with exit code -1. |
+| `--diag-console=SECONDS:COMMAND` | Runs a game console command, with `+` for each space and `++` for a `+` itself. `40:++thrustinc` starts the game's held action `+thrustinc` as a key press does, and `45:-thrustinc` ends it. The game's console does not know these names, so the helper runs `thrustinc 1` and `thrustinc 0`, as the game does for a bound key. Of three `+` in a row the first is the space. A command with a real space in it is taken as written, and every `+` in it is a `+` itself: `--diag-console='40:bind x +fire'`. SECONDS can have decimals. Letters, digits, spaces and `_ . + -` are allowed. A command that is due during the game's intro videos waits for the main menu. On Mach9 a mission started during them ends the game with exit code -1. |
 | `--diag-display=right` | Opens the game window on the display furthest to the right. |
 | `--diag-hold` | Holds the mouse, as a normal start does. |
 | `--diag-sound` | Keeps the sound, as a normal start does. |
@@ -1018,7 +1022,7 @@ Test runs follow the same picture defaults as a normal start.
 | `--diag-drag=SECONDS` | Asks for seven window sizes as a drag does, and logs what the window became. |
 | `--diag-draws` | Writes to the log where the game first draws each flat picture: its place on the game's screen and its size. |
 | `--diag-intros-shown=COUNT` | Starts the game as if the launcher had played the first COUNT sharper intro videos, 1 or 2, so the game leaves its own out. |
-| `--diag-shot-on=TEXT` | With `--full-res`: saves the full-size picture a few frames after the game loads a picture whose path holds TEXT. |
+| `--diag-shot-on=TEXT` | With `--full-res`: saves the full-size picture a few frames after the game loads a picture whose path holds TEXT. Works with and without the larger textures. |
 | `--diag-hd-dir=FOLDER` | Looks for the larger textures in FOLDER, a full path, in place of `hd-textures/`. An empty folder tests a start without them. The link to FOLDER is removed when the run ends. |
 
 ### Options of setup.sh
@@ -1047,7 +1051,7 @@ Collected from the sections above.
 - The desk on the main menu: not yet looked at in the game.
 - The plane paintings and the stamps in the mission book: not yet looked at in the game.
 - `--join`: whether the Multiplayer screen lists the server.
-- The sharper intro videos: the player window, its decoding, the skipping and the game leaving out its own copies were never run.
+- The sharper intro videos: the player window, its decoding and the skipping were never run. The game leaving out its own copies was run with `--diag-intros-shown`.
 - The Airfix intro at level 2: only a 4-second clip was made so far. The level 3 sample was not made yet.
 - Controllers: none was ever connected. Open points are whether the game gets its input, the direction of pitch, the triggers as throttle, Xbox over USB, and whether the Key configuration screen takes controller buttons.
 - Turning Joystick on by itself: no controller was connected. The write was tried on a copy of `game/user.ini`, with a pretend controller name in place of `hidutil`.

@@ -1717,7 +1717,7 @@ static DWORD WINAPI watch(void *arg)
         }
         let_screenshots_work_in_32_bit();
         raise_texture_size_limit();
-        if (texture_limit) hook_texture_load();
+        if (texture_limit || test_shot_on[0]) hook_texture_load();
         if (max_client.cx) keep_mouse_inside();
         if (max_client.cx && ++ticks % 100 == 0 && flips + direct_draws + gdi_draws + unscaled_draws != reported)
         {

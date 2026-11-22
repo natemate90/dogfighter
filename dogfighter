@@ -40,6 +40,8 @@ Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [-
                     is then scaled once, by Wine, and not a second time by macOS.
                     Turns full resolution off. Not judged by eye yet.
   --windowed=WxH    Start with the picture at most this big, e.g. --windowed=1024x768.
+                    The size is in points, the unit of Mac window sizes. On a
+                    Retina screen a point is two pixels wide.
   --wide            Widen the view angle for a 16:10 or 16:9 picture. It shows more at
                     the sides and the top. The bottom edge of the picture may show a
                     stretched band in some scenes. It stays opt-in until a person has
@@ -156,9 +158,11 @@ Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [-
                     the game's held action +thrustinc as a key press does, and
                     45:-thrustinc ends it as the key's release does. Of three
                     + in a row the first is the space: bind+x+++fire is
-                    "bind x +fire". SECONDS can have decimals. Letters, digits,
-                    spaces and _ . + - are allowed. Give the commands in order
-                    of time.
+                    "bind x +fire". A command with a real space in it is taken
+                    as written, and every + in it is a + itself:
+                    --diag-console='40:bind x +fire'. SECONDS can have decimals.
+                    Letters, digits, spaces and _ . + - are allowed. Give the
+                    commands in order of time.
                     Can be given more than once. A command that is due while
                     the game still plays its intro videos waits for the main
                     menu: on Mach9 a mission started during them ends the game.
@@ -187,7 +191,8 @@ Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [-
   --diag-shot-on=TEXT
                     With --full-res: save the full-size picture a few frames after
                     the game loads a picture whose path holds TEXT, e.g.
-                    --diag-shot-on=loadingscreen. It lands in logs/shots/.
+                    --diag-shot-on=loadingscreen. It lands in logs/shots/. Works
+                    with and without the larger textures.
   --diag-intros-shown=COUNT
                     Start the game as if the launcher had played the first COUNT
                     sharper intro videos, 1 or 2, so the game leaves its own out.
@@ -343,7 +348,7 @@ done
 [[ "$SMOOTH" =~ ^(0|2|4)$ ]] || { echo "Bad --smooth value: $SMOOTH. Use 0, 2 or 4." >&2; exit 2; }
 for command in ${DIAG_CONSOLE[@]+"${DIAG_CONSOLE[@]}"}; do
   [[ "$command" =~ ^[0-9]+(\.[0-9]+)?:[A-Za-z0-9_.+\ -]+$ ]] || { echo "Bad console command: $command" >&2; exit 2; }
-  DIAG="${DIAG:-log} console=${command// /+}"
+  DIAG="${DIAG:-log} console=${command// //}"
 done
 [[ -z "$WINE_NAME" || "$WINE_NAME" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "Bad Wine name: $WINE_NAME" >&2; exit 2; }
 [[ -z "$WINE_RULES" || "$WINE_RULES" =~ ^(\;[a-z0-9_]+=[A-Za-z0-9_.,=-]*)+$ ]] || { echo "Bad Wine rule: ${WINE_RULES#;}" >&2; exit 2; }
@@ -455,6 +460,7 @@ if [ "$MODE" = stop ]; then
       if [ -x "${other%%:*}" ]; then WINEPREFIX="${other#*:}" "${other%%:*}" -k 2>/dev/null || true; fi
     done
   fi
+  rm -f "$RUNNING"
   exit 0
 fi
 
@@ -650,40 +656,14 @@ case "$MODE" in
   restore) restore_saves "$RESTORE_FILE"; exit ;;
 esac
 
-# A lock is stale when its process is gone or now runs something else. Inside
-# a macOS sandbox ps may not run and kill may say "not permitted"; the holder
-# then counts as alive.
-lock_holder_alive() {
-  local pid="$1" said command
-  [[ "$pid" =~ ^[0-9]+$ ]] || return 1
-  if said="$(kill -0 "$pid" 2>&1)"; then
-    command="$(ps -o command= -p "$pid" 2>/dev/null)" || return 0
-    [[ "$command" == *dogfighter* ]]
-  else
-    [[ "$said" == *"not permitted"* ]]
-  fi
-}
-
 # One game per installation: every Wine build shares game/, its settings and
-# the game/cache link. The lock is a symlink to the launcher's process id, so
-# it is made with its content in one step. The fallback to the Rosetta Wine
+# the game/cache link. The fallback to the Rosetta Wine
 # keeps this process id through exec, so it finds its own lock.
 take_lock() {
-  local holder
   [ -d "$HERE/game" ] || return 0
-  if ! ln -s "$$" "$RUNNING" 2>/dev/null; then
-    holder="$(readlink "$RUNNING" 2>/dev/null || true)"
-    if [ "$holder" != $$ ]; then
-      if lock_holder_alive "$holder"; then
-        echo "Dogfighter is already running. Stop it with ./dogfighter --stop." >&2
-        exit 1
-      fi
-      rm -f "$RUNNING"
-      ln -s "$$" "$RUNNING" 2>/dev/null || {
-        echo "Dogfighter is already running. Stop it with ./dogfighter --stop." >&2
-        exit 1
-      }
-    fi
+  if [ "$(cat "$RUNNING" 2>/dev/null || true)" != $$ ] && ! /usr/bin/shlock -p $$ -f "$RUNNING"; then
+    echo "Dogfighter is already running. Stop it with ./dogfighter --stop." >&2
+    exit 1
   fi
   LOCKED=1
 }
@@ -696,7 +676,7 @@ finish() {
     rm -f "$CACHE_LINK"
     if [ -n "${LOG:-}" ]; then echo "Removed game/cache, the link to the test textures." >>"$LOG"; fi
   fi
-  if [ "$LOCKED" = 1 ] && [ "$(readlink "$RUNNING" 2>/dev/null || true)" = $$ ]; then rm -f "$RUNNING"; fi
+  if [ "$LOCKED" = 1 ] && [ "$(cat "$RUNNING" 2>/dev/null || true)" = $$ ]; then rm -f "$RUNNING"; fi
 }
 take_lock
 trap finish EXIT
@@ -844,10 +824,52 @@ hd_set_complete() {
   [ -f "$HD_DIR/manifest.json" ] && python3 -I "$HERE/tools/upscale-textures.py" --check --out "$HD_DIR" 2>/dev/null
 }
 
+own_photos() {
+  [ -d "$HERE/game/User/Save/Photos" ] || return 0
+  python3 -I - "$HD_DIR/manifest.json" "$HERE/game/User/Save/Photos" <<'EOF' 2>/dev/null || true
+import hashlib, json, os, sys
+under = "user\\save\\photos\\"
+with open(sys.argv[1]) as f:
+    made = {record["path"].lower()[len(under):]: record["source_sha256"] for record in json.load(f)["textures"]
+            if record["path"].lower().startswith(under) and record["way"] != "none"}
+for name in sorted(os.listdir(sys.argv[2])):
+    path = os.path.join(sys.argv[2], name)
+    if name.lower() in made and os.path.isfile(path):
+        with open(path, "rb") as f:
+            if hashlib.sha256(f.read()).hexdigest() != made[name.lower()]:
+                print(name)
+EOF
+}
+
+link_cache_without() {
+  local view="$1" at="" part next item name own
+  shift
+  rm -rf "$view"
+  shopt -s nocasematch
+  for part in User Save Photos ""; do
+    mkdir -p "$view/$at"
+    next=
+    for item in "$HD_DIR/cache/$at"*; do
+      [ -e "$item" ] || continue
+      name="${item##*/}"
+      if [ -n "$part" ] && [[ "$name" == "$part" ]]; then next="$at$name/"; continue; fi
+      if [ -z "$part" ]; then
+        for own in "$@"; do
+          if [[ "$name" == "$own" || "$name" == "$own".[24]x ]]; then continue 2; fi
+        done
+      fi
+      ln -s "$item" "$view/$at$name"
+    done
+    [ -n "$next" ] || break
+    at="$next"
+  done
+  shopt -u nocasematch
+}
+
 # Without the larger textures no link may stay: the game would still load the
 # files behind it, without the raised size limit the helper sets for them.
 link_hd_textures() {
-  local limit
+  local limit own
   limit="$(cat "$HD_DIR/texture-limit" 2>/dev/null || true)"
   if [ "$HD_TEXTURES" = 1 ] && [ -e "$CACHE_LINK" ] && [ ! -L "$CACHE_LINK" ]; then
     say "game/cache is a folder of your own, so the larger textures stay off. Move it away to use them."
@@ -862,6 +884,12 @@ link_hd_textures() {
       rm -f "$CACHE_LINK"
     fi
     return 0
+  fi
+  own="$(own_photos)"
+  if [ -n "$own" ]; then
+    CACHE_TARGET="$WINEPREFIX/drive_c/dogfighter-cache"
+    link_cache_without "$CACHE_TARGET" $own
+    say "Your own pilot photos in game/User/Save/Photos stay in use: ${own//$'\n'/, }. The larger copies of the game's photos with those names are left out."
   fi
   ln -sfn "$CACHE_TARGET" "$CACHE_LINK"
   export DOGFIGHTER_TEXTURE_LIMIT="$limit"
@@ -1087,6 +1115,7 @@ if [[ "$SCREEN" =~ ^([12])\ ([0-9]+)\ ([0-9]+)$ ]]; then
   LIMIT="$((BASH_REMATCH[2] * scale))x$((BASH_REMATCH[3] * scale))"
   RES_LIMIT="$LIMIT"
   if [ "$SHARP" = 0 ]; then RES_LIMIT="${BASH_REMATCH[2]}x${BASH_REMATCH[3]}"; fi
+  if [ -n "$WINDOW_SIZE" ] && [ "$RETINA" = y ]; then WINDOW_SIZE="$((${WINDOW_SIZE%x*} * 2))x$((${WINDOW_SIZE#*x} * 2))"; fi
 else
   say "Could not read the screen size; assuming room for a $LIMIT picture."
 fi

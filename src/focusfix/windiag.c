@@ -490,17 +490,19 @@ static int command_count, commands_sent;
 static void read_command(const char *arg)
 {
     char *end, *to, *last;
+    BOOL as_written;
 
     if (command_count == 64) return;
     commands[command_count].at = seconds_to_ms(arg, &end);
     if (end == arg || *end != ':') return;
+    as_written = strchr(end, '/') != NULL;
     to = commands[command_count].text;
     last = to + sizeof(commands[0].text) - 1;
     for (const char *c = end + 1; *c && to < last; )
     {
-        size_t run = strspn(c, "+");
+        size_t run = as_written ? 0 : strspn(c, "+");
 
-        if (!run) { *to++ = *c++; continue; }
+        if (!run) { *to++ = *c == '/' ? ' ' : *c; c++; continue; }
         c += run;
         if (run % 2) *to++ = ' ';
         for (run /= 2; run && to < last; run--) *to++ = '+';
