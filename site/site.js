@@ -52,7 +52,22 @@
     });
   }
 
-  const loop = document.querySelector(".diagram.fly");
+  const stills = new Map([
+    [document.getElementById("scene"), 2.6],
+    [document.querySelector(".diagram.fly"), 2.2],
+  ]);
+  const animated = [...document.querySelectorAll("svg")].filter((svg) => svg.querySelector("animate, animateMotion, animateTransform"));
+
+  const reveals = document.querySelectorAll(".reveal");
+  const observer = "IntersectionObserver" in window
+    ? new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.classList.add("in");
+          observer.unobserve(entry.target);
+        });
+      }, { rootMargin: "0px 0px -12% 0px", threshold: 0.15 })
+    : null;
 
   function setMode() {
     if (reduce.matches) {
@@ -62,20 +77,38 @@
       last = -1;
       draw(0);
       caption.textContent = "The whole kit: eight parts on one frame.";
-      if (loop) {
-        loop.pauseAnimations();
-        loop.setCurrentTime(2.2);
-      }
+      animated.forEach((svg) => {
+        svg.pauseAnimations();
+        svg.setCurrentTime(stills.get(svg) ?? 0);
+      });
+      reveals.forEach((el) => el.classList.add("in"));
     } else {
       document.documentElement.classList.remove("static");
       window.addEventListener("scroll", onScroll, { passive: true });
       window.addEventListener("resize", onScroll);
-      if (loop) loop.unpauseAnimations();
+      animated.forEach((svg) => svg.unpauseAnimations());
       last = -1;
       onScroll();
+      if (observer) reveals.forEach((el) => el.classList.contains("in") || observer.observe(el));
+      else reveals.forEach((el) => el.classList.add("in"));
     }
   }
 
   reduce.addEventListener("change", setMode);
   setMode();
+
+  document.querySelectorAll(".yt").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+      event.preventDefault();
+      const player = document.createElement("iframe");
+      player.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(link.dataset.id)}?autoplay=1`;
+      player.title = link.dataset.title;
+      player.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+      player.allowFullscreen = true;
+      player.referrerPolicy = "strict-origin-when-cross-origin";
+      link.replaceWith(player);
+      player.focus();
+    });
+  });
 })();

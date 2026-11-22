@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Dogfighter for Apple Silicon</title>
-<meta name="description" content="Play the 2000 Windows game Airfix Dogfighter on a Mac with Apple Silicon, from your own original disc. An unofficial fan project.">
+<meta name="description" content="Play the 2000 Windows game Airfix Dogfighter on a Mac with Apple Silicon, from your own original disc, with a sharper picture. An unofficial fan project.">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#e6e9df" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#121b2a" media="(prefers-color-scheme: dark)">
@@ -13,6 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Domine:wght@400..700&family=Saira:ital,wdth,wght@0,100..125,600..900;1,100..125,600..900&family=Stardos+Stencil:wght@400;700&display=swap">
 <link rel="stylesheet" href="style.css">
+<script>document.documentElement.classList.add("js");</script>
 </head>
 <body>
 
@@ -29,8 +30,110 @@
 <section class="hero wrap" aria-labelledby="title">
   <div class="hero-text">
     <h1 id="title"><span class="t1">Dogfighter</span><span class="t2">for Apple Silicon Macs</span></h1>
-    <p class="lede">Airfix Dogfighter is a Windows game from 2000. Model planes fight through a house. This project makes it run well on a Mac with M1 or later. You bring your own original disc.</p>
-    <p class="cta"><a class="button" href="#assembly">How to install</a> <a class="button ghost" href="https://github.com/natemate90/dogfighter">See the code</a></p>
+    <p class="lede">Airfix Dogfighter is a Windows game from 2000. Model planes fight through a house. This project makes it run on a Mac with M1 or later, in a sharp Retina window. You bring your own original disc.</p>
+    <p class="cta"><a class="button" href="#assembly">How to install</a> <a class="button ghost" href="#sharper">What is new</a></p>
+  </div>
+  <div class="scene-box">
+    <svg class="scene" id="scene" viewBox="0 0 640 460" role="img" aria-labelledby="scene-title">
+      <title id="scene-title">Two toy planes chase each other through a loop above a model maker's desk. On the desk are a kit box, paint tins, a brush and a half-built grey model.</title>
+      <defs>
+        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" style="stop-color: var(--sky-a)"/>
+          <stop offset="1" style="stop-color: var(--sky-b)"/>
+        </linearGradient>
+        <clipPath id="glass-clip"><rect x="182" y="42" width="276" height="196"/></clipPath>
+        <pattern id="mat-grid" patternUnits="userSpaceOnUse" width="14" height="14">
+          <path d="M14 0H0V14" class="mat-line"/>
+        </pattern>
+      </defs>
+
+      <rect width="640" height="460" class="wall"/>
+      <path class="wall-lines" d="M40 0V300M120 0V300M520 0V300M600 0V300"/>
+
+      <g class="poster">
+        <rect x="510" y="64" width="102" height="112" rx="3" class="frame"/>
+        <rect x="520" y="74" width="82" height="92" class="bp-fill"/>
+        <path class="bp-grid" d="M520 97H602M520 120H602M520 143H602M540 74V166M561 74V166M582 74V166"/>
+        <use href="#mini-plane" x="533" y="92" width="56" height="56" class="bp-plane"/>
+      </g>
+
+      <g class="hang">
+        <path class="thread" d="M86 0V78"/>
+        <use href="#mini-plane" x="62" y="72" width="48" height="48" class="hang-plane" transform="rotate(90 86 96)"/>
+      </g>
+
+      <rect x="168" y="28" width="304" height="224" rx="4" class="frame"/>
+      <rect x="182" y="42" width="276" height="196" fill="url(#sky)"/>
+      <g clip-path="url(#glass-clip)">
+        <g class="night">
+          <circle cx="420" cy="84" r="17" class="moon"/>
+          <circle cx="210" cy="66" r="1.6" class="star"/><circle cx="262" cy="96" r="1.2" class="star"/><circle cx="300" cy="58" r="1.6" class="star"/><circle cx="352" cy="110" r="1.2" class="star"/><circle cx="388" cy="56" r="1.4" class="star"/><circle cx="440" cy="132" r="1.2" class="star"/>
+        </g>
+        <g class="clouds">
+          <path class="cloud" d="M196 98a14 14 0 0 1 24-10a18 18 0 0 1 33 4a12 12 0 0 1 3 22h-56a10 10 0 0 1-4-16z"/>
+          <path class="cloud" d="M330 70a12 12 0 0 1 21-8a15 15 0 0 1 28 4a10 10 0 0 1 2 18h-48a8 8 0 0 1-3-14z"/>
+          <path class="cloud" d="M410 150a10 10 0 0 1 18-7a13 13 0 0 1 24 3a9 9 0 0 1 2 16h-41a7 7 0 0 1-3-12z"/>
+        </g>
+        <path class="hedge" d="M182 238V214C200 200 220 206 236 212C256 196 282 200 300 210C320 198 350 202 368 212C390 200 420 204 458 214V238Z"/>
+      </g>
+      <path class="mullion" d="M320 42V238M182 140H458"/>
+      <rect x="182" y="42" width="276" height="196" class="glass-edge"/>
+      <rect x="154" y="248" width="332" height="12" rx="3" class="frame"/>
+
+      <rect y="300" width="640" height="108" class="desk"/>
+      <path class="grain" d="M0 322C120 318 260 326 400 320S560 316 640 322M0 352C140 348 300 356 460 350S600 346 640 350M0 384C100 380 280 388 420 382S580 378 640 384"/>
+      <rect y="404" width="640" height="56" class="desk-edge"/>
+      <path class="grain" d="M0 428C160 424 320 432 480 426S600 424 640 428"/>
+
+      <rect x="246" y="316" width="214" height="76" rx="4" class="mat"/>
+      <rect x="246" y="316" width="214" height="76" rx="4" fill="url(#mat-grid)"/>
+      <g transform="translate(336 354) scale(1.15)">
+        <use href="#toy-body" style="--hull: var(--plastic); --nose: var(--plastic); --band: var(--plastic); --glass: var(--plastic-edge)"/>
+      </g>
+      <g class="mini-sprue">
+        <rect x="404" y="326" width="46" height="56" rx="3"/>
+        <path d="M404 354H450M427 326V382"/>
+        <ellipse cx="415" cy="340" rx="6" ry="3.5" class="sp"/><ellipse cx="438" cy="368" rx="6" ry="3.5" class="sp"/>
+      </g>
+
+      <g class="kitbox-art">
+        <polygon points="30,322 220,322 236,308 46,308" class="box-top"/>
+        <polygon points="220,322 236,308 236,382 220,396" class="box-side"/>
+        <rect x="30" y="322" width="190" height="74" class="box-front"/>
+        <rect x="37" y="328" width="176" height="62" fill="url(#sky)"/>
+        <polygon points="37,372 213,344 213,356 37,384" class="box-band"/>
+        <g transform="translate(118 354) scale(0.85) rotate(-9)">
+          <use href="#toy-body" style="--hull: var(--earth); --nose: var(--red); --band: var(--paper); --glass: var(--sky)"/>
+        </g>
+        <text x="206" y="384" class="box-scale">1:72</text>
+      </g>
+
+      <use href="#tin" x="470" y="300" width="70" height="70" style="--tin: var(--red)"/>
+      <use href="#tin" x="528" y="318" width="60" height="60" style="--tin: var(--green)"/>
+      <use href="#tin" x="580" y="300" width="54" height="54" style="--tin: var(--blue)"/>
+
+      <path class="brush-handle" d="M452 398L590 388"/>
+      <path class="brush-ferrule" d="M590 388L608 386.7"/>
+      <path class="brush-tip" d="M607 383.5C617 384 625 386 630 386C625 387 617 389.5 608 390Z"/>
+
+      <path id="hero-loop" class="hero-path" d="M-80 215C90 215 220 218 300 215C352 213 394 180 394 134C394 88 360 52 318 52C274 52 250 90 252 132C254 180 296 210 350 210C460 210 580 198 720 190"/>
+
+      <g class="flyer">
+        <g transform="scale(0.92)">
+          <path class="tracer" d="M50 1h9M68 1h9M86 1h9"><animate attributeName="opacity" values="0;0;1;0;1;0;0;0" dur="1.6s" repeatCount="indefinite"/></path>
+          <use href="#toy-body" style="--hull: var(--blue); --nose: #e8b93a; --band: #e8b93a; --glass: var(--sky)"/>
+          <g transform="translate(41 1)"><ellipse rx="2.6" ry="16" class="prop-disc"/><path d="M0-16V16" class="prop-blade"><animateTransform attributeName="transform" type="scale" values="1 1;1 0.15;1 1" dur="0.14s" repeatCount="indefinite"/></path></g>
+        </g>
+        <animateMotion dur="6s" begin="-5.1s" repeatCount="indefinite" rotate="auto"><mpath href="#hero-loop"/></animateMotion>
+      </g>
+      <g class="flyer">
+        <g transform="scale(1.05)">
+          <use href="#toy-body" style="--hull: var(--green); --nose: var(--red); --band: var(--sky); --glass: var(--sky)"/>
+          <g transform="translate(41 1)"><ellipse rx="2.6" ry="16" class="prop-disc"/><path d="M0-16V16" class="prop-blade"><animateTransform attributeName="transform" type="scale" values="1 1;1 0.15;1 1" dur="0.12s" repeatCount="indefinite"/></path></g>
+        </g>
+        <animateMotion dur="6s" begin="0s" repeatCount="indefinite" rotate="auto"><mpath href="#hero-loop"/></animateMotion>
+      </g>
+    </svg>
   </div>
   <dl class="kitbox" aria-label="About this kit">
     <div><dt>Skill level</dt><dd><span class="pips" aria-hidden="true"><i class="on"></i><i class="on"></i><i></i><i></i></span> 2 of 4</dd></div>
@@ -139,28 +242,54 @@
   </div>
 </section>
 
+<section class="sheet wrap" id="watch" aria-labelledby="watch-h">
+  <h2 id="watch-h">See it fly</h2>
+  <p class="intro">Gameplay of the original game, recorded on a Windows PC.</p>
+  <div class="video reveal">
+    <a class="yt" href="https://www.youtube.com/watch?v=vuBLQVUCmEY" data-id="vuBLQVUCmEY" data-title="Airfix Dogfighter for PC, gameplay video" aria-label="Play the video Airfix Dogfighter for PC, gameplay video. This loads YouTube.">
+      <svg class="yt-art" viewBox="0 0 640 360" aria-hidden="true">
+        <rect width="640" height="360" class="yt-bg"/>
+        <path class="yt-grid" d="M0 60H640M0 120H640M0 180H640M0 240H640M0 300H640M80 0V360M160 0V360M240 0V360M320 0V360M400 0V360M480 0V360M560 0V360"/>
+        <path class="yt-path" d="M-20 300C120 300 160 200 260 170S420 160 480 100S600 40 660 30"/>
+        <g transform="translate(150 255) rotate(-26) scale(2.4)" class="yt-plane"><use href="#toy-body" style="--hull: transparent; --nose: transparent; --band: transparent; --glass: transparent; --ink: var(--bp-line)"/></g>
+        <g transform="translate(470 98) rotate(-40) scale(1.4)" class="yt-plane"><use href="#toy-body" style="--hull: transparent; --nose: transparent; --band: transparent; --glass: transparent; --ink: var(--bp-line)"/></g>
+        <path class="yt-perf" d="M20 14h24M68 14h24M116 14h24M164 14h24M212 14h24M260 14h24M308 14h24M356 14h24M404 14h24M452 14h24M500 14h24M548 14h24M596 14h24M20 346h24M68 346h24M116 346h24M164 346h24M212 346h24M260 346h24M308 346h24M356 346h24M404 346h24M452 346h24M500 346h24M548 346h24M596 346h24"/>
+        <g class="yt-play" transform="translate(320 170)">
+          <circle r="46"/>
+          <path d="M-14-22L24 0L-14 22Z"/>
+        </g>
+      </svg>
+      <span class="yt-text">
+        <span class="yt-title">Airfix Dogfighter for PC, gameplay video</span>
+        <span class="yt-note">Click to play. This loads the video from YouTube.</span>
+      </span>
+    </a>
+  </div>
+  <p class="credit">Video by its maker, hosted on YouTube: <a href="https://www.youtube.com/watch?v=vuBLQVUCmEY">Airfix Dogfighter for PC, gameplay video</a> by <a href="https://www.youtube.com/@Highretrogamelord">Highretrogamelord</a>.</p>
+</section>
+
 <section class="sheet wrap" id="before" aria-labelledby="before-h">
   <h2 id="before-h">Before you start</h2>
   <ul class="needs">
-    <li>
+    <li class="reveal">
       <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="16" y="16" width="32" height="32" rx="5"/><path d="M24 10v6M32 10v6M40 10v6M24 48v6M32 48v6M40 48v6M10 24h6M10 32h6M10 40h6M48 24h6M48 32h6M48 40h6"/><text x="32" y="38">M1</text></svg>
       <h3>A Mac with Apple Silicon</h3>
       <p>An M1 or any later chip.</p>
     </li>
-    <li>
+    <li class="reveal">
       <svg viewBox="0 0 64 64" aria-hidden="true"><path d="M10 44a22 22 0 0 1 44 0"/><path d="M32 44l12-14"/><circle cx="32" cy="44" r="4"/><path d="M14 44h4M46 44h4M17 30l3 2M47 30l-3 2M32 22v4"/></svg>
       <h3>macOS 26.4 or later works best</h3>
       <p>It uses Mach9. That is Wine made for Apple Silicon. Flight runs at about 100 frames a second on the test Mac. Older macOS uses Rosetta 2 and gets about 30.</p>
     </li>
-    <li>
+    <li class="reveal">
       <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="22"/><circle cx="32" cy="32" r="8"/><circle cx="32" cy="32" r="2.5"/><path d="M40 16a18 18 0 0 1 8 8"/></svg>
       <h3>Your own game disc</h3>
       <p>The original CD and a CD drive to copy it. A BIN/CUE copy you made earlier also works. Be aware that a regular ISO won't work. It leaves out the music. Make a full BIN/CUE copy of the disc instead.</p>
     </li>
-    <li>
-      <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="10" y="18" width="44" height="28" rx="4"/><path d="M10 36h44"/><circle cx="46" cy="41" r="1.8"/><path d="M16 41h14"/><text x="32" y="31">6 GB</text></svg>
-      <h3>About 6 GB of free space</h3>
-      <p>That holds the game and its sharper textures. You also need internet while you install.</p>
+    <li class="reveal">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="10" y="18" width="44" height="28" rx="4"/><path d="M10 36h44"/><circle cx="46" cy="41" r="1.8"/><path d="M16 41h14"/><text x="32" y="31">6.5 GB</text></svg>
+      <h3>About 6.5 GB of free space</h3>
+      <p>That holds the game and its sharper textures and menus. You also need internet while you install.</p>
     </li>
   </ul>
 </section>
@@ -169,7 +298,7 @@
   <h2 id="assembly-h">Assembly</h2>
   <p class="intro">Three steps in Terminal. The <a href="https://github.com/natemate90/dogfighter#readme">README</a> has the details. It also says what to do when a step fails.</p>
   <ol class="steps">
-    <li class="step">
+    <li class="step reveal">
       <span class="stepnum" aria-hidden="true">1</span>
       <svg class="diagram" viewBox="0 0 280 140" aria-hidden="true">
         <circle cx="50" cy="70" r="38"/><circle cx="50" cy="70" r="14"/><circle cx="50" cy="70" r="4"/>
@@ -185,7 +314,7 @@
 <pre><code>brew install cdrdao
 cdrdao read-cd --read-raw --datafile Dogfighter.bin --driver generic-mmc:0x20000 Dogfighter.toc</code></pre>
     </li>
-    <li class="step">
+    <li class="step reveal">
       <span class="stepnum" aria-hidden="true">2</span>
       <svg class="diagram" viewBox="0 0 280 140" aria-hidden="true">
         <rect x="30" y="16" width="220" height="108" rx="8"/><path class="thin" d="M30 36h220"/>
@@ -194,14 +323,14 @@ cdrdao read-cd --read-raw --datafile Dogfighter.bin --driver generic-mmc:0x20000
         <g class="bar"><rect x="46" y="84" width="20" height="14"/><rect x="70" y="84" width="20" height="14"/><rect x="94" y="84" width="20" height="14"/><rect x="118" y="84" width="20" height="14"/><rect x="142" y="84" width="20" height="14"/><rect x="166" y="84" width="20" height="14" class="empty"/><rect x="190" y="84" width="20" height="14" class="empty"/><rect x="214" y="84" width="20" height="14" class="empty"/></g>
       </svg>
       <h3>Get the project and run setup</h3>
-      <p>Setup downloads what it needs and checks each download. It copies the game and its music from your disc file. Then it makes the sharper textures. The second line installs Rosetta 2. Skip it on macOS 26.4 or later.</p>
+      <p>Setup downloads what it needs and checks each download. It copies the game and its music from your disc file. Then it makes the sharper textures and menus. The second line installs Rosetta 2. Skip it on macOS 26.4 or later.</p>
 <pre><code>xcode-select --install
 softwareupdate --install-rosetta --agree-to-license
 git clone https://github.com/natemate90/dogfighter.git
 cd dogfighter
 ./setup.sh ../Dogfighter.bin</code></pre>
     </li>
-    <li class="step">
+    <li class="step reveal">
       <span class="stepnum" aria-hidden="true">3</span>
       <svg class="diagram fly" viewBox="0 0 280 140" aria-hidden="true">
         <path id="loop" class="flightpath" d="M20,96 C70,96 90,30 140,30 C190,30 200,96 160,100 C120,104 120,60 170,56 C220,52 240,90 266,96"/>
@@ -217,10 +346,206 @@ cd dogfighter
   </ol>
 </section>
 
+<section class="sheet wrap" id="sharper" aria-labelledby="sharper-h">
+  <h2 id="sharper-h">Before and after</h2>
+  <p class="intro">The game starts with the best picture by itself. Your Mac makes the sharper pictures once, from your own disc. Nothing is uploaded. <code>--original</code> turns it all off.</p>
+  <div class="ba-grid">
+
+    <article class="ba-card reveal">
+      <svg class="ba" viewBox="0 0 320 160" role="img" aria-label="A slanted edge drawn as hard steps before, and with soft in-between pixels after.">
+        <g class="panel before" transform="translate(8 8)">
+          <rect class="pf" width="128" height="112"/>
+          <path class="px" d="M112 32h16v16h-16zM80 48h48v16h-48zM48 64h80v16h-80zM32 80h96v16h-96zM0 96h128v16h-128z"/>
+          <path class="gridl" d="M0 0v112M16 0v112M32 0v112M48 0v112M64 0v112M80 0v112M96 0v112M112 0v112M128 0v112M0 0h128M0 16h128M0 32h128M0 48h128M0 64h128M0 80h128M0 96h128M0 112h128"/>
+          <path class="ideal" d="M0 105.6L128 26.2"/>
+        </g>
+        <path class="ba-arrow" d="M147 64h24m-8-7 8 7-8 7"/>
+        <g class="panel after" transform="translate(184 8)">
+          <rect class="pf" width="128" height="112"/>
+          <g class="px"><path d="M64 48h16v16h-16zM16 80h16v16h-16z" fill-opacity="0.25"/><path d="M96 32h16v16h-16zM48 64h16v16h-16z" fill-opacity="0.5"/><path d="M80 48h16v16h-16zM0 96h16v16h-16z" fill-opacity="0.75"/><path d="M112 32h16v16h-16zM96 48h32v16h-32zM64 64h64v16h-64zM32 80h96v16h-96zM16 96h112v16h-112z" fill-opacity="1"/></g>
+          <path class="gridl" d="M0 0v112M16 0v112M32 0v112M48 0v112M64 0v112M80 0v112M96 0v112M112 0v112M128 0v112M0 0h128M0 16h128M0 32h128M0 48h128M0 64h128M0 80h128M0 96h128M0 112h128"/>
+          <path class="ideal" d="M0 105.6L128 26.2"/>
+        </g>
+        <text class="ba-label" x="72" y="148">Before</text><text class="ba-label" x="248" y="148">After</text>
+      </svg>
+      <h3>Smooth edges</h3>
+      <p>Jagged edges of 3D shapes are smoothed, with 4 samples per pixel. The 3D picture uses every pixel of a Retina screen.</p>
+    </article>
+
+    <article class="ba-card reveal">
+      <svg class="ba" viewBox="0 0 320 160" role="img" aria-label="A tiled floor going into the distance. Before, the far tiles are a blur. After, they stay sharp.">
+        <defs>
+          <path id="floor" d="M-32 112L0 112L11.6 78.9L-14.5 78.9zM32 112L64 112L64 78.9L37.8 78.9zM96 112L128 112L116.4 78.9L90.2 78.9zM11.6 78.9L37.8 78.9L41 60.9L18 60.9zM64 78.9L90.2 78.9L87 60.9L64 60.9zM116.4 78.9L142.5 78.9L133 60.9L110 60.9zM-5 60.9L18 60.9L22 49.6L0.9 49.6zM41 60.9L64 60.9L64 49.6L43 49.6zM87 60.9L110 60.9L106 49.6L85 49.6zM133 60.9L156 60.9L148.1 49.6L127.1 49.6zM-20.1 49.6L0.9 49.6L5 41.8L-14.6 41.8zM22 49.6L43 49.6L44.3 41.8L24.7 41.8zM64 49.6L85 49.6L83.7 41.8L64 41.8zM106 49.6L127.1 49.6L123 41.8L103.3 41.8zM5 41.8L24.7 41.8L26.7 36.1L8 36.1zM44.3 41.8L64 41.8L64 36.1L45.3 36.1zM83.7 41.8L103.3 41.8L101.3 36.1L82.7 36.1zM123 41.8L142.6 41.8L138.6 36.1L120 36.1zM-10.6 36.1L8 36.1L10.3 31.8L-7.6 31.8zM26.7 36.1L45.3 36.1L46.1 31.8L28.2 31.8zM64 36.1L82.7 36.1L81.9 31.8L64 31.8zM101.3 36.1L120 36.1L117.7 31.8L99.8 31.8zM10.3 31.8L28.2 31.8L29.4 28.4L12.1 28.4zM46.1 31.8L64 31.8L64 28.4L46.7 28.4zM81.9 31.8L99.8 31.8L98.6 28.4L81.3 28.4zM117.7 31.8L135.6 31.8L133.2 28.4L115.9 28.4zM-5.2 28.4L12.1 28.4L13.5 25.7L-3.3 25.7zM29.4 28.4L46.7 28.4L47.2 25.7L30.4 25.7zM64 28.4L81.3 28.4L80.8 25.7L64 25.7zM98.6 28.4L115.9 28.4L114.5 25.7L97.6 25.7zM13.5 25.7L30.4 25.7L31.1 23.4L14.7 23.4zM47.2 25.7L64 25.7L64 23.4L47.6 23.4zM80.8 25.7L97.6 25.7L96.9 23.4L80.4 23.4zM114.5 25.7L131.3 25.7L129.7 23.4L113.3 23.4zM-1.7 23.4L14.7 23.4L15.7 21.5L-0.4 21.5zM31.1 23.4L47.6 23.4L47.9 21.5L31.8 21.5zM64 23.4L80.4 23.4L80.1 21.5L64 21.5zM96.9 23.4L113.3 23.4L112.3 21.5L96.2 21.5zM-16.5 21.5L-0.4 21.5L0.8 19.9L-15.1 19.9zM15.7 21.5L31.8 21.5L32.4 19.9L16.6 19.9zM47.9 21.5L64 21.5L64 19.9L48.2 19.9zM80.1 21.5L96.2 21.5L95.6 19.9L79.8 19.9zM112.3 21.5L128.4 21.5L127.2 19.9L111.4 19.9zM0.8 19.9L16.6 19.9L17.3 18.5L1.7 18.5zM32.4 19.9L48.2 19.9L48.4 18.5L32.9 18.5zM64 19.9L79.8 19.9L79.6 18.5L64 18.5zM95.6 19.9L111.4 19.9L110.7 18.5L95.1 18.5zM127.2 19.9L143.1 19.9L141.8 18.5L126.3 18.5zM-13.8 18.5L1.7 18.5L2.6 17.3L-12.8 17.3zM17.3 18.5L32.9 18.5L33.3 17.3L17.9 17.3zM48.4 18.5L64 18.5L64 17.3L48.6 17.3zM79.6 18.5L95.1 18.5L94.7 17.3L79.4 17.3zM110.7 18.5L126.3 18.5L125.4 17.3L110.1 17.3zM2.6 17.3L17.9 17.3L18.5 16.3L3.3 16.3zM33.3 17.3L48.6 17.3L48.8 16.3L33.7 16.3zM64 17.3L79.4 17.3L79.2 16.3L64 16.3zM94.7 17.3L110.1 17.3L109.5 16.3L94.3 16.3zM125.4 17.3L140.8 17.3L139.8 16.3L124.7 16.3zM-11.8 16.3L3.3 16.3L4 15.3L-11 15.3zM18.5 16.3L33.7 16.3L34 15.3L19 15.3zM48.8 16.3L64 16.3L64 15.3L49 15.3zM79.2 16.3L94.3 16.3L94 15.3L79 15.3zM109.5 16.3L124.7 16.3L124 15.3L109 15.3zM4 15.3L19 15.3L19.4 14.5L4.6 14.5zM34 15.3L49 15.3L49.1 14.5L34.3 14.5zM64 15.3L79 15.3L78.9 14.5L64 14.5zM94 15.3L109 15.3L108.6 14.5L93.7 14.5zM124 15.3L139 15.3L138.3 14.5L123.4 14.5zM-10.3 14.5L4.6 14.5L5.1 13.8L-9.6 13.8zM19.4 14.5L34.3 14.5L34.5 13.8L19.8 13.8zM49.1 14.5L64 14.5L64 13.8L49.3 13.8zM78.9 14.5L93.7 14.5L93.5 13.8L78.7 13.8zM108.6 14.5L123.4 14.5L122.9 13.8L108.2 13.8zM5.1 13.8L19.8 13.8L20.2 13.1L5.6 13.1zM34.5 13.8L49.3 13.8L49.4 13.1L34.8 13.1zM64 13.8L78.7 13.8L78.6 13.1L64 13.1zM93.5 13.8L108.2 13.8L107.8 13.1L93.2 13.1zM122.9 13.8L137.6 13.8L137 13.1L122.4 13.1z"/>
+          <clipPath id="clip-near"><rect y="44" width="128" height="68"/></clipPath>
+          <clipPath id="clip-far"><rect width="128" height="44"/></clipPath>
+          <clipPath id="clip-panel"><rect width="128" height="112"/></clipPath>
+          <filter id="far-blur" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="2.4"/></filter>
+        </defs>
+        <g class="panel before" transform="translate(8 8)">
+          <rect class="pf" width="128" height="112"/>
+          <g clip-path="url(#clip-panel)">
+            <rect class="floor-far" width="128" height="13.1"/>
+            <use href="#floor" class="floor" clip-path="url(#clip-near)"/>
+            <g clip-path="url(#clip-far)"><g filter="url(#far-blur)"><rect class="floor-far" width="128" height="44"/><use href="#floor" class="floor"/></g></g>
+          </g>
+          <rect class="pf-line" width="128" height="112"/>
+        </g>
+        <path class="ba-arrow" d="M147 64h24m-8-7 8 7-8 7"/>
+        <g class="panel after" transform="translate(184 8)">
+          <rect class="pf" width="128" height="112"/>
+          <g clip-path="url(#clip-panel)">
+            <rect class="floor-far" width="128" height="13.1"/>
+            <use href="#floor" class="floor"/>
+          </g>
+          <rect class="pf-line" width="128" height="112"/>
+        </g>
+        <text class="ba-label" x="72" y="148">Before</text><text class="ba-label" x="248" y="148">After</text>
+      </svg>
+      <h3>Sharp in the distance</h3>
+      <p>Floors and walls stay sharp far away, with 16x filtering. On the test Mac the frame rate stayed the same.</p>
+    </article>
+
+    <article class="ba-card reveal">
+      <svg class="ba" viewBox="0 0 320 160" role="img" aria-label="A ring drawn with 7 by 7 big pixels before, and with 28 by 28 small pixels after.">
+        <g class="panel before" transform="translate(8 8)">
+          <rect class="pf" width="128" height="112"/>
+          <g transform="translate(8 0)"><path class="px" d="M48 0h16v16h-16zM16 16h80v16h-80zM16 32h16v16h-16zM80 32h16v16h-16zM0 48h32v16h-32zM48 48h16v16h-16zM80 48h32v16h-32zM16 64h16v16h-16zM80 64h16v16h-16zM16 80h80v16h-80zM48 96h16v16h-16z"/><path class="gridl" d="M0 0v112M16 0v112M32 0v112M48 0v112M64 0v112M80 0v112M96 0v112M112 0v112M0 0h112M0 16h112M0 32h112M0 48h112M0 64h112M0 80h112M0 96h112M0 112h112"/></g>
+        </g>
+        <path class="ba-arrow" d="M147 64h24m-8-7 8 7-8 7"/>
+        <g class="panel after" transform="translate(184 8)">
+          <rect class="pf" width="128" height="112"/>
+          <g transform="translate(8 0)"><path class="px" d="M40 8h32v4h-32zM32 12h48v4h-48zM24 16h64v4h-64zM20 20h72v4h-72zM16 24h36v4h-36zM60 24h36v4h-36zM16 28h24v4h-24zM72 28h24v4h-24zM12 32h24v4h-24zM76 32h24v4h-24zM12 36h20v4h-20zM80 36h20v4h-20zM8 40h20v4h-20zM84 40h20v4h-20zM8 44h20v4h-20zM48 44h16v4h-16zM84 44h20v4h-20zM8 48h20v4h-20zM44 48h24v4h-24zM84 48h20v4h-20zM8 52h16v4h-16zM44 52h24v4h-24zM88 52h16v4h-16zM8 56h16v4h-16zM44 56h24v4h-24zM88 56h16v4h-16zM8 60h20v4h-20zM44 60h24v4h-24zM84 60h20v4h-20zM8 64h20v4h-20zM48 64h16v4h-16zM84 64h20v4h-20zM8 68h20v4h-20zM84 68h20v4h-20zM12 72h20v4h-20zM80 72h20v4h-20zM12 76h24v4h-24zM76 76h24v4h-24zM16 80h24v4h-24zM72 80h24v4h-24zM16 84h36v4h-36zM60 84h36v4h-36zM20 88h72v4h-72zM24 92h64v4h-64zM32 96h48v4h-48zM40 100h32v4h-32z"/></g>
+        </g>
+        <text class="ba-label" x="72" y="148">Before</text><text class="ba-label" x="248" y="148">After</text>
+      </svg>
+      <h3>Four times the pixels</h3>
+      <p>The menus, loading screens, mission books, medals and pilot photos get four times the pixels. The textures of the 3D world get twice. Setup makes them on your Mac.</p>
+    </article>
+
+    <article class="ba-card reveal">
+      <svg class="ba" viewBox="0 0 320 160" role="img" aria-label="The letters Ab, blurred and blocky before, and drawn again sharp after.">
+        <defs><filter id="letter-blur" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.6"/></filter></defs>
+        <g class="panel before" transform="translate(8 8)">
+          <rect class="pf" width="128" height="112"/>
+          <path class="px soft" d="M8 0h24v8h-24zM48 0h8v8h-8zM0 8h8v8h-8zM32 8h8v8h-8zM48 8h8v8h-8zM0 16h8v8h-8zM32 16h8v8h-8zM48 16h32v8h-32zM0 24h40v8h-40zM48 24h8v8h-8zM80 24h8v8h-8zM0 32h8v8h-8zM32 32h8v8h-8zM48 32h8v8h-8zM80 32h8v8h-8zM0 40h8v8h-8zM32 40h8v8h-8zM48 40h8v8h-8zM80 40h8v8h-8zM0 48h8v8h-8zM32 48h8v8h-8zM48 48h32v8h-32z" transform="translate(20 28)" filter="url(#letter-blur)"/>
+        </g>
+        <path class="ba-arrow" d="M147 64h24m-8-7 8 7-8 7"/>
+        <g class="panel after" transform="translate(184 8)">
+          <rect class="pf" width="128" height="112"/>
+          <text class="glyph" x="64" y="80">Ab</text>
+        </g>
+        <text class="ba-label" x="72" y="148">Before</text><text class="ba-label" x="248" y="148">After</text>
+      </svg>
+      <h3>Letters like the original</h3>
+      <p>The letters on the pilot screens, in the mission book and in the briefing are drawn again from matching fonts. Their strokes keep the weight and soft grey of the original. The hand-painted signs on the main menu are drawn again from the game's own pixels.</p>
+    </article>
+
+    <article class="ba-card reveal">
+      <svg class="ba" viewBox="0 0 320 160" role="img" aria-label="Before, a wide window stretches a circle into an oval. After, the window keeps its shape and the circle stays round.">
+        <g class="panel before" transform="translate(8 8)">
+          <rect class="pf" width="128" height="112"/>
+          <g class="win stretch">
+            <rect class="win-frame" x="10" y="26" width="108" height="64" rx="4"/>
+            <path class="win-bar" d="M10 36H118"/>
+            <circle cx="17" cy="31" r="1.8" class="win-dot"/><circle cx="23" cy="31" r="1.8" class="win-dot"/><circle cx="29" cy="31" r="1.8" class="win-dot"/>
+            <ellipse cx="64" cy="63" rx="40" ry="20" class="win-ball"/>
+          </g>
+        </g>
+        <path class="ba-arrow" d="M147 64h24m-8-7 8 7-8 7"/>
+        <g class="panel after" transform="translate(184 8)">
+          <rect class="pf" width="128" height="112"/>
+          <g class="win keep">
+            <rect class="win-frame" x="24" y="16" width="80" height="70" rx="4"/>
+            <path class="win-bar" d="M24 26H104"/>
+            <circle cx="31" cy="21" r="1.8" class="win-dot"/><circle cx="37" cy="21" r="1.8" class="win-dot"/><circle cx="43" cy="21" r="1.8" class="win-dot"/>
+            <circle cx="64" cy="56" r="21" class="win-ball"/>
+            <path class="win-grip" d="M96 78l10 10m0-7v7h-7"/>
+          </g>
+        </g>
+        <text class="ba-label" x="72" y="148">Before</text><text class="ba-label" x="248" y="148">After</text>
+      </svg>
+      <h3>A window that keeps its shape</h3>
+      <p>The game opens in a normal Mac window. Drag an edge or click the green button. The window keeps the picture's shape, so nothing is stretched.</p>
+    </article>
+
+    <article class="ba-card reveal">
+      <svg class="ba" viewBox="0 0 320 160" role="img" aria-label="Before, the Mac pointer moves a little and the game's pointer moves four times as far. After, both move the same way.">
+        <defs><path id="cursor" d="M0 0V15L4 11L7 17L9.5 16L6.5 10H12Z"/></defs>
+        <g class="panel before" transform="translate(8 8)">
+          <rect class="pf" width="128" height="112"/>
+          <text class="mini" x="8" y="20">Mac pointer</text>
+          <path class="track" d="M12 40H120"/>
+          <use href="#cursor" class="cur mac" x="12" y="32"/>
+          <text class="mini" x="8" y="68">Game pointer</text>
+          <path class="track" d="M12 88H120"/>
+          <use href="#cursor" class="cur game far" x="12" y="80"/>
+        </g>
+        <path class="ba-arrow" d="M147 64h24m-8-7 8 7-8 7"/>
+        <g class="panel after" transform="translate(184 8)">
+          <rect class="pf" width="128" height="112"/>
+          <text class="mini" x="8" y="20">Mac pointer</text>
+          <path class="track" d="M12 40H120"/>
+          <use href="#cursor" class="cur mac" x="12" y="32"/>
+          <text class="mini" x="8" y="68">Game pointer</text>
+          <path class="track" d="M12 88H120"/>
+          <use href="#cursor" class="cur game" x="12" y="80"/>
+        </g>
+        <text class="ba-label" x="72" y="148">Before</text><text class="ba-label" x="248" y="148">After</text>
+      </svg>
+      <h3>A pointer that follows your mouse</h3>
+      <p>The menu pointer now moves as far as the Mac pointer. Before, it went four times as far. Its speed follows your Mac's mouse setting.</p>
+    </article>
+
+    <article class="ba-card reveal">
+      <svg class="ba" viewBox="0 0 320 160" role="img" aria-label="A plane's path on film. The game's video shows it 15 times a second. The made video adds three frames between each two, for 60 a second.">
+        <g class="panel before" transform="translate(8 8)">
+          <rect class="pf film" width="128" height="112"/>
+          <path class="perf" d="M6 6h8M22 6h8M38 6h8M54 6h8M70 6h8M86 6h8M102 6h8M118 6h4M6 106h8M22 106h8M38 106h8M54 106h8M70 106h8M86 106h8M102 106h8M118 106h4"/>
+          <g class="film-planes"><use href="#mini-plane" x="-9" y="-9" width="18" height="18" transform="translate(18.0 86.0) rotate(92)" style="--i:0"/><use href="#mini-plane" x="-9" y="-9" width="18" height="18" transform="translate(68.0 73.0) rotate(59)" style="--i:1"/><use href="#mini-plane" x="-9" y="-9" width="18" height="18" transform="translate(110.0 30.0) rotate(33)" style="--i:2"/></g>
+        </g>
+        <path class="ba-arrow" d="M147 64h24m-8-7 8 7-8 7"/>
+        <g class="panel after" transform="translate(184 8)">
+          <rect class="pf film" width="128" height="112"/>
+          <path class="perf" d="M6 6h8M22 6h8M38 6h8M54 6h8M70 6h8M86 6h8M102 6h8M118 6h4M6 106h8M22 106h8M38 106h8M54 106h8M70 106h8M86 106h8M102 106h8M118 106h4"/>
+          <g class="film-planes"><use href="#mini-plane" x="-9" y="-9" width="18" height="18" transform="translate(18.0 86.0) rotate(92)" style="--i:0"/><use href="#mini-plane" x="-9" y="-9" width="18" height="18" transform="translate(31.2 85.6) rotate(84)" class="tween" style="--i:1"/><use href="#mini-plane" x="-9" y="-9" width="18" height="18" transform="translate(44.0 83.2) rotate(75)" class="tween" style="--i:2"/><use href="#mini-plane" x="-9" y="-9" width="18" height="18" transform="translate(56.2 79.1) rotate(67)" class="tween" style="--i:3"/><use href="#mini-plane" x="-9" y="-9" width="18" height="18" transform="translate(68.0 73.0) rotate(59)" style="--i:4"/><use href="#mini-plane" x="-9" y="-9" width="18" height="18" transform="translate(79.2 65.1) rotate(51)" class="tween" style="--i:5"/><use href="#mini-plane" x="-9" y="-9" width="18" height="18" transform="translate(90.0 55.2) rotate(44)" class="tween" style="--i:6"/><use href="#mini-plane" x="-9" y="-9" width="18" height="18" transform="translate(100.2 43.6) rotate(38)" class="tween" style="--i:7"/><use href="#mini-plane" x="-9" y="-9" width="18" height="18" transform="translate(110.0 30.0) rotate(33)" style="--i:8"/></g>
+        </g>
+        <text class="ba-label" x="72" y="148">15 a second</text><text class="ba-label" x="248" y="148">60 a second</text>
+      </svg>
+      <h3>Sharper intro videos</h3>
+      <p>Optional. The two intro videos can be made four times as large, at 60 frames a second. That is a long run with about 10 GB of downloads. It is still being tested.</p>
+    </article>
+
+    <article class="ba-card reveal">
+      <svg class="ba" viewBox="0 0 320 160" role="img" aria-label="A dial at 120 pictures a second with heat waves, and a dial at 60 with none.">
+        <g class="panel before" transform="translate(8 8)">
+          <rect class="pf" width="128" height="112"/>
+          <path class="dial" d="M24 84A40 40 0 0 1 104 84"/>
+          <path class="tick" d="M24 84h6M98 84h6M64 44v6M35.7 55.7l4.2 4.2M92.3 55.7l-4.2 4.2"/>
+          <g class="needle" transform="translate(64 84) rotate(90)"><g class="wobble"><path d="M0 0V-34"/><circle r="4"/></g></g>
+          <text class="dial-num" x="64" y="104">120</text>
+          <path class="heat" d="M104 20c-4 5 4 9 0 14M114 16c-4 5 4 9 0 14M94 24c-4 5 4 9 0 14"/>
+        </g>
+        <path class="ba-arrow" d="M147 64h24m-8-7 8 7-8 7"/>
+        <g class="panel after" transform="translate(184 8)">
+          <rect class="pf" width="128" height="112"/>
+          <path class="dial" d="M24 84A40 40 0 0 1 104 84"/>
+          <path class="tick" d="M24 84h6M98 84h6M64 44v6M35.7 55.7l4.2 4.2M92.3 55.7l-4.2 4.2"/>
+          <g class="needle" transform="translate(64 84)"><path d="M0 0V-34"/><circle r="4"/></g>
+          <text class="dial-num" x="64" y="104">60</text>
+        </g>
+        <text class="ba-label" x="72" y="148">Default</text><text class="ba-label" x="248" y="148">--fps=60</text>
+      </svg>
+      <h3>A cooler, quieter Mac</h3>
+      <p>On a ProMotion screen the game draws 120 pictures a second. Start it with <code>--fps=60</code> and it draws at most 60. The Mac stays cooler.</p>
+    </article>
+
+  </div>
+</section>
+
 <section class="blueprint" id="extras" aria-labelledby="extras-h">
   <div class="wrap">
-    <h2 id="extras-h">What the kit adds</h2>
-    <p class="intro">On top of the original game you get this.</p>
+    <h2 id="extras-h">What else the kit adds</h2>
+    <p class="intro">On top of the sharper picture you get this.</p>
     <div class="bp-grid">
       <svg class="exploded" viewBox="90 8 800 436" role="img" aria-labelledby="exploded-title">
         <title id="exploded-title">Exploded side view of a fighter plane, with letters A to F pointing at its parts.</title>
@@ -238,7 +563,7 @@ cd dogfighter
         <g class="bp-part" transform="translate(0 64)"><path d="M470,226 C500,214 600,214 650,226 C600,238 510,240 470,226 Z"/><path class="thin" d="M480,226 H640"/></g>
         <g class="bp-part" transform="translate(0 100)"><path d="M592,240 L600,300"/><circle cx="600" cy="314" r="20"/><circle cx="600" cy="314" r="6"/></g>
         <g class="bp-part" transform="translate(48 0)"><path d="M704,188 C724,190 740,200 744,205 C740,210 724,220 704,222 Z"/></g>
-        <g class="bp-part" transform="translate(96 0)"><rect x="716" y="112" width="10" height="186" rx="5"/></g>
+        <g class="bp-part bp-prop" transform="translate(96 0)"><rect x="716" y="112" width="10" height="186" rx="5"/></g>
         <g class="callouts">
           <path d="M817,150 L860,96"/><g transform="translate(860 82)"><circle r="18"/><text y="7">A</text></g>
           <path d="M560,92 L600,40"/><g transform="translate(612 30)"><circle r="18"/><text y="7">B</text></g>
@@ -249,12 +574,36 @@ cd dogfighter
         </g>
       </svg>
       <dl class="legend">
-        <div><dt><span>A</span> Speed</dt><dd>About 100 frames a second in flight on macOS 26.4 or later. Missions load in 2 to 5 seconds. Measured on an M4 Max.</dd></div>
-        <div><dt><span>B</span> A sharper picture</dt><dd>The 3D world uses every pixel of a Retina screen. Textures get twice the pixels. Menus and loading screens get four times. Your Mac makes them from your own disc. The plane paintings and the kit boxes and paint tins on the main menu are drawn from photos of real model-kit boxes and a paint tin. Setup downloads those photos.</dd></div>
-        <div><dt><span>C</span> Clear letters</dt><dd>The pilot screens, the mission book and the briefing are redrawn from matching fonts. Text stays crisp in a big window.</dd></div>
-        <div><dt><span>D</span> Controllers</dt><dd>Xbox, PlayStation and Switch Pro controllers and USB joysticks should work. Nobody has tried a real one yet.</dd></div>
-        <div><dt><span>E</span> Music and saves</dt><dd>The music comes from the disc's audio tracks. One command backs up your pilots and saves.</dd></div>
-        <div><dt><span>F</span> Friends</dt><dd>Fly against each other over the internet. Use Tailscale and skip the router setup.</dd></div>
+        <div class="reveal">
+          <svg class="icon" viewBox="0 0 40 40" aria-hidden="true"><path d="M6 28a14 14 0 0 1 28 0"/><path d="M20 28l8-9"/><circle cx="20" cy="28" r="2.5"/><path d="M9 28h3M28 28h3M20 14v3"/></svg>
+          <dt><span>A</span> Speed</dt>
+          <dd>About 100 frames a second in flight on macOS 26.4 or later. At full Retina size it measured 62 to 89. Missions load in 2 to 5 seconds. Measured on an M4 Max.</dd>
+        </div>
+        <div class="reveal">
+          <svg class="icon" viewBox="0 0 40 40" aria-hidden="true"><path d="M10 13h20c4 0 6 3 7 8l1 6c1 4-3 6-6 3l-4-4H12l-4 4c-3 3-7 1-6-3l1-6c1-5 3-8 7-8z"/><path d="M12 17v6M9 20h6"/><circle cx="27" cy="18" r="1.5"/><circle cx="31" cy="21" r="1.5"/></svg>
+          <dt><span>B</span> Controllers</dt>
+          <dd>Xbox, PlayStation and Switch Pro controllers and USB joysticks should work. The launcher turns Joystick on when one is connected. Nobody has tried a real one yet.</dd>
+        </div>
+        <div class="reveal">
+          <svg class="icon" viewBox="0 0 40 40" aria-hidden="true"><circle cx="17" cy="21" r="13"/><circle cx="17" cy="21" r="3.5"/><path d="M29 6v13"/><path d="M29 6l7 2v5l-7-2"/><circle cx="27" cy="20" r="2.5"/></svg>
+          <dt><span>C</span> Music</dt>
+          <dd>The music comes from the disc's audio tracks. Setup copies them, so you play without the disc.</dd>
+        </div>
+        <div class="reveal">
+          <svg class="icon" viewBox="0 0 40 40" aria-hidden="true"><rect x="3" y="10" width="13" height="10" rx="1.5"/><path d="M1 24h17"/><rect x="24" y="10" width="13" height="10" rx="1.5"/><path d="M22 24h17"/><path d="M10 28c3 7 17 7 20 0" stroke-dasharray="2 3"/></svg>
+          <dt><span>D</span> Friends</dt>
+          <dd>Fly against each other over the internet. Use Tailscale and skip the router setup. <code>--join=ADDRESS</code> adds a friend's game to the Address book.</dd>
+        </div>
+        <div class="reveal">
+          <svg class="icon" viewBox="0 0 40 40" aria-hidden="true"><path d="M6 14h28v20H6z"/><path d="M4 8h32v6H4z"/><path d="M20 18v10m-4-4 4 4 4-4"/></svg>
+          <dt><span>E</span> Saves and backups</dt>
+          <dd><code>--backup</code> puts your pilots and settings in a dated zip file. <code>--restore</code> puts the newest one back.</dd>
+        </div>
+        <div class="reveal">
+          <svg class="icon" viewBox="0 0 40 40" aria-hidden="true"><rect x="8" y="6" width="24" height="30" rx="2"/><path d="M15 4h10v5H15z"/><path d="M12 17l2 2 4-4M12 26l2 2 4-4M21 17h7M21 26h7"/></svg>
+          <dt><span>F</span> Self-test</dt>
+          <dd><code>--doctor</code> checks the install without starting the game. It prints a fix for each problem and lists your controllers.</dd>
+        </div>
       </dl>
     </div>
   </div>
@@ -262,14 +611,16 @@ cd dogfighter
 
 <section class="sheet wrap" id="finish" aria-labelledby="finish-h">
   <h2 id="finish-h">Choose a finish</h2>
-  <p class="intro">Add one of these after <code>./dogfighter</code>. The <a href="https://github.com/natemate90/dogfighter#readme">README</a> lists them all.</p>
+  <p class="intro">Add one of these after <code>./dogfighter</code>. The <a href="https://github.com/natemate90/dogfighter#all-options">README</a> lists them all.</p>
   <ul class="tins">
-    <li style="--tin: var(--green)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">1</text></svg><code>./dogfighter</code><p>Highest picture quality by default.</p></li>
-    <li style="--tin: var(--earth)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">2</text></svg><code>--original</code><p>The game exactly as it looked in 2000.</p></li>
-    <li style="--tin: var(--sky)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">3</text></svg><code>--no-hd-textures</code><p>Full Retina detail on the old textures.</p></li>
-    <li style="--tin: var(--plastic)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">4</text></svg><code>--mute</code><p>No sound. Only for this start.</p></li>
-    <li style="--tin: var(--red)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">5</text></svg><code>--doctor</code><p>Checks the install and prints a fix for each problem.</p></li>
-    <li style="--tin: var(--blue)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">6</text></svg><code>--backup</code><p>Puts your pilots and settings in a dated zip file.</p></li>
+    <li class="reveal" style="--tin: var(--green)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">1</text></svg><code>./dogfighter</code><p>The best picture, by default.</p></li>
+    <li class="reveal" style="--tin: var(--earth)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">2</text></svg><code>--original</code><p>The game as it looked in 2000.</p></li>
+    <li class="reveal" style="--tin: var(--sky)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">3</text></svg><code>--fps=60</code><p>At most 60 pictures a second.</p></li>
+    <li class="reveal" style="--tin: var(--plastic)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">4</text></svg><code>--mute</code><p>No sound. Only for this start.</p></li>
+    <li class="reveal" style="--tin: var(--wood)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">5</text></svg><code>--no-hd-textures</code><p>The game's own textures, still at full Retina size.</p></li>
+    <li class="reveal" style="--tin: var(--red)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">6</text></svg><code>--doctor</code><p>Checks the install and prints a fix for each problem.</p></li>
+    <li class="reveal" style="--tin: var(--blue)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">7</text></svg><code>--backup</code><p>Puts your pilots and settings in a dated zip file.</p></li>
+    <li class="reveal" style="--tin: var(--mat)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">8</text></svg><code>--restore</code><p>Puts the newest backup back.</p></li>
   </ul>
 </section>
 
@@ -283,8 +634,8 @@ cd dogfighter
       <a href="https://github.com/natemate90/dogfighter/blob/main/docs/TECHNICAL.md">How it works</a>
       <a href="https://github.com/natemate90/dogfighter/issues">Report a problem</a>
     </nav>
-    <p class="disclaimer">This is an unofficial fan project. It is not affiliated with or endorsed by Airfix, Hornby Hobbies, Paradox, Unique Development Studios or the other original makers of the game. It contains no game files. You need your own original disc. All trademarks belong to their owners.</p>
-    <p class="made">Made by <a href="https://github.com/natemate90">natemate90</a>. This site uses no cookies and no tracking.</p>
+    <p class="disclaimer">This is an unofficial fan project. It is not affiliated with or endorsed by Airfix, Hornby Hobbies, Paradox, Unique Development Studios or the other original makers of the game. It contains no game files. You need your own original disc. All trademarks belong to their owners. All drawings on this site are made for it and show no game art.</p>
+    <p class="made">Made by <a href="https://github.com/natemate90">natemate90</a>. This site uses no cookies and no tracking. The video loads from YouTube only when you click it.</p>
   </div>
 </footer>
 
@@ -299,6 +650,16 @@ cd dogfighter
       <path d="M0,1 L10,1" class="mp-line"/>
       <path d="M3,-3 C4,-7 9,-7 10,-3.5" class="mp-glass"/>
       <path d="M19,-7 L19,9" class="mp-prop"/>
+    </g>
+    <g id="toy-body" style="stroke: var(--ink); stroke-width: 1.4; stroke-linejoin: round">
+      <path style="fill: var(--hull)" d="M-36 -1L-41 -17C-41.5 -19.5 -38.5 -20.5 -36.5 -18.5L-24 -4Z"/>
+      <path style="fill: var(--hull)" d="M-40 2C-36 0 -26 0 -22 2C-26 4 -36 4 -40 2Z"/>
+      <path style="fill: var(--hull)" d="M-39 -2C-22 -6 8 -9 22 -7C30 -6 34 -3 34 1C34 5 29 7 20 8C2 9 -22 6 -39 2Z"/>
+      <path style="fill: var(--band); stroke: none" d="M-21 -5L-16 -5.6L-16 7.2L-21 6.7Z"/>
+      <path style="fill: var(--hull)" d="M-6 3C0 0 18 0 22 3C18 6.5 0 6.5 -6 3Z"/>
+      <path style="fill: rgba(0, 0, 0, 0.16); stroke: none" d="M-6 3C0 0 18 0 22 3C18 6.5 0 6.5 -6 3Z"/>
+      <path style="fill: var(--glass)" d="M2 -7.5C4 -16 15 -16 18 -7.2Z"/>
+      <path style="fill: var(--nose)" d="M34 -4C38.5 -3 40.5 -0.5 40.5 1C40.5 2.5 38.5 5 34 6Z"/>
     </g>
     <symbol id="tin" viewBox="0 0 100 100">
       <path d="M12 36 V80 A38 12 0 0 0 88 80 V36" style="fill: var(--metal); stroke: var(--ink); stroke-width: 2.5"/>
