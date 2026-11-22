@@ -458,7 +458,7 @@ No upscaler and no AI is involved, and nothing is downloaded.
 | `typewriter` (2 pictures) | American Typewriter | Pilot Login, Pilot Roster, Mission Info, the message line in flight, the version label | 103 | 5: `Å` `-` `=` `#` `ß` |
 | `typewriter_small` (2 pictures) | American Typewriter | the mission book and the briefing papers | 100 | 6: `Å` `Ü` `È` `%`, the check mark `¤`, `ß` |
 | `system` | Arial | the console after `console_changefont system` | 70 | none |
-| `system12` | Helvetica | the console after `console_changefont system12` | 90 | 3: `#` `~` `¤` |
+| `system12` | Helvetica | the console after `console_changefont system12` | 89 | 4: `#` `~` `¤` `|` |
 
 `system8`, `aeroplane`, `digital_large` and `digital_small` keep the waifu2x way. They are drawn by hand or their typeface was not found. `system8` is the console's own font.
 
@@ -476,8 +476,10 @@ How it works:
 Checks, for each glyph:
 - The glyph is drawn with 3 pixels of room around its box and shrunk to the original size.
 - Inside the box it is compared with the original alpha. Ink outside the box counts as difference, since the box cuts it off.
-- The match runs from 0 to 100: 100 × (1 − difference / sum of both). It must reach 65. The drawn glyphs score 65 to 94. The same glyphs moved by one original pixel score 11 to 74, half of them under 57.
-- At most 25% of the glyph's ink may fall outside the box. The heavier strokes put up to 24% there, and the box cuts it off as the game's own glyphs are cut.
+- The match runs from 0 to 100: 100 × (1 − difference / sum of both). It must reach 60. This only catches a wrong glyph: the heavier, lighter strokes score 65 to 94 at the right place, and a glyph one pixel off often scores as well.
+- The glyph is also drawn one original pixel left, right, up and down. At its own place it must match at least 1 point better than at each of those. A glyph one pixel off has its right place next to it, which matches better, so it fails.
+- At most 5% of the glyph's ink may fall outside the box, measured on the glyph drawn with weight 0 and full alpha. The extra weight would put up to 24% there; the box cuts that off, as the game's own glyphs are cut.
+- Tested on all 363 drawn glyphs and their 1,452 one-pixel shifts: 362 glyphs pass and every shift fails. The one glyph that fails is the bar `|` of `system12`. It fills its box from top to bottom, so one pixel up matches exactly as well, and it keeps the made pixels.
 - A glyph that fails keeps the made pixels. The kept glyphs in the table fail one of these.
 - Outside the drawn boxes, the new picture must equal the made picture pixel for pixel. Else the whole picture stays as made.
 
@@ -633,17 +635,20 @@ How a box is drawn, by `tools/signs-draw.py`:
 - The lettering's share is enlarged 4x the smooth way and cut at the level that keeps its amount of ink, with a soft edge. So the strokes keep the original's shapes and weight.
 - Where the made picture shows the lettering's ink near the game's letters, it gets the game's paper, enlarged smoothly. Then the new letters are laid over.
 - The result goes back only into the pictures of that state: the screen's own tiles, or the highlight.
+- Other states lay pictures over parts of some boxes: the HOUSE EDITOR and OPTIONS highlights over MULTI-PLAYER, and the paper of both mission screens over OK, the objectives headings, MODEL, BACK and CHANGE MODEL. Where such a picture shows exactly the screen's own pixels in the box, it holds a copy of the sign and gets the box drawn for the screen. So the sign looks the same in every state.
+- A state whose pictures show the sign with other pixels must be listed and is drawn on its own: the highlights, and the briefing paper under BACK, whose top edge differs.
+- The other states over a box show something else there, such as the arrow buttons or the paper without its heading, and stay as made.
 
 What it needs and checks:
 - `tools/signs.json` holds the boxes, a rough ink colour per box, the states and the numbers of the drawing.
 - It runs in the desk's Python environment, `upscale-tools/desk/venv`. Without it the signs stay as made.
 - The game's pixels in each box must match a checksum per state. Another language's signs stay as made.
-- A box stays as made when its letters touch its edge, it holds too little lettering, or it scores under 18 dB against the game's pixels after shrinking. The drawn boxes score 24 to 38 dB.
+- A box stays as made when its letters touch its edge, it holds too little lettering, or it scores under 18 dB against the game's pixels after shrinking. The drawn boxes score 24 to 37 dB.
 - The desk, the paintings and the stamps are drawn over these pictures. Seven desk pieces carry new signs too and are listed with the way `desk` and a `sign` note.
 
 - The manifest lists a changed picture with the way `sign` and the boxes drawn in it.
 - `--no-signs` puts the made pictures back. `--menus-only` and `--lettering-only` draw them.
-- Two runs gave the same bytes. Drawing the 35 boxes takes a few seconds.
+- Two runs gave the same bytes. Drawing the 36 boxes into 41 pictures takes a few seconds.
 
 In the game, with full resolution, the main menu, the mission selection and the briefing were compared with the original game. The letters had the original's shapes, CAMPAIGN's G among them, and the headings had no light edges or stripes.
 Left as made: the stencil words in the mission books (SELECT AIRFORCE, ALLIES, AXIS, SELECT MISSION). The books are laid out differently in each state, so their boxes would differ per state.
