@@ -13,7 +13,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Domine:wght@400..700&family=Saira:ital,wdth,wght@0,100..125,600..900;1,100..125,600..900&family=Stardos+Stencil:wght@400;700&display=swap">
 <link rel="stylesheet" href="style.css">
-<script>document.documentElement.classList.add("js");</script>
 </head>
 <body>
 
@@ -30,7 +29,7 @@
 <section class="hero wrap" aria-labelledby="title">
   <div class="hero-text">
     <h1 id="title"><span class="t1">Dogfighter</span><span class="t2">for Apple Silicon Macs</span></h1>
-    <p class="lede">Airfix Dogfighter is a Windows game from 2000. Model planes fight through a house. This project makes it run on a Mac with M1 or later, in a sharp Retina window. You bring your own original disc.</p>
+    <p class="lede">Airfix Dogfighter is a Windows game from 2000. Model planes fight through a house. This project runs it in a sharp Retina window on a Mac with M1 or later. It was tested on an M4 Max. You bring your own original disc.</p>
     <p class="cta"><a class="button" href="#assembly">How to install</a> <a class="button ghost" href="#sharper">What is new</a></p>
   </div>
   <div class="scene-box">
@@ -105,7 +104,7 @@
         <g transform="translate(118 354) scale(0.85) rotate(-9)">
           <use href="#toy-body" style="--hull: var(--earth); --nose: var(--red); --band: var(--paper); --glass: var(--sky)"/>
         </g>
-        <text x="206" y="384" class="box-scale">1:72</text>
+        <rect x="172" y="370" width="38" height="17" rx="2" class="box-label"/><text x="191" y="383" class="box-scale">1:72</text>
       </g>
 
       <use href="#tin" x="470" y="300" width="70" height="70" style="--tin: var(--red)"/>
@@ -118,27 +117,28 @@
 
       <path id="hero-loop" class="hero-path" d="M-80 215C90 215 220 218 300 215C352 213 394 180 394 134C394 88 360 52 318 52C274 52 250 90 252 132C254 180 296 210 350 210C460 210 580 198 720 190"/>
 
-      <g class="flyer">
+      <g data-pose transform="translate(292 215) rotate(-1)"><g class="flyer">
         <g transform="scale(0.92)">
-          <path class="tracer" d="M50 1h9M68 1h9M86 1h9"><animate attributeName="opacity" values="0;0;1;0;1;0;0;0" dur="1.6s" repeatCount="indefinite"/></path>
+          <path class="tracer" d="M50 1h9M68 1h9M86 1h9"><animate begin="indefinite" attributeName="opacity" values="0;0;1;0;1;0;0;0" dur="1.6s" repeatCount="indefinite"/></path>
           <use href="#toy-body" style="--hull: var(--blue); --nose: #e8b93a; --band: #e8b93a; --glass: var(--sky)"/>
-          <g transform="translate(41 1)"><ellipse rx="2.6" ry="16" class="prop-disc"/><path d="M0-16V16" class="prop-blade"><animateTransform attributeName="transform" type="scale" values="1 1;1 0.15;1 1" dur="0.14s" repeatCount="indefinite"/></path></g>
+          <g transform="translate(41 1)"><ellipse rx="2.6" ry="16" class="prop-disc"/><path d="M0-16V16" class="prop-blade"><animateTransform begin="indefinite" attributeName="transform" type="scale" values="1 1;1 0.15;1 1" dur="0.14s" repeatCount="indefinite"/></path></g>
         </g>
-        <animateMotion dur="6s" begin="-5.1s" repeatCount="indefinite" rotate="auto"><mpath href="#hero-loop"/></animateMotion>
-      </g>
-      <g class="flyer">
+        <animateMotion begin="indefinite" data-offset="-5.1" dur="6s" repeatCount="indefinite" rotate="auto"><mpath href="#hero-loop"/></animateMotion>
+      </g></g>
+      <g data-pose transform="translate(394 128) rotate(-90)"><g class="flyer">
         <g transform="scale(1.05)">
           <use href="#toy-body" style="--hull: var(--green); --nose: var(--red); --band: var(--sky); --glass: var(--sky)"/>
-          <g transform="translate(41 1)"><ellipse rx="2.6" ry="16" class="prop-disc"/><path d="M0-16V16" class="prop-blade"><animateTransform attributeName="transform" type="scale" values="1 1;1 0.15;1 1" dur="0.12s" repeatCount="indefinite"/></path></g>
+          <g transform="translate(41 1)"><ellipse rx="2.6" ry="16" class="prop-disc"/><path d="M0-16V16" class="prop-blade"><animateTransform begin="indefinite" attributeName="transform" type="scale" values="1 1;1 0.15;1 1" dur="0.12s" repeatCount="indefinite"/></path></g>
         </g>
-        <animateMotion dur="6s" begin="0s" repeatCount="indefinite" rotate="auto"><mpath href="#hero-loop"/></animateMotion>
-      </g>
+        <animateMotion begin="indefinite" dur="6s" repeatCount="indefinite" rotate="auto"><mpath href="#hero-loop"/></animateMotion>
+      </g></g>
     </svg>
   </div>
   <dl class="kitbox" aria-label="About this kit">
     <div><dt>Skill level</dt><dd><span class="pips" aria-hidden="true"><i class="on"></i><i class="on"></i><i></i><i></i></span> 2 of 4</dd></div>
-    <div><dt>You need</dt><dd>Your own game CD</dd></div>
-    <div><dt>Works on</dt><dd>M1 and later</dd></div>
+    <div><dt>Needs</dt><dd>A Mac with M1 or later</dd></div>
+    <div><dt>And</dt><dd>Your own game CD</dd></div>
+    <div><dt>Tested on</dt><dd>An M4 Max</dd></div>
     <div><dt>Price</dt><dd>Free</dd></div>
   </dl>
 </section>
@@ -334,10 +334,10 @@ cd dogfighter
       <span class="stepnum" aria-hidden="true">3</span>
       <svg class="diagram fly" viewBox="0 0 280 140" aria-hidden="true">
         <path id="loop" class="flightpath" d="M20,96 C70,96 90,30 140,30 C190,30 200,96 160,100 C120,104 120,60 170,56 C220,52 240,90 266,96"/>
-        <g class="miniplane">
+        <g data-pose transform="translate(140 30)"><g class="miniplane">
           <use href="#mini-plane-side" transform="scale(1.7)"/>
-          <animateMotion dur="7s" repeatCount="indefinite" rotate="auto" keyPoints="0;1" keyTimes="0;1" calcMode="linear"><mpath href="#loop"/></animateMotion>
-        </g>
+          <animateMotion begin="indefinite" dur="7s" repeatCount="indefinite" rotate="auto" keyPoints="0;1" keyTimes="0;1" calcMode="linear"><mpath href="#loop"/></animateMotion>
+        </g></g>
       </svg>
       <h3>Play</h3>
       <p>Start the game from Terminal. Or double-click <code>Dogfighter.app</code>. It opens in a normal Mac window you can resize. <kbd>Ctrl</kbd>+<kbd>Option</kbd> frees the mouse.</p>
@@ -348,7 +348,7 @@ cd dogfighter
 
 <section class="sheet wrap" id="sharper" aria-labelledby="sharper-h">
   <h2 id="sharper-h">Before and after</h2>
-  <p class="intro">The game starts with the best picture by itself. Your Mac makes the sharper pictures once, from your own disc. Nothing is uploaded. <code>--original</code> turns it all off.</p>
+  <p class="intro">The game starts with the best picture by itself. Your Mac makes the sharper pictures once, from your own game files. Setup also downloads some reference photos once. Nothing of yours is uploaded. <code>--original</code> turns it all off.</p>
   <div class="ba-grid">
 
     <article class="ba-card reveal">

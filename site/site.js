@@ -52,11 +52,19 @@
     });
   }
 
-  const stills = new Map([
-    [document.getElementById("scene"), 2.6],
-    [document.querySelector(".diagram.fly"), 2.2],
-  ]);
   const animated = [...document.querySelectorAll("svg")].filter((svg) => svg.querySelector("animate, animateMotion, animateTransform"));
+  let started = false;
+  function startAnimations() {
+    if (started) {
+      animated.forEach((svg) => svg.unpauseAnimations());
+      return;
+    }
+    started = true;
+    document.querySelectorAll("[data-pose]").forEach((g) => g.removeAttribute("transform"));
+    document.querySelectorAll("animate, animateMotion, animateTransform").forEach((el) => {
+      el.beginElementAt(Number(el.getAttribute("data-offset") || 0));
+    });
+  }
 
   const reveals = document.querySelectorAll(".reveal");
   const observer = "IntersectionObserver" in window
@@ -77,24 +85,24 @@
       last = -1;
       draw(0);
       caption.textContent = "The whole kit: eight parts on one frame.";
-      animated.forEach((svg) => {
-        svg.pauseAnimations();
-        svg.setCurrentTime(stills.get(svg) ?? 0);
-      });
+      if (started) animated.forEach((svg) => svg.pauseAnimations());
       reveals.forEach((el) => el.classList.add("in"));
     } else {
       document.documentElement.classList.remove("static");
       window.addEventListener("scroll", onScroll, { passive: true });
       window.addEventListener("resize", onScroll);
-      animated.forEach((svg) => svg.unpauseAnimations());
+      startAnimations();
       last = -1;
       onScroll();
-      if (observer) reveals.forEach((el) => el.classList.contains("in") || observer.observe(el));
-      else reveals.forEach((el) => el.classList.add("in"));
+      if (observer) {
+        document.documentElement.classList.add("js");
+        reveals.forEach((el) => el.classList.contains("in") || observer.observe(el));
+      }
     }
   }
 
-  reduce.addEventListener("change", setMode);
+  if (reduce.addEventListener) reduce.addEventListener("change", setMode);
+  else if (reduce.addListener) reduce.addListener(setMode);
   setMode();
 
   document.querySelectorAll(".yt").forEach((link) => {
