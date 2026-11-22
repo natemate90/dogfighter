@@ -92,6 +92,30 @@ The window title shows which of the two it is.
 Cmd+Tab also frees the mouse, and the game takes it back on return.
 The game was not made for task switching. The helper keeps it running after Cmd+Tab and brings it back to the front.
 
+### The pointer in the menus
+
+The game moves its menu pointer by `mouse_sensitivity` / 1000 times the square of each mouse move, in pixels of its own picture.
+That is in `NfMain::Input` in `AfEngine.dll`. The default `mouse_sensitivity` is 100.
+- A move twice as fast takes the pointer four times as far. The slider in Options changes the factor, not the square.
+- With full resolution Wine counts the window's pixels, two for each point on a Retina screen. So every move is twice the number and takes the pointer four times as far.
+- The picture is no larger on the screen for that. So the pointer was too fast, at every setting of the slider.
+
+The helper makes the pointer move as far over the picture as the Mac pointer moves over the window.
+- Wine's DirectInput gets each mouse move from a hook. The helper stands in front of that hook.
+- While the game shows its pointer, it replaces each move by the one whose square gives the right way. What rounding leaves over goes into the next move.
+- It reads `mouse_sensitivity` from the game. At 100, the game's own value, the pointer goes exactly as far as the Mac pointer. The slider "Menu mouse sensitivity" in Options makes the way longer or shorter in proportion: 50 is half.
+- The speed and the acceleration are the Mac's own, from System Settings.
+- In a flight the game hides its pointer. The moves then stay as they are, so steering with the mouse is not changed.
+- Only a build of `AfEngine.dll` with exactly that code is touched.
+- `--no-pointer-match` turns it off.
+
+Test runs sent mouse moves and asked the game where its pointer was, with the console command `pointer` of the test tool.
+In a 2301x1726 window, moves adding up to 400,100 took the pointer from 29.8,18.6 to 141.3,46.4 in the 640x480 picture. That is 111.5,27.8, and the same share of the window is 111.3,27.8.
+- The first move of that run, 100,60 after a fast move into the corner, ended 2 pixels too far. That is what the fast move's rounding had left over.
+- With `mouse_sensitivity` 50 a move of 100,60 gave 14.9,9.6, half the way.
+- In a flight's Esc menu, 1280x800 in a 2761x1726 window, 100,60 gave 46.4,27.8. In the flight itself the moves were not changed.
+Nobody has tried it with a real mouse yet.
+
 ## Wine builds
 
 There are two Wine builds, and the launcher picks one.
@@ -228,11 +252,27 @@ Nobody has compared it with full resolution off on a screen yet.
 That can stop far-away surfaces from flickering through each other.
 In the first mission the picture was the same with and without it.
 
-### `--keep-shape`
+### The shape of the window
 
-`--keep-shape` keeps the window in the shape of the game's picture when it is resized or zoomed.
-Without it, a window dragged to another shape stretches the picture.
-A zoomed window kept the 4:3 shape of the menus in a test; a drag by hand is not tried yet.
+The window keeps the shape of the game's picture when it is resized or zoomed.
+That is 4:3 in the menus and the shape of the flight resolution in a flight, for example 16:10.
+- The helper answers `WM_SIZING`, which Wine's Mac driver asks during a drag. The side that moved further leads and the other follows.
+- It also shapes every other change of size in `WM_WINDOWPOSCHANGING`, such as the green button.
+- The picture always fills the window, so there are no bars. Bars would need a second draw each frame, and the mouse would have to be kept inside the picture and not the window.
+- `--wide` does not change this. It widens the view angle for the flight resolution's shape, and the window has that shape.
+- `--no-keep-shape` lets the window take any shape. The picture is then stretched to fill it.
+- `--keep-shape` is still accepted. It is the default.
+
+In a test run the test tool asked for seven sizes as a drag does. The picture kept 4:3 each time, for example 2461x1846 and 2715x2036.
+A zoomed window kept the 4:3 shape of the menus in an earlier test. A drag by hand is not tried yet.
+
+### `--fps=N`
+
+`--fps=N` shows at most N pictures a second, from 15 to 1000.
+Without it the game draws as fast as the screen shows pictures: 120 a second on a ProMotion display.
+- The helper waits before it shows a picture, until 1/N second after the one before.
+- Each picture is due a fixed time after the last one was due, so a wait that runs long is made up for.
+- The game's own speed does not change. Only the number of pictures does.
 
 ### `--wide`
 
@@ -845,7 +885,11 @@ To override it, set a number from 0 to 99 in `game/winmm.ini`; 100 means "use th
 ## Saves
 
 Pilots, levels, photos and stickers live in `game/User`.
-Screenshots (Fn + F12) go to `game/ScreenShots`.
+Screenshots (Fn + F12) go to `game/ScreenShots`, as `Img00000.tga` and up, in the game's own resolution.
+- The game takes one only for a key that `game/user.ini` binds to `screenshot`. It writes that file again at every quit.
+- The first play test's file had lost its `bind F12 "screenshot"` line, so F12 did nothing.
+- At each start the launcher adds that line when no key is bound to `screenshot` and F12 is free. It says so in one line.
+- Keys work in a flight, not in the menus. That is the game's own rule.
 
 `./dogfighter --backup` writes `backups/saves-<date>-<time>.zip`.
 The zip holds `game/User`, `game/user.ini` and `game/system.ini`.
@@ -898,7 +942,7 @@ If it does not, type the address into the Address book in the game.
 
 The key table in the README holds the defaults from `game/user.ini` and `game/readme.txt`.
 Setup adds `x` for "next weapon" to a new `game/user.ini`, because MacBooks have no keypad.
-An existing `game/user.ini` is never changed.
+The keys in an existing `game/user.ini` are never changed, with one exception: F12 gets `screenshot` back when no key has it (see Saves).
 
 ### Controllers
 
@@ -955,6 +999,9 @@ Not done for controllers:
 ## Troubleshooting
 
 - **Logs.** Each start writes `logs/run-<date>-<time>.log`. The music player's log is next to it, ending in `-music.log`.
+- **Lines with `err:` in the log.** Wine's messages go to the log only, never to Terminal. Two kinds are in every log on Mach9 and are harmless. The log ends with a note on each.
+  - `err:d3d:wined3d_check_gl_call ... GL_INVALID_FRAMEBUFFER_OPERATION (0x506) from glClear`, 10 to 20 times. The game makes a Direct3D device ten times while it starts. For each one Wine clears the new window once (`wined3d_context_gl_init`, only for a new drawable). The game's window is not on the screen yet, so OpenGL leaves the clear out. Each line comes once or twice from a new thread, before the first picture, and never again.
+  - `err:ntoskrnl:ZwLoadDriver failed to create driver ... winebth`. Wine's Bluetooth driver does not load on a Mac. The game does not use it. Controllers come in through `winebus.sys`.
 - **The helper is missing.** If the launcher says `focusfix.exe` or `focushook.dll` is missing, run `./setup.sh` again.
 - **Testing without the helper.** `--no-focusfix` runs the game in a plain Wine desktop window. The picture is not scaled, the window cannot be resized, the game stops when it loses the focus, and you press OK in the setup dialog yourself. The picture is the original one, as with `--original`: no full resolution, no larger textures. A crashed start is started again, a hung one is not: end it with `./dogfighter --stop`.
 - **No music.** Check that `music/` holds ten `.ogg` files and that `game/winmm.dll` exists. Run `./setup.sh` again if not.
@@ -978,7 +1025,10 @@ Not done for controllers:
 | `--no-hd-videos` | Let the game play its own intro videos. |
 | `--smooth=N` | Smooth jagged edges with N samples per pixel: 0, 2 or 4. Without it the launcher uses 4. |
 | `--deep-z` | Give the game a 24-bit depth buffer where it asks for 16 bits. |
-| `--keep-shape` | Keep the window in the shape of the game's picture when you resize or zoom it. |
+| `--keep-shape` | On by default. Keep the window in the shape of the game's picture when you resize or zoom it. |
+| `--no-keep-shape` | Let the window take any shape. The picture is then stretched to fill it. |
+| `--fps=N` | Show at most N pictures a second, from 15 to 1000, e.g. `--fps=60`. |
+| `--no-pointer-match` | Leave the speed of the pointer in the menus to the game. |
 | `--original` | Leave the picture as the game made it: its settings, its resolution, its textures, its intro videos. |
 | `--mute` | Start the game without sound. |
 | `--no-auto-joystick` | Do not turn on Joystick in the game's Options when a controller is connected. |
@@ -1015,7 +1065,7 @@ Test runs follow the same picture defaults as a normal start.
 | `--diag=press-cancel` | For `--setup`: presses Cancel there. |
 | `--diag-keys=SECONDS:SCANCODE[:HOLDSECONDS],...` | Presses keys, as scan codes in hex. `1d38` presses Ctrl+Option. Codes from 80 up are the extended keys, such as `c8` Up and `d0` Down. With HOLDSECONDS the key stays down that long. Keys whose times overlap are down together. Both times can have decimals. |
 | `--diag-mouse=SECONDS:DX:DY[:c\|:o],...` | Moves the mouse, and with `:c` clicks. |
-| `--diag-console=SECONDS:COMMAND` | Runs a game console command, with `+` for each space and `++` for a `+` itself. `40:++thrustinc` starts the game's held action `+thrustinc` as a key press does, and `45:-thrustinc` ends it. The game's console does not know these names, so the helper runs `thrustinc 1` and `thrustinc 0`, as the game does for a bound key. Of three `+` in a row the first is the space. A command with a real space in it is taken as written, and every `+` in it is a `+` itself: `--diag-console='40:bind x +fire'`. SECONDS can have decimals. Letters, digits, spaces and `_ . + -` are allowed. A command that is due during the game's intro videos waits for the main menu. On Mach9 a mission started during them ends the game with exit code -1. |
+| `--diag-console=SECONDS:COMMAND` | Runs a game console command, with `+` for each space and `++` for a `+` itself. `40:++thrustinc` starts the game's held action `+thrustinc` as a key press does, and `45:-thrustinc` ends it. The game's console does not know these names, so the helper runs `thrustinc 1` and `thrustinc 0`, as the game does for a bound key. Of three `+` in a row the first is the space. A command with a real space in it is taken as written, and every `+` in it is a `+` itself: `--diag-console='40:bind x +fire'`. SECONDS can have decimals. Letters, digits, spaces and `_ . + -` are allowed. A command that is due during the game's intro videos waits for the main menu. On Mach9 a mission started during them ends the game with exit code -1. `pointer` is not a game command: the helper writes to the log where the game's menu pointer is and what it did to the mouse moves. |
 | `--diag-display=right` | Opens the game window on the display furthest to the right. |
 | `--diag-hold` | Holds the mouse, as a normal start does. |
 | `--diag-sound` | Keeps the sound, as a normal start does. |
@@ -1043,7 +1093,9 @@ Collected from the sections above.
 - Mach9 on an M1. Nobody has played a whole mission on Mach9.
 - Full resolution, now the default: nobody has looked at it on a screen.
 - `--retina`: nobody has compared it with full resolution off on a screen.
-- `--keep-shape`: a drag by hand.
+- The window keeping the picture's shape, now the default: a drag by hand.
+- The pointer in the menus: a real mouse or trackpad. Only moves sent by the test tool were measured.
+- `--fps=N`: how a capped flight feels.
 - `--wide`: not judged by a person.
 - `--deep-z`: only the first mission was compared.
 - `--scale 4` and the generative textures: longer missions.
