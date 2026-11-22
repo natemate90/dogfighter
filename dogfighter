@@ -8,7 +8,7 @@ Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [-
                   [--smooth=0|2|4] [--deep-z] [--keep-shape] [--mute] [--no-auto-joystick]
                   [--setup] [--no-focusfix] [--wine=NAME] [--wine-rule=KEY=VALUE]
                   [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|move-test|start-test|stall-test|crash-test|fallback-test|draw-test|press-ok|press-cancel]]
-                  [--diag-keys=SECONDS:SCANCODE,...] [--diag-mouse=SECONDS:DX:DY[:c|:o],...]
+                  [--diag-keys=SECONDS:SCANCODE[:HOLDSECONDS],...] [--diag-mouse=SECONDS:DX:DY[:c|:o],...]
                   [--diag-console=SECONDS:COMMAND] [--diag-display=right] [--diag-hold] [--diag-sound]
                   [--diag-hd-dir=FOLDER] [--diag-draws] [--diag-shot-on=TEXT]
                   [--diag-intros-shown=COUNT]
@@ -139,6 +139,11 @@ Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [-
   --diag-keys=LIST  Press keys in a test run, e.g. --diag-keys=30:1c,45:3b presses
                     Enter 30 seconds after the first picture and F1 at 45 seconds.
                     The codes are keyboard scan codes in hex. 1d38 presses Ctrl+Option.
+                    Codes from 80 up are the extended keys: c8 Up, d0 Down, cb Left,
+                    cd Right. A third number holds the key down that long:
+                    --diag-keys=45:20:20,60:c8:5 holds D from 45 to 65 seconds and Up
+                    from 60 to 65. Keys whose times overlap are down together.
+                    Both times can have decimals, e.g. 45.5:39:0.25.
   --diag-mouse=LIST Move the mouse in a test run, e.g. --diag-mouse=20:300:150:c moves
                     it 300 right and 150 down at 20 seconds and then clicks. Without
                     :c it only moves. :o in place of :c first puts the system pointer
@@ -146,7 +151,14 @@ Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [-
                     the mouse, not the keyboard.
   --diag-console=SECONDS:COMMAND
                     Run a game console command in a test run, e.g.
-                    --diag-console=30:mode+Singleplayer, with + for each space.
+                    --diag-console=30:mode+Singleplayer, with + for each space
+                    and ++ for a + itself. --diag-console=40:++thrustinc starts
+                    the game's held action +thrustinc as a key press does, and
+                    45:-thrustinc ends it as the key's release does. Of three
+                    + in a row the first is the space: bind+x+++fire is
+                    "bind x +fire". SECONDS can have decimals. Letters, digits,
+                    spaces and _ . + - are allowed. Give the commands in order
+                    of time.
                     Can be given more than once. A command that is due while
                     the game still plays its intro videos waits for the main
                     menu: on Mach9 a mission started during them ends the game.
@@ -310,7 +322,8 @@ for size in "$WINDOW_SIZE" "$GAME_RES"; do
   [[ -z "$size" || "$size" =~ ^[0-9]+x[0-9]+$ ]] || { echo "Bad size: $size" >&2; exit 2; }
 done
 if [ -n "$DIAG_KEYS" ]; then
-  [[ "$DIAG_KEYS" =~ ^[0-9]+:[0-9a-fA-F]+(,[0-9]+:[0-9a-fA-F]+)*$ ]] || { echo "Bad key list: $DIAG_KEYS" >&2; exit 2; }
+  KEY_RE='[0-9]+(\.[0-9]+)?:[0-9a-fA-F]+(:[0-9]+(\.[0-9]+)?)?'
+  [[ "$DIAG_KEYS" =~ ^$KEY_RE(,$KEY_RE)*$ ]] || { echo "Bad key list: $DIAG_KEYS" >&2; exit 2; }
   DIAG="${DIAG:-log} keys=$DIAG_KEYS"
 fi
 if [ "$DIAG_HOLD" = 1 ] || [ "$DIAG_SOUND" = 1 ] || [ -n "$DIAG_HD_DIR" ] || [ "$DIAG_DRAWS" = 1 ] || [ -n "$DIAG_SHOT_ON" ]; then DIAG="${DIAG:-log}"; fi
@@ -329,7 +342,7 @@ for timed in "end=$DIAG_END" "zoom=$DIAG_ZOOM" "drag=$DIAG_DRAG"; do
 done
 [[ "$SMOOTH" =~ ^(0|2|4)$ ]] || { echo "Bad --smooth value: $SMOOTH. Use 0, 2 or 4." >&2; exit 2; }
 for command in ${DIAG_CONSOLE[@]+"${DIAG_CONSOLE[@]}"}; do
-  [[ "$command" =~ ^[0-9]+:[A-Za-z0-9_.+\ ]+$ ]] || { echo "Bad console command: $command" >&2; exit 2; }
+  [[ "$command" =~ ^[0-9]+(\.[0-9]+)?:[A-Za-z0-9_.+\ -]+$ ]] || { echo "Bad console command: $command" >&2; exit 2; }
   DIAG="${DIAG:-log} console=${command// /+}"
 done
 [[ -z "$WINE_NAME" || "$WINE_NAME" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "Bad Wine name: $WINE_NAME" >&2; exit 2; }

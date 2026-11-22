@@ -1007,9 +1007,9 @@ Test runs follow the same picture defaults as a normal start.
 | `--diag=draw-test` | Runs a small test program that draws straight to the screen surface. |
 | `--diag=press-ok` | For `--no-focusfix`: presses OK in the setup dialog. |
 | `--diag=press-cancel` | For `--setup`: presses Cancel there. |
-| `--diag-keys=SECONDS:SCANCODE,...` | Presses keys, as scan codes in hex. `1d38` presses Ctrl+Option. |
+| `--diag-keys=SECONDS:SCANCODE[:HOLDSECONDS],...` | Presses keys, as scan codes in hex. `1d38` presses Ctrl+Option. Codes from 80 up are the extended keys, such as `c8` Up and `d0` Down. With HOLDSECONDS the key stays down that long. Keys whose times overlap are down together. Both times can have decimals. |
 | `--diag-mouse=SECONDS:DX:DY[:c\|:o],...` | Moves the mouse, and with `:c` clicks. |
-| `--diag-console=SECONDS:COMMAND` | Runs a game console command, with `+` for each space. A command that is due during the game's intro videos waits for the main menu. On Mach9 a mission started during them ends the game with exit code -1. |
+| `--diag-console=SECONDS:COMMAND` | Runs a game console command, with `+` for each space and `++` for a `+` itself. `40:++thrustinc` starts the game's held action `+thrustinc` as a key press does, and `45:-thrustinc` ends it. The game's console does not know these names, so the helper runs `thrustinc 1` and `thrustinc 0`, as the game does for a bound key. Of three `+` in a row the first is the space. SECONDS can have decimals. Letters, digits, spaces and `_ . + -` are allowed. A command that is due during the game's intro videos waits for the main menu. On Mach9 a mission started during them ends the game with exit code -1. |
 | `--diag-display=right` | Opens the game window on the display furthest to the right. |
 | `--diag-hold` | Holds the mouse, as a normal start does. |
 | `--diag-sound` | Keeps the sound, as a normal start does. |
