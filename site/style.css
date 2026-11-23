@@ -949,7 +949,8 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 980px) {
   .with-photo, .with-photo.flip { display: block; }
   .with-photo .photo { margin-top: 1.8em; }
-  .sec-head.corner .photo { position: static; width: 300px; margin-top: 1.4em; }
+  .sec-head.corner { display: flex; flex-direction: column; }
+  .sec-head.corner .photo { order: 3; position: static; align-self: flex-start; width: 300px; max-width: calc(100% - 12px); margin: 1.4em 6px 0 0; }
   .hero { grid-template-columns: 1fr; }
   .scene-box { max-width: 640px; }
   .kitbox { grid-template-columns: repeat(2, minmax(0, 1fr)); }
