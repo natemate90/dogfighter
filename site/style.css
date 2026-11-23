@@ -705,7 +705,7 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .sec-head { margin-bottom: 2em; }
 .sec-head .intro { margin-bottom: 0; }
 .sec-head.corner { position: relative; }
-.sec-head.corner .photo { position: absolute; top: -96px; right: 8px; width: 160px; margin: 0; }
+.sec-head.corner .photo { position: absolute; top: -110px; right: 8px; width: 150px; margin: 0; }
 .with-photo { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 44px; align-items: start; }
 .with-photo.flip { grid-template-columns: 340px minmax(0, 1fr); }
 .with-photo .photo { width: auto; margin: 0.3em 8px 0; }
