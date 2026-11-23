@@ -390,6 +390,14 @@ if [ "$DIAG_BLOCK_INPUT" = 1 ] && [ ${#DIAG_CONSOLE[@]} = 0 ]; then
   echo "--diag-block-input lets keys and clicks through after the last --diag-console command; give one." >&2
   exit 2
 fi
+if [ "$DIAG_BLOCK_INPUT" = 1 ] && [ ${#DIAG_CONSOLE[@]} -gt 64 ]; then
+  echo "--diag-block-input waits for every --diag-console command, and the game runs at most 64; give fewer." >&2
+  exit 2
+fi
+if [ "$DIAG_BLOCK_INPUT" = 1 ] && [ "$FOCUSFIX" = 0 ]; then
+  echo "--diag-block-input needs the helper; leave out --no-focusfix." >&2
+  exit 2
+fi
 [[ -z "$WINE_NAME" || "$WINE_NAME" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "Bad Wine name: $WINE_NAME" >&2; exit 2; }
 [[ -z "$WINE_RULES" || "$WINE_RULES" =~ ^(\;[a-z0-9_]+=[A-Za-z0-9_.,=-]*)+$ ]] || { echo "Bad Wine rule: ${WINE_RULES#;}" >&2; exit 2; }
 if [[ "$DIAG" == draw-test\ * ]]; then
