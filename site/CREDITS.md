@@ -13,3 +13,7 @@ Every photo on the site is a real Second World War photo in the public domain. E
 # Fonts
 
 The site serves its own copies of three fonts from Google Fonts, all under the SIL Open Font License 1.1 (https://openfontlicense.org): Domine by Impallari Type, Stardos Stencil by Vernon Adams, and Nanum Pen Script by Sandoll Communication. Each is the Latin subset as WOFF2, in `fonts/`.
+
+# Game screenshots
+
+The seven pictures in `img/game/` are screenshots of Airfix Dogfighter running on a Mac with this project, taken for the site. The game is © its rights holders: Unique Development Studios and Paradox Entertainment; Airfix is a trademark of Hornby. The screenshots show the main menu, a loading screen, the kids' room and the living room with the sharper textures, a dogfight over the sofa, the kids' room in a fight, and the backyard.
