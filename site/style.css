@@ -200,7 +200,7 @@ kbd {
   box-shadow: 8px 8px 0 var(--ink);
   transform: rotate(0.6deg);
 }
-.hero-credit { margin-top: 24px; color: var(--ink-soft); font-family: var(--hand); font-size: 1.2rem; line-height: 1.25; }
+.hero-credit { display: inline-block; padding: 4px 10px; border-radius: 4px; background: var(--paper); margin-top: 24px; color: var(--ink-soft); font-family: var(--hand); font-size: 1.2rem; line-height: 1.25; }
 .hero-credit a { color: inherit; }
 .scene-wide { max-width: 900px; margin-inline: auto; }
 .hero { position: relative; isolation: isolate; }

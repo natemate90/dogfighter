@@ -46,14 +46,15 @@
   }
 
   const LEVELS = [0, ...STAGES];
-  let level = 0, wanted = 0, playing = false, active = -1;
+  let level = 0, wanted = 0, playing = false, active = -1, generation = 0;
   function play() {
     if (level === wanted) return (playing = false);
     playing = true;
     const dir = Math.sign(wanted - level), from = LEVELS[level], to = LEVELS[level + dir];
     const duration = Math.abs(wanted - level) > 1 ? 300 : 700;
-    const t0 = performance.now();
+    const t0 = performance.now(), gen = generation;
     const tick = (now) => {
+      if (gen !== generation) return;
       if (reduce.matches) return (playing = false);
       const t = Math.min(1, (now - t0) / duration);
       drawBig(from + (to - from) * t);
@@ -117,6 +118,8 @@
       cards.forEach((card) => card.classList.remove("active"));
       if (drawMain) {
         lastState = -1;
+        generation++;
+        playing = false;
         level = wanted = LEVELS.length - 1;
         drawBig(1);
       }
@@ -132,6 +135,8 @@
       active = activeCard();
       cards.forEach((card, k) => card.classList.toggle("active", k === active));
       lastState = -1;
+      generation++;
+      playing = false;
       level = wanted = active + 1;
       drawBig(LEVELS[level]);
     }
@@ -214,7 +219,7 @@
     const from = window.scrollY, t0 = performance.now(), duration = 520;
     const tick = (now) => {
       const t = Math.min(1, (now - t0) / duration);
-      window.scrollTo(0, from + best * (1 - Math.pow(1 - t, 3)));
+      window.scrollTo({ top: from + best * (1 - Math.pow(1 - t, 3)), behavior: "instant" });
       if (t < 1) settling = requestAnimationFrame(tick);
       else {
         settling = 0;
@@ -367,13 +372,17 @@
       });
     });
   }
+  let consentReturn = null;
   function showConsent() {
+    consentReturn = document.activeElement;
     consent.hidden = false;
     document.documentElement.classList.add("consent-open");
   }
   function hideConsent() {
+    const hadFocus = consent.contains(document.activeElement);
     consent.hidden = true;
     document.documentElement.classList.remove("consent-open");
+    if (hadFocus && consentReturn && consentReturn !== document.body && consentReturn.isConnected) consentReturn.focus();
   }
   if (consent) {
     consent.querySelectorAll("[data-consent]").forEach((button) => {
