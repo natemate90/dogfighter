@@ -117,21 +117,18 @@
 
       <path id="hero-loop" class="hero-path" d="M-80 215C90 215 220 218 300 215C352 213 394 180 394 134C394 88 360 52 318 52C274 52 250 90 252 132C254 180 296 210 350 210C460 210 580 198 720 190"/>
 
-      <g data-pose transform="translate(292 215) rotate(-1)"><g class="flyer">
+      <g class="flyer hunter" transform="translate(292 215) rotate(-1)">
         <g transform="scale(0.92)">
-          <path class="tracer" d="M50 1h9M68 1h9M86 1h9"><animate begin="indefinite" attributeName="opacity" values="0;0;1;0;1;0;0;0" dur="1.6s" repeatCount="indefinite"/></path>
           <use href="#toy-body" style="--hull: var(--blue); --nose: #e8b93a; --band: #e8b93a; --glass: var(--sky)"/>
           <g transform="translate(41 1)"><ellipse rx="2.6" ry="16" class="prop-disc"/><path d="M0-16V16" class="prop-blade"><animateTransform begin="indefinite" attributeName="transform" type="scale" values="1 1;1 0.15;1 1" dur="0.14s" repeatCount="indefinite"/></path></g>
         </g>
-        <animateMotion begin="indefinite" data-offset="-5.1" dur="6s" repeatCount="indefinite" rotate="auto"><mpath href="#hero-loop"/></animateMotion>
-      </g></g>
-      <g data-pose transform="translate(394 128) rotate(-90)"><g class="flyer">
+      </g>
+      <g class="flyer prey" transform="translate(394 128) rotate(-90)">
         <g transform="scale(1.05)">
           <use href="#toy-body" style="--hull: var(--green); --nose: var(--red); --band: var(--sky); --glass: var(--sky)"/>
           <g transform="translate(41 1)"><ellipse rx="2.6" ry="16" class="prop-disc"/><path d="M0-16V16" class="prop-blade"><animateTransform begin="indefinite" attributeName="transform" type="scale" values="1 1;1 0.15;1 1" dur="0.12s" repeatCount="indefinite"/></path></g>
         </g>
-        <animateMotion begin="indefinite" dur="6s" repeatCount="indefinite" rotate="auto"><mpath href="#hero-loop"/></animateMotion>
-      </g></g>
+      </g>
     </svg>
   </div>
   <dl class="kitbox" aria-label="About this kit">
@@ -673,5 +670,6 @@ cd dogfighter
 </svg>
 
 <script src="site.js" defer></script>
+<script src="flight.js" defer></script>
 </body>
 </html>
