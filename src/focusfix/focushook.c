@@ -1944,9 +1944,12 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
         test_notes_draws = GetEnvironmentVariableA("DOGFIGHTER_TEST_NOTES_DRAWS", NULL, 0) != 0;
         if (GetEnvironmentVariableA("DOGFIGHTER_TEST_SHOT_ON", test_shot_on, sizeof(test_shot_on)) >= sizeof(test_shot_on)) test_shot_on[0] = 0;
         CharLowerA(test_shot_on);
+        char log_path[MAX_PATH];
+        DWORD n = GetEnvironmentVariableA("DOGFIGHTER_LOG_DIR", log_path, MAX_PATH - 32);
+        if (n && n < MAX_PATH - 32) log_file = fopen(strcat(log_path, "\\dogfighter-focushook.log"), "w");
         if (max_client.cx && max_client.cy)
         {
-            log_file = fopen("C:\\dogfighter-focushook.log", "w");
+            if (!log_file) log_file = fopen("C:\\dogfighter-focushook.log", "w");
             if (mode_count && install_hooks())
                 say("scaling the picture into a window of up to %ldx%ld; %u display modes offered to the game",
                     max_client.cx, max_client.cy, mode_count);

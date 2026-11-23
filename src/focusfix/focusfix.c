@@ -69,10 +69,12 @@ static BOOL is_drawing(DWORD pid)
 
 static BOOL load_hook(HANDLE process)
 {
-    static const char path[] = "C:\\dogfighter-focushook.dll";
-    DWORD loaded = 0;
-    void *remote = VirtualAllocEx(process, NULL, sizeof(path), MEM_COMMIT, PAGE_READWRITE);
-    if (!remote || !WriteProcessMemory(process, remote, path, sizeof(path), NULL)) return FALSE;
+    char path[MAX_PATH];
+    DWORD loaded = 0, n = GetEnvironmentVariableA("DOGFIGHTER_HOOK_DLL", path, sizeof(path));
+    if (!n || n >= sizeof(path)) strcpy(path, "C:\\dogfighter-focushook.dll");
+    SIZE_T length = strlen(path) + 1;
+    void *remote = VirtualAllocEx(process, NULL, length, MEM_COMMIT, PAGE_READWRITE);
+    if (!remote || !WriteProcessMemory(process, remote, path, length, NULL)) return FALSE;
 
     LPTHREAD_START_ROUTINE load = (LPTHREAD_START_ROUTINE)(void *)
         GetProcAddress(GetModuleHandleA("kernel32.dll"), "LoadLibraryA");
@@ -111,7 +113,11 @@ int main(int argc, char **argv)
     if (argc != 3) return 2;
     const char *flag = argv[1];
 
-    logf = fopen("C:\\dogfighter-focusfix.log", "w");
+    char log_path[MAX_PATH];
+    DWORD n = GetEnvironmentVariableA("DOGFIGHTER_LOG_DIR", log_path, MAX_PATH - 32);
+    if (n && n < MAX_PATH - 32) strcat(log_path, "\\dogfighter-focusfix.log");
+    else strcpy(log_path, "C:\\dogfighter-focusfix.log");
+    logf = fopen(log_path, "w");
     HANDLE picture = CreateEventA(NULL, TRUE, FALSE, "DogfighterFirstPicture");
     DeleteFileA(flag);
     snprintf(cmd, sizeof(cmd), "\"%s\"", argv[2]);
