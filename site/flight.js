@@ -1,6 +1,6 @@
 (() => {
   const W = 640, EDGE = 40, SPAN = W + 2 * EDGE, TOP = 24, FLOOR = 436, DT = 1 / 120;
-  const UNIT = 48, DEG = Math.PI / 180, SPRITE = 0.3, CRUISE = 0.42;
+  const UNIT = 48, DEG = Math.PI / 180, SPRITE = 0.36, CRUISE = 0.42;
   const TOP_SPEED = 4.1 * UNIT, PULL = 1 * UNIT, CLIMB_LOSS = 0.7 * UNIT, STALL = 1.6 * UNIT;
   const PITCH_UP = 43 * DEG, PITCH_DOWN = 47 * DEG, YAW = 62 * DEG, TURN_SINK = 20 * DEG, SINK_RATE = 15 * DEG, ROLL = Math.PI;
   const MUZZLE = 38 * UNIT, BULLET_LIFE = 1.2, GUN_RATE = 8.7, BURST = 0.6;
@@ -219,7 +219,7 @@
     }
     const a = Math.atan2(dy, dx) + rand(-0.015, 0.015), hv = velocity(h);
     h.gun = -h.gun;
-    const side = 2.2 * h.gun, front = 12 * h.size;
+    const side = 2.6 * h.gun, front = 14.4 * h.size;
     s.bullets.push({
       x: h.x + n.x * front - Math.sin(a) * side,
       y: h.y + n.y * front + Math.cos(a) * side,
@@ -232,9 +232,9 @@
   function hits(p, x, y) {
     const n = nose(p), len = Math.hypot(n.x, n.y);
     const dx = wrapDx(x - p.x), dy = y - p.y;
-    if (len < 0.3) return dx * dx + dy * dy < 6 * 6;
+    if (len < 0.3) return dx * dx + dy * dy < 7 * 7;
     const along = (dx * n.x + dy * n.y) / len, across = (-dx * n.y + dy * n.x) / len;
-    return (along / (12.5 * p.size * len)) ** 2 + (across / 4.5) ** 2 < 1;
+    return (along / (15 * p.size * len)) ** 2 + (across / 5.4) ** 2 < 1;
   }
 
   function puff(s, x, y, r0, r1, life, kind) {
@@ -262,7 +262,7 @@
           const x = x0 + (b.vx * dt * k) / 5, y = y0 + (b.vy * dt * k) / 5;
           if (!hits(p, x, y)) continue;
           s.sparks.push({ x, y, age: 0, spin: rand(0, 1) });
-          puff(s, x, y, 2, 7, 0.6, "hit");
+          puff(s, x, y, 2.4, 8.4, 0.6, "hit");
           p.hits++;
           p.jink = true;
           if (p.mode === "cruise") p.timer = 0;
@@ -281,8 +281,8 @@
       p.smokeAt -= dt;
       if (p.smokeAt <= 0) {
         p.smokeAt = 0.08;
-        const n = nose(p), tail = -12 * p.size;
-        puff(s, p.x + n.x * tail, p.y + n.y * tail, 2, 9, 1.6, "smoke");
+        const n = nose(p), tail = -14.4 * p.size;
+        puff(s, p.x + n.x * tail, p.y + n.y * tail, 2.4, 10.8, 1.6, "smoke");
       }
       if (p.smoke > 1.5 && h.mode !== "leave") h.mode = "leave";
       if (p.smoke > 3 && p.mode !== "leave" && p.mode !== "loop" && p.mode !== "half") {
@@ -328,11 +328,11 @@
       sprites[key].style.opacity = s.fade < 1 ? Math.max(0, s.fade).toFixed(2) : "";
     }
     let d = "";
-    for (const b of s.bullets) d += `M${n(b.x)} ${n(b.y)}L${n(b.x - b.vx * 0.012)} ${n(b.y - b.vy * 0.012)}`;
+    for (const b of s.bullets) d += `M${n(b.x)} ${n(b.y)}L${n(b.x - b.vx * 0.0144)} ${n(b.y - b.vy * 0.0144)}`;
     tracers.setAttribute("d", d);
     d = "";
     for (const sp of s.sparks) {
-      const t = sp.age / 0.2, r0 = 1.5 + 3 * t, r1 = 4 + 6 * t;
+      const t = sp.age / 0.2, r0 = 1.8 + 3.6 * t, r1 = 4.8 + 7.2 * t;
       for (let i = 0; i < 6; i++) {
         const a = (i + sp.spin) * (TAU / 6);
         d += `M${n(sp.x + Math.cos(a) * r0)} ${n(sp.y + Math.sin(a) * r0)}L${n(sp.x + Math.cos(a) * r1)} ${n(sp.y + Math.sin(a) * r1)}`;
