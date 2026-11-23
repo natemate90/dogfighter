@@ -10,7 +10,8 @@ It reads the game's frames from the video's work folder (hd-videos/.work/NAME/sr
            those pixels, in levels, and the share more than 3 levels darker.
   borders  for each chunk border, the 21 frames from the last frame before the fade to the first after it. Each frame's
            sharpness (mean absolute Laplacian) over the game's frame's sharpness, compared with the straight line
-           between the two unfaded ends. The worst frame's shortfall, in percent.
+           between the two unfaded ends. The worst frame's shortfall in percent, and how many of the 19 frames
+           between the ends fall more than 10% short.
 """
 import argparse
 import importlib.util
@@ -102,17 +103,20 @@ def main():
                 darkest.append(np.percentile(miss, 0.1))
                 share.append((miss < -3).mean() * 100)
             if sky:
-                print("  sky, %s: darkest 0.1%% mean %.1f levels (worst %.1f), over 3 levels darker mean %.2f%% (worst %.2f%%)"
-                      % (kind, np.mean(darkest), np.min(darkest), np.mean(share), np.max(share)))
+                print("  sky, %s: darkest 0.1%% mean %.1f levels (worst %.1f), over 3 levels darker mean %.2f%% (worst %.2f%%"
+                      ", output frame %d)" % (kind, np.mean(darkest), np.min(darkest), np.mean(share), np.max(share),
+                                              times * sky[int(np.argmax(share))] + step))
         for f in borders:
             norm = lambda j: sharpness(got[j]) / (sharp_of(j // times) * (1 - j % times / times)
                                                    + sharp_of(min(j // times + 1, f + 4)) * (j % times / times))
             low, high = norm(times * (f - 1)), norm(times * (f + 4))
             span = times * 5
-            results.setdefault(f, {})[label] = 100 * (1 - min(
-                norm(j) / (low + (high - low) * (j - times * (f - 1)) / span) for j in range(times * (f - 1) + 1, times * (f + 4))))
+            short = [100 * (1 - norm(j) / (low + (high - low) * (j - times * (f - 1)) / span))
+                     for j in range(times * (f - 1) + 1, times * (f + 4))]
+            results.setdefault(f, {})[label] = (max(short), sum(value > 10 for value in short))
     for f in borders:
-        print("border at frame %d: %.1f%% softer before, %.1f%% after" % (f, results[f]["old"], results[f]["new"]))
+        print("border at frame %d: worst frame %.1f%% softer before, %.1f%% after; frames over 10%% softer %d before, %d after"
+              % (f, results[f]["old"][0], results[f]["new"][0], results[f]["old"][1], results[f]["new"][1]))
 
 
 if __name__ == "__main__":
