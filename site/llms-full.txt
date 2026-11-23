@@ -58,7 +58,7 @@ Setup checks every download before it uses it. The sharper textures are made on 
 
 ### Something broke. What now?
 
-Run `./dogfighter --doctor`. It checks the installation and prints a fix for each problem. When you ask for help, include the log file from the `logs` folder.
+Run `./dogfighter --doctor`. It checks the installation and prints a fix for each problem. When you ask for help, include the log file from the `logs` folder. Still stuck? Send a message through the [contact form](https://docs.google.com/forms/d/e/1FAIpQLSepS1A8sET4w9kPUKrlcmSQZ52lQl7x_If7ggnzYrP47VJSJQ/viewform).
 
 ## Docs
 
@@ -71,3 +71,4 @@ Run `./dogfighter --doctor`. It checks the installation and prints a fix for eac
 
 - [Full text for language models](https://dogfighter.net/llms-full.txt)
 - [Source code](https://github.com/natemate90/dogfighter)
+- [Contact form](https://docs.google.com/forms/d/e/1FAIpQLSepS1A8sET4w9kPUKrlcmSQZ52lQl7x_If7ggnzYrP47VJSJQ/viewform): questions and messages to the maintainer
