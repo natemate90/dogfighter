@@ -863,6 +863,9 @@ The videos go to `hd-videos/`, with `manifest.json`: checksums, settings, model 
 - A run that stops goes on where it stopped. The work files are in `hd-videos/.work/`.
 - `--video-only NAME` makes one video. `--video-clip START,SECONDS` makes only that part, to `hd-videos/clips/`. `--video-level N` tries another level, also to `clips/`.
 - SeedVR2 gets a long shot in chunks of at most 29 frames. Its memory grows with the chunk, and 52 frames needed more than 22 GB. Each chunk also sees 4 frames of its neighbours, and the 4 frames where two chunks meet are faded from one to the other.
+- The fade averaged two sets of made detail, so those frames were up to 30% softer. A repair step after SeedVR2 gives them the fine detail of the nearest frame of the chunk with the larger share, moved along the motion found on the game's frames. The coarse picture stays the fade's.
+- SeedVR2 drew dark smudges into the flat sky of the Airfix intro. In a video's `smooth_flat` frame ranges, every pixel the game's frame shows as flat comes from a smooth upscale of that frame. Text and edges keep SeedVR2's picture.
+- The repair works on the kept SeedVR2 frames, in `fixed/` of the work folder. Changing its settings (`repair` in `tools/videos.json`) remakes the frames between and the video, not the SeedVR2 frames.
 - SeedVR2 keeps freed graphics memory for reuse. Above 6 GB it gives some back, and 19 GB is its hard limit (26 GB for level 3). Without these limits it reached 29 GB. Changing them does not make the video again.
 - The limits alone did not hold. So SeedVR2 runs through `tools/seedvr2-run.py`. It empties that kept memory before each phase and after each batch. It changes SeedVR2's code in memory only, so the unpacked files keep their checksum.
 - A stopped run of level 2 or 3 goes on from the chunk where it stopped. SeedVR2's own output goes to `seedvr2.log` in the work folder.
