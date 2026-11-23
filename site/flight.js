@@ -2,8 +2,8 @@
   const W = 640, EDGE = 90, SPAN = W + 2 * EDGE, TOP = 44, FLOOR = 268, DT = 1 / 120;
   const TOP_SPEED = 400, PULL = 200, CLIMB_LOSS = 112, STALL = 120;
   const PITCH_UP = 6, PITCH_DOWN = 6.6, YAW = 8, TURN_SINK = 0.4, ROLL = 10;
-  const MUZZLE = 2900, BULLET_LIFE = 0.2, GUN_RATE = 25, BURST = 0.4;
-  const LOCK_CONE = 0.05, FIRE_CONE = 0.12, FIRE_RANGE = 470, MAX_BULLETS = 40, HITS_TO_SMOKE = 18;
+  const MUZZLE = 2900, BULLET_LIFE = 0.2, GUN_RATE = 12, BURST = 0.4;
+  const LOCK_CONE = 0.05, FIRE_CONE = 0.12, FIRE_RANGE = 470, MAX_BULLETS = 40, HITS_TO_SMOKE = 10;
   const TAU = Math.PI * 2;
 
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
