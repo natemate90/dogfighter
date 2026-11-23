@@ -109,6 +109,7 @@
   function setMode() {
     if (reduce.matches) {
       document.documentElement.classList.add("static");
+      bar.classList.remove("tucked");
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
       cards.forEach((card) => card.classList.remove("active"));
@@ -170,6 +171,9 @@
     const box = install.getBoundingClientRect();
     const inInstall = narrow.matches && box.top < 60 && box.bottom > 200;
     const hide = (inInstall || (y > 80 && y > lastY)) && !(menu && !menu.hidden);
+    const kitBox = install.querySelector(".kit-col").getBoundingClientRect();
+    const sticky = inInstall && getComputedStyle(install.querySelector(".kit-col")).position === "sticky";
+    document.documentElement.style.setProperty("--stick", sticky ? `${Math.round(kitBox.height + 16)}px` : "72px");
     bar.classList.toggle("tucked", hide);
     lastY = y;
   }, { passive: true });
