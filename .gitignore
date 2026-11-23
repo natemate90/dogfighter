@@ -31,3 +31,5 @@ __pycache__/
 /hd-videos/
 /.wrangler/
 /.dev.vars
+/python/
+/wrappers/

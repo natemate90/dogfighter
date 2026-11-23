@@ -3,6 +3,7 @@
 Play Airfix Dogfighter, the Windows game from 2000, on a Mac with Apple Silicon.
 You play from your own original game disc.
 This project holds only the tools that set the game up. It contains no game data.
+A first, untested version for Windows 10 and 11 is described in [docs/WINDOWS.md](docs/WINDOWS.md).
 
 [![Airfix Dogfighter for PC, gameplay video](https://img.youtube.com/vi/vuBLQVUCmEY/hqdefault.jpg)](https://www.youtube.com/watch?v=vuBLQVUCmEY)
 
