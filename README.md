@@ -489,3 +489,7 @@ For personal use with a disc you own.
 Never share the game files: `Dogfighter.bin`, `cd/`, `game/`, `music/`, `hd-textures/`, `hd-videos/`, `Dogfighter.app` or `dist/`.
 
 How it all works, for developers: [docs/TECHNICAL.md](docs/TECHNICAL.md).
+
+The website, dogfighter.net, is built from `site/` and `worker/`.
+Its Turnstile site key (`TURNSTILE_SITEKEY`) is the `data-sitekey` on the contact form in `site/index.html`.
+The setup steps are in [docs/TECHNICAL.md](docs/TECHNICAL.md#the-website).
