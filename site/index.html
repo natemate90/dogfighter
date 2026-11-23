@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nanum+Pen+Script&family=Domine:wght@400..700&family=Stardos+Stencil:wght@700&display=swap">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bangers&display=swap&text=DOGFIHTER">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&display=swap&text=DOGFIHTER">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -28,6 +28,7 @@
 <main id="top">
 
 <section class="hero wrap" aria-labelledby="title">
+  <img class="hero-photo" src="img/sky-800.webp" srcset="img/sky-800.webp 800w, img/sky-1600.webp 1600w" sizes="100vw" width="1600" height="1181" alt="" fetchpriority="high">
   <div class="hero-text">
     <h1 id="title"><span class="t1">Dogfighter</span><span class="t2">for Apple Silicon Macs</span></h1>
     <p class="lede">Airfix Dogfighter is a Windows game from 2000. Model planes fight through a house. This project runs it in a sharp Retina window on a Mac with M1 or later. It was tested on an M4 Max. You bring your own original disc.</p>
@@ -80,6 +81,16 @@
       <path class="mullion" d="M320 42V238M182 140H458"/>
       <rect x="182" y="42" width="276" height="196" class="glass-edge"/>
       <rect x="154" y="248" width="332" height="12" rx="3" class="frame"/>
+      <g class="glass" data-box="196,214,20,35">
+        <path class="glass-body" d="M197 215h18l-2.4 33h-13.2z"/>
+        <path class="glass-water" d="M199.4 233h13.2l-1 14h-11.2z"/>
+        <path class="glass-shine" d="M201 219l-0.6 22"/>
+      </g>
+      <g class="glass" data-box="434,198,22,50">
+        <path class="glass-body" d="M441 200h6v12c0 3 6 5 6 11v25h-18v-25c0-6 6-8 6-11z"/>
+        <path class="glass-shine" d="M439 226v17"/>
+        <rect x="440.5" y="197" width="7" height="4" rx="1" class="glass-cap"/>
+      </g>
 
       <rect y="300" width="640" height="108" class="desk"/>
       <path class="grain" d="M0 322C120 318 260 326 400 320S560 316 640 322M0 352C140 348 300 356 460 350S600 346 640 350M0 384C100 380 280 388 420 382S580 378 640 384"/>
@@ -245,8 +256,8 @@
   <div class="sec-head">
   <h2 id="watch-h">See it fly <span class="note">click to load</span></h2>
   <p class="intro">Gameplay of the original game, recorded on a Windows PC.</p>
-  <figure class="photo" style="--tilt: 2deg">
-    <img src="img/formation.webp" width="900" height="919" alt="Four fighters with striped tails bank over a layer of cloud." loading="lazy" decoding="async">
+  <figure class="photo" style="--tilt: 0.8deg">
+    <img src="img/formation.webp" width="1300" height="1328" alt="Four fighters with striped tails bank over a layer of cloud." loading="lazy" decoding="async">
     <figcaption>Fighters in formation over Italy, 1944.</figcaption>
   </figure>
   </div>
@@ -272,8 +283,8 @@
   <div class="sec-head">
   <h2 id="before-h">Before you start</h2>
   <p class="intro">Four things to have ready.</p>
-  <figure class="photo" style="--tilt: -2deg">
-    <img src="img/scramble.webp" width="900" height="677" alt="RAF pilots in life jackets jump from the back of a truck and run towards a fighter." loading="lazy" decoding="async">
+  <figure class="photo" style="--tilt: -0.8deg">
+    <img src="img/scramble.webp" width="1700" height="1278" alt="RAF pilots in life jackets jump from the back of a truck and run towards a fighter." loading="lazy" decoding="async">
     <figcaption>Pilots practise a scramble, Fowlmere, September 1940.</figcaption>
   </figure>
   </div>
@@ -305,8 +316,8 @@
   <div class="sec-head">
   <h2 id="assembly-h">Assembly <span class="note">3 steps</span></h2>
   <p class="intro">Three steps in Terminal. The <a href="https://github.com/natemate90/dogfighter#readme">README</a> has the details. It also says what to do when a step fails.</p>
-  <figure class="photo tall" style="--tilt: 1.5deg">
-    <img src="img/briefing.webp" width="900" height="1124" alt="Fighter pilots in flight jackets listen closely at a briefing." loading="lazy" decoding="async">
+  <figure class="photo" style="--tilt: 0.6deg">
+    <img src="img/briefing.webp" width="1000" height="1249" alt="Fighter pilots in flight jackets listen closely at a briefing." loading="lazy" decoding="async">
     <figcaption>Pilots at a briefing, Ramitelli, Italy, March 1945.</figcaption>
   </figure>
   </div>
@@ -626,8 +637,8 @@ cd dogfighter
   <div class="sec-head">
   <h2 id="finish-h">Choose a finish</h2>
   <p class="intro">Add one of these after <code>./dogfighter</code>. The <a href="https://github.com/natemate90/dogfighter#all-options">README</a> lists them all.</p>
-  <figure class="photo" style="--tilt: -1.5deg">
-    <img src="img/airfield.webp" width="900" height="672" alt="Ground crew fill ammunition belts at a table on an airfield, with a fighter and a tent behind them." loading="lazy" decoding="async">
+  <figure class="photo" style="--tilt: -0.6deg">
+    <img src="img/airfield.webp" width="1700" height="1268" alt="Ground crew fill ammunition belts at a table on an airfield, with a fighter and a tent behind them." loading="lazy" decoding="async">
     <figcaption>Armourers fill ammunition belts, Lille-Seclin, France, 1940.</figcaption>
   </figure>
   </div>
@@ -657,6 +668,7 @@ cd dogfighter
     <details class="credits">
       <summary>Photo credits</summary>
       <ul>
+        <li>A formation of Hurricane fighters of No. 85 Squadron RAF climbs above the clouds (hero background). Mr B. J. Daventry, Royal Air Force official photographer. <a href="https://commons.wikimedia.org/wiki/File:Hawker_Hurricanes_-_Royal_Air_Force_Fighter_Command,_1939-1945_CH1503.jpg">Wikimedia Commons</a>. Public domain (UK Crown Copyright expired).</li>
         <li>Fighters in formation over Italy, 1944. United States Army Air Forces. <a href="https://commons.wikimedia.org/wiki/File:15AF-P-51D-Mustangs-groups-31FG309FS-flying-in-formation-over-Italy-1944.jpg">Wikimedia Commons</a>. Public domain (US government work).</li>
         <li>Pilots of No. 19 Squadron RAF stage a mock scramble at Fowlmere, September 1940. F/O S. Devon, Royal Air Force official photographer. <a href="https://commons.wikimedia.org/wiki/File:Pilots_of_No._19_Squadron_RAF_stage_a_mock_%27scramble%27_from_the_back_of_a_truck_at_Fowlmere_near_Duxford,_September_1940._CH1398.jpg">Wikimedia Commons</a>. Public domain (UK Crown Copyright expired).</li>
         <li>Members of the 332nd Fighter Group at a briefing in Ramitelli, Italy, March 1945. Toni Frissell, Library of Congress. <a href="https://commons.wikimedia.org/wiki/File:332ndFighterBriefing1945-high-res.jpg">Wikimedia Commons</a>. Public domain (given to the public by the photographer).</li>
