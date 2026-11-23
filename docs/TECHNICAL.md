@@ -1199,6 +1199,8 @@ It sets no tracking cookies, so it needs no consent.
 Put `CONTACT_FORM_URL=http://127.0.0.1:8797/formResponse` in `.dev.vars`, so nothing reaches the real Google Form.
 Run any server there that answers a POST with 200.
 Then run `npx wrangler dev` and open http://localhost:8787/#contact.
+On localhost the page always uses the test site key, and `wrangler dev` has no `TURNSTILE_SECRET`, so the test secret matches it.
+Previews use the real keys once they exist, because `nathanalder.workers.dev` is in the widget's hostnames.
 
 ## Legal
 
