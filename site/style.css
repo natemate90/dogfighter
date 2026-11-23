@@ -782,6 +782,9 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .assembly { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 48px; align-items: start; }
 .kit-col { position: sticky; top: 80px; }
 .kit-col .sprue { max-height: calc(100svh - 160px); }
+html:has(#install) { scroll-snap-type: y proximity; }
+.istep { scroll-snap-align: start; scroll-margin-top: 84px; }
+.istep.active .inum { background: var(--ink); color: var(--paper); box-shadow: 0 0 0 4px color-mix(in srgb, var(--red) 55%, transparent); }
 .install-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 28px; }
 .istep { padding: 20px 22px 22px; border: 2px solid var(--ink); border-radius: 8px; background: color-mix(in srgb, var(--paper-2) 60%, transparent); transition: border-color 0.3s, box-shadow 0.3s; }
 .istep.active { border-color: var(--red); box-shadow: 6px 6px 0 color-mix(in srgb, var(--red) 35%, transparent); }
@@ -812,8 +815,7 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
   .kit-col .sprue { height: 150px; max-height: none; }
   .kit-col .stage-caption { margin-top: 2px; font-size: 0.8rem; }
   .static .kit-col { position: static; }
-  .topbar.in-install { transform: translateY(-100%); }
-  .istep { scroll-margin-top: 200px; }
+  .istep { scroll-margin-top: 206px; }
 }
 @media (max-width: 760px) {
   .topnav { display: none; }
