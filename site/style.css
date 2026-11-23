@@ -233,7 +233,11 @@ h1 { margin: 0; line-height: 0.9; font-family: var(--display); font-style: itali
 .scene .hang-plane { color: var(--red); }
 .scene .hang { transform-origin: 86px 0; animation: sway 5s ease-in-out infinite alternate; }
 .scene .hero-path { fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-dasharray: 2 9; stroke-linecap: round; opacity: 0.35; }
-.scene .tracer { fill: none; stroke: #f0a23a; stroke-width: 2.4; stroke-linecap: round; opacity: 0; }
+.scene.flying .hero-path { display: none; }
+.scene .tracers { fill: none; stroke: #f0a23a; stroke-width: 2.4; stroke-linecap: round; }
+.scene .sparks { fill: none; stroke: #ffd36b; stroke-width: 1.6; stroke-linecap: round; }
+.scene .puffs .hit { fill: #f4f2e8; }
+.scene .puffs .smoke { fill: #5e636b; }
 .prop-disc { fill: var(--ink); opacity: 0.12; }
 .prop-blade { fill: none; stroke: #2b2d2f; stroke-width: 3; stroke-linecap: round; }
 
