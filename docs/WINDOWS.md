@@ -12,7 +12,8 @@ The Mac port stays as it is. `setup.sh` and `dogfighter` are unchanged.
 | --- | --- |
 | `setup.ps1`: game files from your own BIN/CUE | Written, not run |
 | `setup.ps1`: music ripped to `music\Track02.ogg` and up | Written, not run |
-| `setup.ps1`: builds `winmm.dll`, `focusfix.exe`, `focushook.dll`, `joylist.exe` | Written, not run. The same C files cross-build on the Mac (checked). |
+| Ready-built `winmm.dll`, `focusfix.exe`, `focushook.dll`, `joylist.exe`, `oggenc-min.exe` | Built on the Mac (checked). Draft release `windows-helpers-2026-11-24`, not published, so setup cannot download them yet. Never run on Windows. |
+| `setup.ps1 -BuildHelpers`: builds them on the PC instead | Written, not run |
 | `dogfighter.ps1`: settings, larger textures, start through the helper | Written, not run |
 | Graphics on modern Windows | dgVoodoo2 by default, Windows' own DirectDraw with `-Wrapper none`. Neither tried. |
 | Larger textures | Only a set made on a Mac and copied over. Windows setup does not make them. |
@@ -31,7 +32,7 @@ The Mac port stays as it is. `setup.sh` and `dogfighter` are unchanged.
    setup.cmd path\to\Dogfighter.bin
    ```
 
-   It downloads about 220 MB the first time and needs about 3 GB of disk space.
+   It downloads about 25 MB the first time and needs about 3 GB of disk space.
 4. Optional: copy a finished `hd-textures` folder from a Mac install into the repo folder.
 5. Double-click `dogfighter.cmd`. `dogfighter.cmd -Help` lists the options.
 
@@ -46,12 +47,12 @@ They follow `setup.sh` and `dogfighter` step by step, with the same folders.
 Where a Mac step uses a Python tool from `tools\`, Windows runs the same tool.
 
 Setup:
-- Downloads llvm-mingw, Python's embeddable package, libogg, libvorbis, ogg-winmm and dgVoodoo2. Each is checked against a pinned SHA-256.
+- Downloads the ready-built helpers from this repo's GitHub release, Python's embeddable package and dgVoodoo2. Each is checked against a pinned SHA-256. A file that does not match stops setup.
 - `tools\scan.py` writes the disc's data track as an ISO. `tar.exe` unpacks it to `cd\`, as `tar` does on the Mac. If `tar.exe` cannot read it, setup mounts the ISO with Windows instead. The ISO stays as `cd.iso`.
 - `tools\iscab.py` installs the game in `game\`, in the chosen language. Language switching works as on the Mac.
-- `tools\find_tracks.py` and `tools\rip_tracks.py` rip the music. The encoder is the same libvorbis example program the Mac builds, built for Windows.
+- `tools\find_tracks.py` and `tools\rip_tracks.py` rip the music. The encoder, `oggenc-min.exe`, is the same libvorbis example program the Mac builds, built for Windows.
 - `game\Music` is a directory junction to `music\`. `game\cache` is one to `hd-textures\cache`. Junctions need no administrator rights, unlike symbolic links.
-- It builds `winmm.dll` with the same compiler flags as `tools/build-winmm.sh`, and the helper with those of `tools/build-focusfix.sh`.
+- With `-BuildHelpers` it builds the helpers itself instead. It then downloads llvm-mingw (about 190 MB), libogg, libvorbis and ogg-winmm, and uses the compiler flags of `tools/build-winmm.sh` and `tools/build-focusfix.sh`.
 
 The launcher:
 - Sets the game's resolution to the largest listed size that fits the screen, as the Mac launcher does. With `-Windowed` it leaves 80 pixels of height and 16 of width for the title bar, the frame and the taskbar.
@@ -139,8 +140,42 @@ For WineD3D to run the helper's picture work, the Wine version must match the on
 ### Windows on ARM
 
 - Windows 11 on ARM runs x86 and x64 programs through emulation. Parallels on Apple Silicon is enough for "does it start", not for speed. From #13.
-- Setup fetches the x64 llvm-mingw and Python, which need Windows 11's x64 emulation.
+- Setup fetches the x64 Python, and with `-BuildHelpers` the x64 llvm-mingw. Both need Windows 11's x64 emulation. The helpers themselves are 32-bit x86, like the game.
 - dgVoodoo2 has builds for emulated x86 programs (`arm64_chpe_x86`). The launcher uses the plain x86 files everywhere. Not tried.
+
+## Ready-built helpers
+
+Players get the Windows helpers ready-built, from a GitHub release of this repo.
+`tools/build-windows-helpers.sh` makes them on the Mac:
+
+```
+./setup.sh
+tools/build-windows-helpers.sh toolchain/llvm-mingw-20261117-ucrt-macos-universal
+```
+
+- It needs the toolchain and the pinned sources that `./setup.sh` fetches.
+- It reuses `tools/build-winmm.sh` and `tools/build-focusfix.sh`, and builds the music encoder the way `tools/rip-music.sh` does, for Windows.
+- It writes the files, `THIRD-PARTY-NOTICES.txt` and `SHA256SUMS` to `dist/windows-helpers/`.
+- It sets `SOURCE_DATE_EPOCH=0`, so the linker writes no build time. Two builds from the same sources gave the same SHA-256 for every file (checked).
+
+| File | Built from | Licence |
+| --- | --- | --- |
+| `focusfix.exe`, `focushook.dll`, `joylist.exe` | `src/focusfix` of this repo | This repo's |
+| `winmm.dll` | ogg-winmm at `09859f0`, with libogg 1.3.6 and libvorbis 1.3.7 linked in | ISC; BSD |
+| `oggenc-min.exe` | libvorbis 1.3.7 `examples/encoder_example.c`, quality 0.5, with libogg 1.3.6 | BSD |
+
+All of them link in llvm-mingw's mingw-w64 runtime.
+`THIRD-PARTY-NOTICES.txt` carries the ISC notice and both BSD licence texts, as those licences ask for binary copies.
+None of the files holds game data. Each is compiled only from the sources above.
+
+`tools/windows-helpers.sha256` pins the release's files. `setup.ps1` reads the tag from its own `$HelpersTag`.
+When anything under `src/focusfix`, or the ogg-winmm, libogg or libvorbis pins, changes, make a new release:
+1. Run `tools/build-windows-helpers.sh`.
+2. Copy `dist/windows-helpers/SHA256SUMS` to `tools/windows-helpers.sha256`.
+3. Set `$HelpersTag` in `setup.ps1` to a new tag.
+4. Make the release with that tag and attach every file in `dist/windows-helpers/`.
+
+Without that, setup would hand out a helper older than the repo's source.
 
 ## Downloads and licences
 
@@ -148,10 +183,11 @@ Setup downloads these at setup time. Nothing is shipped in the repo.
 
 | Download | Licence | SHA-256 source |
 | --- | --- | --- |
-| llvm-mingw 20261117, `ucrt-x86_64` (Windows host) | Apache 2.0 with LLVM exception; mingw-w64 parts ZPL and others | Downloaded tonight, matches GitHub's digest |
+| Ready-built helpers, release `windows-helpers-2026-11-24` | See [Ready-built helpers](#ready-built-helpers) | Built tonight on the Mac |
+| Only with `-BuildHelpers`: llvm-mingw 20261117, `ucrt-x86_64` (Windows host) | Apache 2.0 with LLVM exception; mingw-w64 parts ZPL and others | Downloaded tonight, matches GitHub's digest |
 | Python 3.14.9 embeddable package, amd64 | PSF licence | Downloaded tonight from python.org |
-| libogg 1.3.6, libvorbis 1.3.7 | BSD | Same pins as `setup.sh` |
-| ogg-winmm at `09859f0` | ISC | Same pin as `setup.sh` |
+| Only with `-BuildHelpers`: libogg 1.3.6, libvorbis 1.3.7 | BSD | Same pins as `setup.sh` |
+| Only with `-BuildHelpers`: ogg-winmm at `09859f0` | ISC | Same pin as `setup.sh` |
 | dgVoodoo2 2.87.6 | Own terms, see below | Downloaded tonight, matches GitHub's digest |
 
 dgVoodoo2's terms (readme, section 1):
@@ -170,7 +206,7 @@ The pins are copied from `setup.sh`. When one changes there, change it in `setup
 
 Do these in order and keep each run's log from `logs\`.
 
-1. `setup.cmd path\to\Dogfighter.bin`. Note any step that fails.
+1. `setup.cmd path\to\Dogfighter.bin`. Note any step that fails. The release `windows-helpers-2026-11-24` must be published first; until then use `setup.cmd -BuildHelpers path\to\Dogfighter.bin`.
 2. `dogfighter.cmd -Doctor`.
 3. `dogfighter.cmd -Wrapper none`. Does the game start? Does it ask for the disc? If so, add `-MountCd`.
 4. `dogfighter.cmd`, with dgVoodoo2. Then `dogfighter.cmd -Windowed`.
@@ -184,5 +220,4 @@ Do these in order and keep each run's log from `logs\`.
 
 - Graphics: dgVoodoo2 as the default, or wait for a WineD3D test?
 - dgVoodoo2's licence: ask its author, or keep the download-at-setup reading above?
-- Building on the player's PC (220 MB of downloads) or prebuilt helpers as a GitHub release made on the Mac?
 - PowerShell scripts, or small exes as #13 suggests? PowerShell was chosen for this first version because it needs no build step and reads like the bash scripts.

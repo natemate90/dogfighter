@@ -106,10 +106,16 @@ if ($Doctor) {
     Check 'CD files in cd\ and cd.iso' 'delete cd\ and cd.iso, then setup.cmd' { (Has-Files (Join-Path $Here 'cd') @('.windows-label')) -and (Test-Path -LiteralPath (Join-Path $Here 'cd.iso')) }
     Check 'Ten music tracks in music\' 'setup.cmd' { Has-Files (Join-Path $Here 'music') @('02', '03', '04', '05', '06', '07', '08', '09', '10', '11' | ForEach-Object { "Track$_.ogg" }) }
     Check 'Music player (game\winmm.dll, game\Music)' 'setup.cmd' { Has-Files $Game @('winmm.dll', 'Music\Track02.ogg') }
-    Check 'Helper is built in build\' 'setup.cmd' { Has-Files $Build @('focusfix.exe', 'focushook.dll', 'joylist.exe') }
-    Check 'Helper is newer than its source' 'delete build\focusfix.exe and build\focushook.dll, then setup.cmd' {
-        ((Get-Item -LiteralPath $FocusfixExe).LastWriteTime -gt (Get-Item -LiteralPath (Join-Path $Here 'src\focusfix\focusfix.c')).LastWriteTime) -and
-        ((Get-Item -LiteralPath $FocushookDll).LastWriteTime -gt (Get-Item -LiteralPath (Join-Path $Here 'src\focusfix\focushook.c')).LastWriteTime)
+    Check 'Helper is in build\' 'setup.cmd' { Has-Files $Build @('focusfix.exe', 'focushook.dll', 'joylist.exe', 'oggenc-min.exe', 'winmm.dll') }
+    Check 'Helper is the pinned release build, or was built here from the current source' 'setup.cmd' {
+        $pinned = @{}
+        foreach ($line in (Read-Lines (Join-Path $Here 'tools\windows-helpers.sha256'))) {
+            if ($line -match '^([0-9a-f]{64})  (\S+)$') { $pinned[$Matches[2]] = $Matches[1] }
+        }
+        $released = (Test-Sha256 $FocusfixExe $pinned['focusfix.exe']) -and (Test-Sha256 $FocushookDll $pinned['focushook.dll'])
+        $released -or (
+            ((Get-Item -LiteralPath $FocusfixExe).LastWriteTime -gt (Get-Item -LiteralPath (Join-Path $Here 'src\focusfix\focusfix.c')).LastWriteTime) -and
+            ((Get-Item -LiteralPath $FocushookDll).LastWriteTime -gt (Get-Item -LiteralPath (Join-Path $Here 'src\focusfix\focushook.c')).LastWriteTime))
     }
     Check 'Save folders in game\User' 'setup.cmd' { Has-Files (Join-Path $Game 'User') @('Rosters', 'Save\Levels', 'Save\Photos', 'Save\Stickers') }
     Check 'Python for the texture check in python\' 'setup.cmd' { Test-Path -LiteralPath $Python }

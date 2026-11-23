@@ -2,6 +2,7 @@ param(
     [string]$Image,
     [string]$Language,
     [switch]$NoWrapper,
+    [switch]$BuildHelpers,
     [switch]$Help
 )
 Set-StrictMode -Version 2
@@ -9,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
 $Usage = @'
-Usage: setup.cmd [-Language English|French|German|Italian] [-NoWrapper] [path\to\Dogfighter.bin]
+Usage: setup.cmd [-Language English|French|German|Italian] [-NoWrapper] [-BuildHelpers] [path\to\Dogfighter.bin]
 
 Windows version of setup.sh. NOT TESTED ON WINDOWS YET; see docs\WINDOWS.md.
 Builds the game from your own Airfix Dogfighter CD image, a raw .bin with
@@ -17,10 +18,13 @@ Builds the game from your own Airfix Dogfighter CD image, a raw .bin with
 in this folder. Run it again after an error: finished steps are skipped.
 
 It downloads, each checked against a pinned SHA-256 checksum:
-  llvm-mingw (builds the music player and the helper), Python's embeddable
-  package (runs the repo's disc tools), libogg, libvorbis, ogg-winmm, and
-  dgVoodoo2 (a DirectDraw and Direct3D 7 replacement). -NoWrapper leaves
+  the ready-built helper, music player and music encoder from this repo's
+  GitHub release, Python's embeddable package (runs the repo's disc tools),
+  and dgVoodoo2 (a DirectDraw and Direct3D 7 replacement). -NoWrapper leaves
   dgVoodoo2 out; the game then uses Windows' own DirectDraw.
+
+-BuildHelpers builds those helpers on this PC instead. It downloads
+llvm-mingw (about 190 MB), libogg, libvorbis and ogg-winmm.
 
 It does not make the larger textures. Copy a finished hd-textures folder
 from a Mac install to use them.
@@ -52,6 +56,8 @@ $Music = Join-Path $Here 'music'
 $OggWinmmCommit = '09859f0cedf074c705fd56d29056d254e667a17d'
 $Tracks = '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'
 $DgVoodoo = Join-Path $Here 'wrappers\dgVoodoo2'
+$HelpersTag = 'windows-helpers-2026-11-24'
+$HelperPins = Join-Path $Here 'tools\windows-helpers.sha256'
 
 function Step([string]$Text) { Write-Host "`n==> $Text" }
 
@@ -157,6 +163,33 @@ function Get-Sources {
         Step $s[1]
         $archive = Get-Pinned $s[2] $s[3] $s[4]
         Expand-Pinned $archive $s[5] $dest
+    }
+}
+
+function Get-HelperPins {
+    $pins = @()
+    foreach ($line in (Read-Lines $HelperPins)) {
+        if ($line -match '^([0-9a-f]{64})  (\S+)$') { $pins += , @($Matches[2], $Matches[1]) }
+    }
+    if ($pins.Count -eq 0) { Fail 'tools\windows-helpers.sha256 lists no files.' }
+    return , $pins
+}
+
+function Get-Helpers {
+    foreach ($pin in (Get-HelperPins)) {
+        $target = Join-Path $Build $pin[0]
+        if (Test-Sha256 $target $pin[1]) { continue }
+        $url = "https://github.com/natemate90/dogfighter/releases/download/$HelpersTag/$($pin[0])"
+        try { $file = Get-Pinned "$HelpersTag\$($pin[0])" $url $pin[1] }
+        catch { Fail "$($_.Exception.Message)`nIf the release $HelpersTag is not published yet, run setup.cmd -BuildHelpers to build the helpers on this PC." }
+        Copy-Item -LiteralPath $file -Destination $target -Force
+    }
+}
+
+function Remove-ReleaseHelpers {
+    foreach ($pin in (Get-HelperPins)) {
+        $target = Join-Path $Build $pin[0]
+        if (Test-Sha256 $target $pin[1]) { Remove-Item -LiteralPath $target -Force }
     }
 }
 
@@ -280,7 +313,7 @@ function Copy-Music {
     if ($missing) {
         Test-Image
         Step 'Ripping the CD music to music\ (a few minutes)'
-        $encoder = Build-Encoder
+        $encoder = Join-Path $Build 'oggenc-min.exe'
         $ranges = @(& $Python -I (Join-Path $Here 'tools\find_tracks.py') $Image)
         if ($LASTEXITCODE -ne 0) { Fail 'find_tracks.py failed.' }
         if ($ranges.Count -ne $Tracks.Count) {
@@ -326,6 +359,10 @@ function Build-Winmm {
             "-L$dir", '-lvorbisfile', '-lwinmm', '-static'))
         Remove-Item -LiteralPath $dir -Recurse -Force
     }
+}
+
+function Install-Winmm {
+    $dll = Join-Path $Build 'winmm.dll'
     $installed = Join-Path $Game 'winmm.dll'
     if (-not (Test-Path -LiteralPath $installed) -or (Get-FileHash -LiteralPath $dll).Hash -ne (Get-FileHash -LiteralPath $installed).Hash) {
         Copy-Item -LiteralPath $dll -Destination $installed -Force
@@ -366,15 +403,23 @@ function Test-HdTextures {
 Test-Requirements
 if (-not (Test-Path -LiteralPath (Join-Path $Game 'Resource.up'))) { Test-Space 3 }
 New-Item -ItemType Directory -Force -Path $Build | Out-Null
-Get-Toolchain
+if ($BuildHelpers) {
+    Remove-ReleaseHelpers
+    Get-Toolchain
+    Get-Sources
+    Build-Winmm
+    Build-Helpers
+    Build-Encoder | Out-Null
+} else {
+    Step "Helper, music player and music encoder (release $HelpersTag)"
+    Get-Helpers
+}
 Get-Python
-Get-Sources
 Get-Wrapper
 New-Cd
 Install-Game
 Copy-Music
-Build-Winmm
-Build-Helpers
+Install-Winmm
 Test-HdTextures
 
 Write-Host "`nSetup is done. Start the game with dogfighter.cmd."
