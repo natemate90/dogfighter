@@ -46,7 +46,7 @@ async function contact(request, env, url) {
   if (invalid.length) return reply(422, { ok: false, error: "invalid", fields: invalid });
 
   const production = PRODUCTION_HOSTS.includes(url.hostname);
-  const secret = env.TURNSTILE_SECRET || (production ? "" : TEST_SECRET);
+  const secret = production ? env.TURNSTILE_SECRET : TEST_SECRET;
   if (!secret) {
     console.log("contact: TURNSTILE_SECRET is not set");
     return reply(503, { ok: false, error: "not_configured" });
