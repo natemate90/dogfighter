@@ -6,7 +6,8 @@
   const MUZZLE = 38 * UNIT, BULLET_LIFE = 1.2, GUN_RATE = 8.7, BURST = 0.6;
   const LOCK_CONE = 0.12, FIRE_CONE = 0.12, FIRE_RANGE = 12 * UNIT, MAX_BULLETS = 40, HITS_TO_SMOKE = 18;
   const FALL_ACCEL = 6 * UNIT, FALL_MAX = 6 * UNIT, TAU = Math.PI * 2;
-  const SHARD_GRAVITY = 10 * UNIT, SHARDS_EACH = 22, MAX_SHARDS = 60, GLASS_BACK = 12;
+  const SHARD_GRAVITY = 10 * UNIT, SHARDS_EACH = 22, PANE_SHARDS = 12, MAX_SHARDS = 80, PANE_CHANCE = 0.02;
+  const STAR_REACH = 0.9 * UNIT, MAX_STARS = 12;
 
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   const angle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -66,8 +67,8 @@
   }
 
   function world(boxes = []) {
-    const glass = boxes.map((b) => ({ ...b, broken: false, back: 0 }));
-    const s = { prey: makePlane(1.05, TOP_SPEED), hunter: makePlane(0.92, TOP_SPEED), bullets: [], sparks: [], puffs: [], shards: [], glass, t: 0 };
+    const glass = boxes.map((b) => ({ ...b, broken: false }));
+    const s = { prey: makePlane(1.05, TOP_SPEED), hunter: makePlane(0.92, TOP_SPEED), bullets: [], sparks: [], puffs: [], shards: [], stars: [], glass, t: 0 };
     reset(s);
     return s;
   }
@@ -82,12 +83,13 @@
     place(s.prey, dir > 0 ? -EDGE - 10 : W + EDGE + 10, y, dir, 2.65 * UNIT);
     place(s.hunter, dir > 0 ? -EDGE - 220 : W + EDGE + 220, y + rand(-30, 30), dir, 2.9 * UNIT);
     Object.assign(s.prey, { falling: false, crashed: false, throttle: CRUISE, mode: "cruise", timer: rand(2, 3), alt: y, hits: 0, smoke: 0, smokeAt: 0, turned: 0, jink: false });
-    Object.assign(s.hunter, { mode: "chase", burst: 0, cool: 0.6, shotAt: 0, gun: 1, close: false, turnDir: 0 });
+    Object.assign(s.hunter, { mode: "chase", burst: 0, cool: 0.6, shotAt: 0, gun: 1, close: false, turnDir: 0, obj: null, objUntil: 0, objNext: s.t + rand(4, 8) });
     s.exitTime = 0;
     s.fade = 1;
     s.calm = s.t + 2.5;
     s.started = s.t;
     for (const g of s.glass) g.broken = false;
+    s.stars.length = 0;
   }
 
   function canLoop(p) {
@@ -161,6 +163,11 @@
     return { x: ax, y: ay, dist };
   }
 
+  function objectAim(h, g) {
+    const x = wrapDx(g.x + g.w / 2 - h.x), y = g.y + g.h / 2 - h.y;
+    return { x, y, dist: Math.hypot(x, y) };
+  }
+
   function hunt(s, dt) {
     const h = s.hunter, p = s.prey;
     h.cool -= dt;
@@ -170,8 +177,20 @@
       keepInside(h);
       return;
     }
-    const aim = lead(h, p);
-    if (aim.dist < 2.5 * UNIT) h.close = true;
+    if (h.obj && (h.obj.broken || s.t > h.objUntil)) h.obj = null;
+    if (!h.obj && s.t > h.objNext && !h.close && !h.turnDir) {
+      h.objNext = s.t + rand(6, 12);
+      const ahead = s.glass.filter((g) => {
+        const dx = (g.x + g.w / 2 - h.x) * facing(h);
+        return g.target && !g.broken && dx > 80 && dx < FIRE_RANGE && Math.abs(g.y + g.h / 2 - h.y) < dx;
+      });
+      if (ahead.length) {
+        h.obj = ahead[Math.floor(Math.random() * ahead.length)];
+        h.objUntil = s.t + 3.5;
+      }
+    }
+    const aim = h.obj ? objectAim(h, h.obj) : lead(h, p);
+    if (!h.obj && aim.dist < 2.5 * UNIT) h.close = true;
     else if (aim.dist > 3.5 * UNIT) h.close = false;
     h.throttle = aim.dist < 4 * UNIT ? 0.3 : aim.dist > 8 * UNIT ? 0.8 : 0.5;
     if (h.close) {
@@ -198,7 +217,8 @@
       return;
     }
     const n = nose(h), off = Math.acos(clamp((n.x * aim.x + n.y * aim.y) / (Math.hypot(n.x, n.y) * aim.dist || 1), -1, 1));
-    if (h.cool <= 0 && s.t > s.calm && !p.smoke && !h.close && p.x > 30 && p.x < W - 30 && aim.dist < FIRE_RANGE && off < FIRE_CONE) {
+    const clear = h.obj ? h.x > 0 && h.x < W : !p.smoke && p.x > 30 && p.x < W - 30;
+    if (h.cool <= 0 && s.t > s.calm && clear && !h.close && aim.dist < FIRE_RANGE && off < FIRE_CONE) {
       h.burst = BURST;
       h.shotAt = 0;
       h.cool = BURST + rand(0.4, 0.9);
@@ -234,18 +254,24 @@
     return (along / (15 * p.size * len)) ** 2 + (across / 5.4) ** 2 < 1;
   }
 
-  function shatter(s, g, b) {
+  function shatter(s, g, b, hx, hy) {
     g.broken = true;
-    g.back = s.t + GLASS_BACK;
+    const pane = g.kind === "pane";
     const push = Math.sign(b.vx) * 40;
-    for (let k = 0; k < SHARDS_EACH && s.shards.length < MAX_SHARDS; k++) {
+    for (let k = 0; k < (pane ? PANE_SHARDS : SHARDS_EACH) && s.shards.length < MAX_SHARDS; k++) {
+      const x = pane ? clamp(hx + rand(-40, 40), g.x, g.x + g.w) : g.x + rand(0, g.w);
+      const y = pane ? clamp(hy + rand(-35, 35), g.y, g.y + g.h) : g.y + rand(0, g.h);
+      const out = Math.atan2(y - hy, x - hx), speed = pane ? rand(60, 190) : 0;
       s.shards.push({
-        x: g.x + rand(0, g.w), y: g.y + rand(0, g.h),
-        vx: rand(-110, 110) + push, vy: rand(-170, -20),
-        a: rand(0, TAU), spin: rand(-14, 14), size: rand(3, 6.5),
+        x, y,
+        vx: pane ? Math.cos(out) * speed + push : rand(-110, 110) + push,
+        vy: pane ? Math.sin(out) * speed - 60 : rand(-170, -20),
+        a: rand(0, TAU), spin: pane ? rand(-6, 6) : rand(-14, 14), size: pane ? rand(8, 20) : rand(3, 6.5),
+        k: [1, rand(0.3, 0.6), rand(0.7, 1)], o: [rand(2.2, 2.7), rand(3.8, 4.4)],
         floor: rand(306, 392), life: rand(1.8, 2.6), bounced: false, rest: false,
       });
     }
+    if (s.stars.length < MAX_STARS) s.stars.push({ x: g.x + g.w / 2, y: g.y + g.h / 2, phase: rand(0, TAU) });
   }
 
   function shotDown(p) {
@@ -290,14 +316,21 @@
       for (const g of s.glass) {
         if (g.broken || b.life <= 0) continue;
         const mx = (x0 + b.x) / 2, my = (y0 + b.y) / 2;
-        if ([[x0, y0], [mx, my], [b.x, b.y]].some(([x, y]) => x > g.x && x < g.x + g.w && y > g.y && y < g.y + g.h)) {
-          shatter(s, g, b);
+        const hit = [[x0, y0], [mx, my], [b.x, b.y]].find(([x, y]) => x > g.x && x < g.x + g.w && y > g.y && y < g.y + g.h);
+        if (hit && (g.kind !== "pane" || Math.random() < PANE_CHANCE)) {
+          shatter(s, g, b, hit[0], hit[1]);
           b.life = 0;
         }
       }
       if (b.life <= 0) s.bullets.splice(i, 1);
     }
-    for (const g of s.glass) if (g.broken && s.t > g.back) g.broken = false;
+    for (let i = s.stars.length - 1; i >= 0; i--) {
+      const st = s.stars[i];
+      const taker = [p, h].find((q) => !q.falling && Math.hypot(wrapDx(q.x - st.x), q.y - st.y) < STAR_REACH);
+      if (!taker) continue;
+      s.sparks.push({ x: st.x, y: st.y, age: 0, spin: rand(0, 1) });
+      s.stars.splice(i, 1);
+    }
     for (let i = s.shards.length - 1; i >= 0; i--) {
       const f = s.shards[i];
       f.life -= dt;
@@ -362,8 +395,13 @@
   const tracers = layer("path", "tracers", null);
   const sparks = layer("path", "sparks", null);
   const glassEls = [...scene.querySelectorAll(".glass")];
-  const boxes = glassEls.map((el) => { const [x, y, w, h] = el.dataset.box.split(",").map(Number); return { x, y, w, h }; });
+  const brokenEls = glassEls.map((el) => (el.nextElementSibling && el.nextElementSibling.classList.contains("pane-broken") ? el.nextElementSibling : null));
+  const boxes = glassEls.map((el) => {
+    const [x, y, w, h] = el.dataset.box.split(",").map(Number);
+    return { x, y, w, h, kind: el.dataset.kind || "glass", target: el.dataset.target === "1" };
+  });
   const shardPath = layer("path", "shards", sprites.hunter);
+  const starPath = layer("path", "stars", sprites.hunter);
   const circles = [];
 
   let state = null, running = false, onScreen = true, last = 0, acc = 0, pending = 0;
@@ -391,10 +429,24 @@
     d = "";
     for (const f of s.shards) {
       const r = f.size * Math.min(1, f.life / 0.6);
-      d += `M${n(f.x + Math.cos(f.a) * r)} ${n(f.y + Math.sin(f.a) * r)}L${n(f.x + Math.cos(f.a + 2.4) * r * 0.7)} ${n(f.y + Math.sin(f.a + 2.4) * r * 0.7)}L${n(f.x + Math.cos(f.a + 4) * r * 0.9)} ${n(f.y + Math.sin(f.a + 4) * r * 0.9)}Z`;
+      const pt = (off, k) => `${n(f.x + Math.cos(f.a + off) * r * k)} ${n(f.y + Math.sin(f.a + off) * r * k)}`;
+      d += `M${pt(0, f.k[0])}L${pt(f.o[0], f.k[1])}L${pt(f.o[1], f.k[2])}Z`;
     }
     shardPath.setAttribute("d", d);
-    s.glass.forEach((g, i) => (glassEls[i].style.display = g.broken ? "none" : ""));
+    d = "";
+    for (const st of s.stars) {
+      const cx = st.x, cy = st.y + 3 * Math.sin(s.t * 2.2 + st.phase), turn = s.t * 1.2 + st.phase;
+      for (let i = 0; i < 10; i++) {
+        const a = turn + (i * Math.PI) / 5, rr = i % 2 ? 3.4 : 8;
+        d += `${i ? "L" : "M"}${n(cx + Math.sin(a) * rr)} ${n(cy - Math.cos(a) * rr)}`;
+      }
+      d += "Z";
+    }
+    starPath.setAttribute("d", d);
+    s.glass.forEach((g, i) => {
+      glassEls[i].style.display = g.broken ? "none" : "";
+      if (brokenEls[i]) brokenEls[i].style.display = g.broken ? "" : "none";
+    });
     s.puffs.forEach((f, i) => {
       let c = circles[i];
       if (!c) {
@@ -435,7 +487,9 @@
       }
       tracers.setAttribute("d", "");
       shardPath.setAttribute("d", "");
+      starPath.setAttribute("d", "");
       glassEls.forEach((el) => (el.style.display = ""));
+      brokenEls.forEach((el) => el && (el.style.display = "none"));
       sparks.setAttribute("d", "");
       circles.forEach((c) => (c.style.display = "none"));
     }
