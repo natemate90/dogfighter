@@ -151,6 +151,22 @@
     nextPass(8 + Math.random() * 12);
   }
 
+  const heroLink = document.querySelector(".hero-yt");
+  function startHeroVideo() {
+    if (!heroLink || !heroLink.isConnected || heroLink.dataset.started) return;
+    heroLink.dataset.started = "1";
+    const id = encodeURIComponent(heroLink.dataset.id);
+    const player = document.createElement("iframe");
+    player.className = "hero-player";
+    player.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&mute=1&loop=1&playlist=${id}&controls=0&playsinline=1&rel=0&modestbranding=1`;
+    player.title = heroLink.dataset.title;
+    player.allow = "autoplay; encrypted-media; picture-in-picture";
+    player.referrerPolicy = "strict-origin-when-cross-origin";
+    player.addEventListener("load", () => player.classList.add("ready"));
+    heroLink.after(player);
+  }
+  if (!reduce.matches) startHeroVideo();
+
   document.querySelectorAll(".yt").forEach((link) => {
     link.addEventListener("click", (event) => {
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
