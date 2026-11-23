@@ -45,7 +45,8 @@ async function contact(request, env, url) {
   if (!token || token.length > 2048) invalid.push("turnstile");
   if (invalid.length) return reply(422, { ok: false, error: "invalid", fields: invalid });
 
-  const secret = env.TURNSTILE_SECRET || (PRODUCTION_HOSTS.includes(url.hostname) ? "" : TEST_SECRET);
+  const production = PRODUCTION_HOSTS.includes(url.hostname);
+  const secret = env.TURNSTILE_SECRET || (production ? "" : TEST_SECRET);
   if (!secret) {
     console.log("contact: TURNSTILE_SECRET is not set");
     return reply(503, { ok: false, error: "not_configured" });
@@ -66,6 +67,7 @@ async function contact(request, env, url) {
     console.log(`contact: challenge failed ${JSON.stringify(verdict["error-codes"] || [])}`);
     return reply(403, { ok: false, error: "challenge_failed" });
   }
+  if (!production) return reply(200, { ok: true, dryRun: true });
 
   const form = new URLSearchParams({
     [ENTRY.topic]: topic,
@@ -76,7 +78,7 @@ async function contact(request, env, url) {
   });
   let status;
   try {
-    const res = await fetch(env.CONTACT_FORM_URL || FORM_URL, { method: "POST", body: form, redirect: "manual" });
+    const res = await fetch(FORM_URL, { method: "POST", body: form, redirect: "manual" });
     status = res.status;
     await res.body?.cancel();
   } catch {

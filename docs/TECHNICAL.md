@@ -1194,13 +1194,15 @@ It sets no tracking cookies, so it needs no consent.
 5. Copy the secret key. Open Workers & Pages › dogfighter › Settings › Variables and secrets.
 6. Add a variable of type Secret named `TURNSTILE_SECRET` with that key, and deploy.
 
-#### Trying it locally
+#### Previews and local runs
 
-Put `CONTACT_FORM_URL=http://127.0.0.1:8797/formResponse` in `.dev.vars`, so nothing reaches the real Google Form.
-Run any server there that answers a POST with 200.
-Then run `npx wrangler dev` and open http://localhost:8787/#contact.
+Only dogfighter.net and www.dogfighter.net pass messages on to the Google Form.
+On any other host the Worker checks the form and the token, then answers success without sending anything.
+The page then says "Preview: message not sent".
+So the test keys on previews cannot be used to fill the real form.
+
+Run `npx wrangler dev` and open http://localhost:8787/#contact to try it.
 On localhost the page always uses the test site key, and `wrangler dev` has no `TURNSTILE_SECRET`, so the test secret matches it.
-Previews use the real keys once they exist, because `nathanalder.workers.dev` is in the widget's hostnames.
 
 ## Legal
 
