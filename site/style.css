@@ -790,7 +790,6 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .istep p { margin: 0.5em 0; }
 .istep .fact { color: var(--ink-soft); font-size: 0.95rem; }
 .istep .fact strong { color: var(--ink); }
-.mini-kit { display: none; }
 .code { position: relative; margin: 10px 0; }
 .code pre { margin: 0; padding-right: 74px; }
 .copy { position: absolute; top: 7px; right: 7px; padding: 3px 10px; border: 1.5px solid var(--ink); border-radius: 4px; background: var(--paper); color: var(--ink); font: 700 0.75rem var(--body); cursor: pointer; }
@@ -808,10 +807,13 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .final h2::before { content: none; }
 @media (max-width: 900px) {
   .assembly { display: block; }
-  .kit-col { display: none; }
-  .static .kit-col { display: block; position: static; margin-bottom: 24px; }
-  .mini-kit { display: block; max-width: 340px; margin: 0 auto 10px; }
-  .static .mini-kit { display: none; }
+  .kit-col { top: 0; z-index: 5; margin: 0 -16px 18px; padding: 8px 16px 4px; background: var(--paper); border-bottom: 1.5px solid color-mix(in srgb, var(--ink) 25%, transparent); }
+  .kit-col .sprue-box { height: 150px; }
+  .kit-col .sprue { height: 150px; max-height: none; }
+  .kit-col .stage-caption { margin-top: 2px; font-size: 0.8rem; }
+  .static .kit-col { position: static; }
+  .topbar.in-install { transform: translateY(-100%); }
+  .istep { scroll-margin-top: 200px; }
 }
 @media (max-width: 760px) {
   .topnav { display: none; }
@@ -893,10 +895,6 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
   .yt-note { font-size: 0.8rem; }
   .tins { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .build { height: 220vh; }
-  .kit-col .sprue-box { position: relative; width: min(100%, calc((100svh - 130px) * 0.64)); aspect-ratio: 640 / 1000; margin-inline: auto; }
-  .kit-col .sprue { position: absolute; top: 50%; left: 50%; width: calc(100% * 1000 / 640); max-height: none; transform: translate(-50%, -50%) rotate(-90deg); }
-  .kit-col .sprue .emboss { display: none; }
-  .kit-col .sprue .tab text { transform-box: fill-box; transform-origin: center; transform: rotate(90deg); }
   .diagram { max-width: 300px; align-self: center; }
   .step { padding-inline: 18px; }
   .stepnum { left: -8px; }
