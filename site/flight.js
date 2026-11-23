@@ -307,7 +307,7 @@
       if (!p.crashed && (p.y > 446 || p.x < -EDGE || p.x > W + EDGE)) {
         p.crashed = true;
         s.endAt = s.t + 3;
-        if (p.y > 446 && p.x > 0 && p.x < W) {
+        if (p.y > 446 && p.x > -20 && p.x < W + 20) {
           for (let k = 0; k < 3; k++) s.sparks.push({ x: p.x + rand(-6, 6), y: 450 + rand(-4, 2), age: rand(-0.1, 0), spin: rand(0, 1) });
           puff(s, p.x, 448, 6, 22, 0.9, "hit");
           for (let k = 0; k < 4; k++) puff(s, p.x + rand(-10, 10), 446 - k * 4, 6, 20, 2.2, "dark");
@@ -320,7 +320,7 @@
     if (p.mode === "leave") s.exitTime += dt;
     for (const q of [p, h]) if (q.leaving && (q.x < -EDGE || q.x > W + EDGE)) q.gone = true;
     if (s.exitTime > 12) s.fade -= dt / 0.6;
-    if ((p.gone && h.gone) || s.fade <= 0) reset(s);
+    if ((!p.falling && p.gone && h.gone) || s.fade <= 0) reset(s);
   }
 
   const scene = document.getElementById("scene");
