@@ -148,7 +148,8 @@ tools/build-app.sh --full
 - It runs without the game folder. You can move it to Applications.
 - It plays like `./dogfighter`, with the same best picture.
 - What the game writes goes to `~/Library/Application Support/Dogfighter`: saves, settings, screenshots, logs and backups.
-- The first start copies your saves from `game/` into that folder. It never changes the ones in `game/`.
+- The build copies your saves from `game/` into the app. Its first start copies them from there into that folder. The ones in `game/` are never changed.
+- Saves made with `./dogfighter` after the build are not in the app. Build it again before its first start to take them along. That takes about ten seconds.
 - The first start takes about a minute longer. It prepares Wine.
 - It uses Mach9 only. It has no fallback to the Rosetta Wine.
 - It holds your game files. Keep it to yourself.

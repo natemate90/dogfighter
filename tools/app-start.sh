@@ -55,6 +55,18 @@ link_state() {
   ln -sfn ../music "$STATE/game/Music"
 }
 
+mach9_runs() {
+  local version major minor=0
+  version="$(/usr/bin/sw_vers -productVersion 2>/dev/null || true)"
+  major="${version%%.*}"
+  if [[ "$version" == *.* ]]; then minor="${version#*.}"; fi
+  minor="${minor%%.*}"
+  [[ "$major" =~ ^[0-9]+$ && "$minor" =~ ^[0-9]+$ ]] || return 1
+  [ "$(sysctl -n hw.optional.arm64 2>/dev/null || true)" = 1 ] || return 1
+  [ "$major" -gt 26 ] || { [ "$major" -eq 26 ] && [ "$minor" -ge 4 ]; }
+}
+
+mach9_runs || fail "This app needs a Mac with Apple Silicon and macOS 26.4 or later: it holds only Mach9, and Mach9 runs from 26.4 on."
 if [ ! -d "$STATE" ]; then
   seed_state || fail "Could not make the folder $STATE for the game's saves and settings."
 fi
@@ -69,11 +81,22 @@ stop_game() {
   exit 0
 }
 trap stop_game TERM INT HUP
-"$STATE/dogfighter" ${ARGS[@]+"${ARGS[@]}"} &
+if [ "${#ARGS[@]}" -gt 0 ]; then
+  "$STATE/dogfighter" "${ARGS[@]}" &
+  LAUNCHER=$!
+  wait "$LAUNCHER"
+  exit
+fi
+OUT="$STATE/logs/app.log"
+mkdir -p "$STATE/logs"
+"$STATE/dogfighter" >"$OUT" 2>&1 &
 LAUNCHER=$!
 wait "$LAUNCHER"
 status=$?
-if [ "$status" != 0 ] && [ "${#ARGS[@]}" = 0 ]; then
-  alert "The game did not start. The newest log in $STATE/logs says why."
+if [ "$status" != 0 ]; then
+  alert "The game did not start:
+$(tail -n 3 "$OUT")
+
+All of it is in $OUT."
 fi
 exit "$status"

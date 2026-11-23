@@ -101,6 +101,11 @@ The app's own program passes options on as well: `Dogfighter.app/Contents/MacOS/
 
 The launcher runs the texture check with `python3 -B`, so Python writes no `__pycache__` into the app.
 
+The app stops at once, with a message, on a Mac without Apple Silicon or with macOS before 26.4: it has no Wine for those.
+A start from Finder writes the launcher's output to `logs/app.log` in that folder.
+When the launcher ends with an error, the app's message shows the last three lines of that file.
+So a stop before the run log exists, such as "Dogfighter is already running", is shown too.
+
 When the app gets TERM, INT or HUP, as at logout, it ends the launcher and runs `--stop` on that folder.
 The game's own quit ends the launcher and then the app.
 
@@ -1186,7 +1191,7 @@ Collected from the sections above.
 - The desk on the main menu: not yet looked at in the game.
 - The plane paintings and the stamps in the mission book: not yet looked at in the game.
 - `--join`: whether the Multiplayer screen lists the server.
-- The app with everything inside: never started. Its contents, its signature and `--doctor` through it were checked.
+- The app with everything inside: the end on TERM, INT or HUP. A start from Finder, a test run with a screenshot in a flight and `--stop` through a second copy of the app were run on an M4 Max.
 - The sharper intro videos: the player window, its decoding and the skipping were never run. The game leaving out its own copies was run with `--diag-intros-shown`.
 - The Airfix intro at level 2: only a 4-second clip was made so far. The level 3 sample was not made yet.
 - Controllers: none was ever connected. Open points are whether the game gets its input, the direction of pitch, the triggers as throttle, Xbox over USB, and whether the Key configuration screen takes controller buttons.
