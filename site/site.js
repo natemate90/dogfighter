@@ -325,7 +325,6 @@
 
   const contactForm = document.getElementById("contact-form");
   if (contactForm) {
-    const FALLBACK = "https://docs.google.com/forms/d/e/REDACTED-FORM-ID/viewform";
     const result = document.getElementById("contact-result");
     const sendButton = contactForm.querySelector('button[type="submit"]');
     const fields = {
@@ -340,7 +339,7 @@
       email: "This does not look like an email address. Leave it empty if you don't want a reply.",
       turnstile: "The spam check has not finished yet. Wait a moment and send again.",
     };
-    const BLOCKED = "The spam check could not load. A blocker may stop it. Reload the page, or use the Google Form below.";
+    const BLOCKED = "The spam check could not load. A blocker may stop it. Reload the page, or try again with the blocker paused for this site.";
     let widgetId = null;
     let turnstileFailed = false;
     let token = "";
@@ -415,13 +414,7 @@
       result.append(heading, body);
       if (!sent) {
         const fallback = document.createElement("p");
-        fallback.append("Your text is still in the form. You can try again, or send it through the ");
-        const link = document.createElement("a");
-        link.href = FALLBACK;
-        link.target = "_blank";
-        link.rel = "noopener";
-        link.textContent = "Google Form";
-        fallback.append(link, ".");
+        fallback.textContent = "Your text is still in the form. Try again in a moment.";
         result.append(fallback);
       }
       result.classList.toggle("failed", !sent);
