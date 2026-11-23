@@ -266,6 +266,7 @@ h1 { margin: 0; line-height: 0.9; font-family: var(--display); }
   box-shadow: 0 4px 0 var(--ink);
   transition: transform 0.12s, box-shadow 0.12s;
 }
+button.button { font: inherit; font-weight: 700; cursor: pointer; }
 .button:hover { transform: translateY(2px); box-shadow: 0 2px 0 var(--ink); }
 .button:active { transform: translateY(4px); box-shadow: 0 0 0 var(--ink); }
 .button.ghost { background: transparent; color: var(--ink); }
@@ -832,6 +833,33 @@ html:has(#install) { scroll-snap-type: y proximity; }
   .menu-btn { display: grid; }
   .brand span { font-size: 0.8rem; }
 }
+.consent {
+  position: fixed;
+  left: 50%;
+  bottom: 12px;
+  z-index: 50;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 16px;
+  width: min(640px, calc(100% - 24px));
+  padding: 10px 14px;
+  transform: translateX(-50%);
+  background: var(--paper);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  box-shadow: 4px 4px 0 var(--ink);
+  font-size: 0.9rem;
+}
+.consent[hidden] { display: none; }
+.consent p { margin: 0; }
+.consent-buttons { display: flex; gap: 10px; }
+.consent .button { min-width: 7.5em; justify-content: center; }
+.consent-open { scroll-padding-bottom: 120px; }
+.consent-open body { padding-bottom: 120px; }
+.linklike { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
 @media (prefers-reduced-motion: no-preference) {
   .js .stamp:not(.in) { opacity: 0; }
   .js .stamp.in { animation: stamp-down 0.4s cubic-bezier(0.3, 1.4, 0.5, 1) both; }

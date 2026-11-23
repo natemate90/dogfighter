@@ -150,6 +150,8 @@
       try {
         await navigator.clipboard.writeText(text);
         button.textContent = "Copied";
+        const box = button.parentElement;
+        track("copy_command", { step: Number(box.dataset.step), command_id: box.dataset.command });
       } catch {
         const range = document.createRange();
         range.selectNodeContents(button.parentElement.querySelector("code"));
@@ -240,6 +242,95 @@
       nextPass(30 + Math.random() * 60);
     });
     nextPass(8 + Math.random() * 12);
+  }
+
+  const GA_ID = "G-S35GY95CV8";
+  let analyticsLoaded = false;
+  function track(name, params) {
+    if (analyticsLoaded && typeof window.gtag === "function") window.gtag("event", name, params);
+  }
+  document.querySelectorAll(".code").forEach((box) => {
+    box.addEventListener("copy", () => track("copy_command_manual", { step: Number(box.dataset.step), command_id: box.dataset.command }));
+  });
+  document.querySelectorAll("[data-cta]").forEach((link) => {
+    link.addEventListener("click", () => track("install_cta_click", { location: link.dataset.cta }));
+  });
+  const depths = [25, 50, 75, 90, 100], sentDepths = new Set();
+  window.addEventListener("scroll", () => {
+    if (!analyticsLoaded) return;
+    const doc = document.documentElement;
+    const percent = ((window.scrollY + window.innerHeight) / doc.scrollHeight) * 100;
+    depths.forEach((d) => {
+      if (percent + 0.5 >= d && !sentDepths.has(d)) {
+        sentDepths.add(d);
+        track("scroll_depth", { percent: d });
+      }
+    });
+  }, { passive: true });
+  const consent = document.getElementById("consent");
+  const readChoice = () => {
+    try {
+      return localStorage.getItem("consent");
+    } catch {
+      return null;
+    }
+  };
+  const saveChoice = (value) => {
+    try {
+      localStorage.setItem("consent", value);
+    } catch {}
+  };
+  function loadAnalytics() {
+    window[`ga-disable-${GA_ID}`] = false;
+    if (analyticsLoaded) return;
+    analyticsLoaded = true;
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function gtag() {
+      window.dataLayer.push(arguments);
+    };
+    window.gtag("js", new Date());
+    window.gtag("config", GA_ID);
+    const tag = document.createElement("script");
+    tag.async = true;
+    tag.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
+    document.head.appendChild(tag);
+  }
+  function dropAnalyticsCookies() {
+    window[`ga-disable-${GA_ID}`] = true;
+    const host = location.hostname.split(".");
+    const domains = ["", ...host.map((_, i) => "." + host.slice(i).join("."))];
+    document.cookie.split(";").map((c) => c.split("=")[0].trim()).filter((name) => name.startsWith("_ga")).forEach((name) => {
+      domains.forEach((domain) => {
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/${domain ? `; domain=${domain}` : ""}`;
+      });
+    });
+  }
+  function showConsent() {
+    consent.hidden = false;
+    document.documentElement.classList.add("consent-open");
+  }
+  function hideConsent() {
+    consent.hidden = true;
+    document.documentElement.classList.remove("consent-open");
+  }
+  if (consent) {
+    consent.querySelectorAll("[data-consent]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const value = button.dataset.consent;
+        saveChoice(value);
+        hideConsent();
+        if (value === "granted") loadAnalytics();
+        else dropAnalyticsCookies();
+      });
+    });
+    const settings = document.getElementById("cookie-settings");
+    if (settings) settings.addEventListener("click", () => {
+      showConsent();
+      consent.querySelector("button").focus();
+    });
+    const choice = readChoice();
+    if (choice === "granted") loadAnalytics();
+    else if (choice !== "denied") setTimeout(showConsent, 1200);
   }
 
   document.querySelectorAll(".yt").forEach((link) => {

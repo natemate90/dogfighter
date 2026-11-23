@@ -179,7 +179,7 @@
     <h1 id="title"><span class="t1">Dogfighter</span><span class="t2">flies again, on <span class="tail">your Mac. <span class="note">yes, the vase too</span></span></span></h1>
     <p class="lede">Airfix Dogfighter, the Windows game from 2000, runs on your Mac. You bring your own original CD. This project brings the rest, for free.</p>
     <p class="usp">Sharper textures · crisp lettering · a normal Mac window</p>
-    <p class="cta"><a class="button" href="#install">Get it running</a></p>
+    <p class="cta"><a class="button" href="#install" data-cta="hero">Get it running</a></p>
     <p class="cta-note">5 steps in Terminal · free</p>
   </div>
   <div class="hero-video">
@@ -233,7 +233,7 @@
     </ul>
     <p>No disc? This project can't give you the game.</p>
   </div>
-  <p class="cta"><a class="button" href="#install">Got all four? Start installing</a></p>
+  <p class="cta"><a class="button" href="#install" data-cta="checklist">Got all four? Start installing</a></p>
   </div>
   </div>
 </section>
@@ -323,32 +323,32 @@
     <ol class="install-steps">
     <li class="istep" data-step="1">
       <h3><span class="inum" aria-hidden="true">1</span> Install Apple's command line tools</h3>
-      <div class="code"><pre><code>xcode-select --install</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
+      <div class="code" data-step="1" data-command="xcode-tools"><pre><code>xcode-select --install</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
       <p class="fact"><strong>You'll see:</strong> A window opens. Click Install and wait.</p>
     </li>
     <li class="istep" data-step="2">
       <h3><span class="inum" aria-hidden="true">2</span> Install Rosetta 2, only on macOS older than 26.4</h3>
-      <div class="code"><pre><code>softwareupdate --install-rosetta --agree-to-license</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
+      <div class="code" data-step="2" data-command="rosetta"><pre><code>softwareupdate --install-rosetta --agree-to-license</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
       <p class="fact"><strong>Skip it:</strong> On macOS 26.4 or later you can skip this. With Rosetta installed, the game has a backup: if it does not start on Mach9, it starts on the other Wine.</p>
     </li>
     <li class="istep" data-step="3">
       <h3><span class="inum" aria-hidden="true">3</span> Get this project</h3>
-      <div class="code"><pre><code>git clone https://github.com/natemate90/dogfighter.git
+      <div class="code" data-step="3" data-command="clone"><pre><code>git clone https://github.com/natemate90/dogfighter.git
 cd dogfighter</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
       <p class="fact"><strong>Then:</strong> Run all later commands in this folder. In a new Terminal window, type <code>cd dogfighter</code> again first.</p>
     </li>
     <li class="istep" data-step="4">
       <h3><span class="inum" aria-hidden="true">4</span> Copy your game disc to a file</h3>
       <p>You need a CD drive and the free tool <code>cdrdao</code>. Install it with <a href="https://brew.sh">Homebrew</a>, a free installer for tools like this:</p>
-      <div class="code"><pre><code>brew install cdrdao</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
+      <div class="code" data-step="4" data-command="install-cdrdao"><pre><code>brew install cdrdao</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
       <p>Put the disc in the drive and run:</p>
-      <div class="code"><pre><code>cdrdao read-cd --read-raw --datafile Dogfighter.bin --driver generic-mmc:0x20000 Dogfighter.toc</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
+      <div class="code" data-step="4" data-command="copy-disc"><pre><code>cdrdao read-cd --read-raw --datafile Dogfighter.bin --driver generic-mmc:0x20000 Dogfighter.toc</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
       <p class="fact"><strong>You'll see:</strong> <code>Dogfighter.bin</code> in the folder.</p>
       <p class="fact"><strong>Other copies:</strong> Any program that copies the whole disc to one BIN/CUE pair also works: use the <code>.bin</code> file. An <code>.iso</code> file does not work: it has no music. If the <code>.bin</code> is somewhere else, give its place to setup: <code>./setup.sh path/to/Dogfighter.bin</code>.</p>
     </li>
     <li class="istep" data-step="5">
       <h3><span class="inum" aria-hidden="true">5</span> Run setup</h3>
-      <div class="code"><pre><code>./setup.sh</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
+      <div class="code" data-step="5" data-command="setup"><pre><code>./setup.sh</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
       <p class="fact"><strong>Time:</strong> A few minutes. One run on an M4 Max took about eleven minutes.</p>
       <p class="fact"><strong>What it does:</strong> It downloads what it needs and checks each download. It copies the game and the music from your disc file. Last, it makes sharper textures for the game.</p>
       <p class="fact"><strong>You'll see:</strong> <code>Setup is done. Start the game with ./dogfighter, or double-click Dogfighter.app.</code></p>
@@ -357,7 +357,7 @@ cd dogfighter</code></pre><button class="copy" type="button" aria-label="Copy th
     </li>
     <li class="istep fly" data-step="6">
       <h3><span class="inum" aria-hidden="true">&#10003;</span> Then fly</h3>
-      <div class="code"><pre><code>./dogfighter</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
+      <div class="code" data-step="6" data-command="play"><pre><code>./dogfighter</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
       <p class="fact"><strong>First start:</strong> about a minute longer. It prepares Wine for the game. The very first start shows the game's setup window: click OK.</p>
       <p class="fact"><strong>Without Terminal:</strong> double-click <code>Dogfighter.app</code> in the folder. You can drag it to Applications or the Dock.</p>
       <p class="fact"><strong>Mouse:</strong> Ctrl+Option frees the mouse. Click in the picture to give it back.</p>
@@ -631,7 +631,7 @@ cd dogfighter</code></pre><button class="copy" type="button" aria-label="Copy th
   <div class="wrap">
     <h2 id="final-h">Chocks away.</h2>
     <p>Five steps. One CD. The living room is waiting.</p>
-    <p class="cta"><a class="button" href="#install">Get it running</a></p>
+    <p class="cta"><a class="button" href="#install" data-cta="final">Get it running</a></p>
   </div>
 </section>
 
@@ -656,7 +656,7 @@ cd dogfighter</code></pre><button class="copy" type="button" aria-label="Copy th
         <li>Lille-Seclin airfield, Royal Air Force, France, 1939–1940. H. Hensser, Royal Air Force official photographer. <a href="https://commons.wikimedia.org/wiki/File:Lille-Seclin_airfield_-_Royal_Air_Force_-_France,_1939-1940_C1519.jpg">Wikimedia Commons</a>. Public domain (UK Crown Copyright expired).</li>
       </ul>
     </details>
-    <p class="made">Made by <a href="https://github.com/natemate90">natemate90</a>. This site uses no cookies and no tracking of its own. The video's preview picture comes from YouTube's image server; the video itself loads from youtube-nocookie.com only when you click it.</p>
+    <p class="made">Made by <a href="https://github.com/natemate90">natemate90</a>. Uses Google Analytics only if you accept. No other cookies. <button class="linklike" type="button" id="cookie-settings">Cookie settings</button>. The video's preview picture comes from YouTube's image server; the video itself loads from youtube-nocookie.com only when you click it.</p>
   </div>
 </footer>
 
@@ -705,6 +705,13 @@ cd dogfighter</code></pre><button class="copy" type="button" aria-label="Copy th
 <svg class="drifter" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
   <use href="#mini-plane"/>
 </svg>
+<div class="consent" id="consent" role="region" aria-label="Cookie choice" hidden>
+  <p>May we count visits with Google Analytics? It uses cookies.</p>
+  <div class="consent-buttons">
+    <button type="button" class="button small" data-consent="granted">Accept</button>
+    <button type="button" class="button small" data-consent="denied">No thanks</button>
+  </div>
+</div>
 <script src="site.js" defer></script>
 <script src="flight.js" defer></script>
 </body>
