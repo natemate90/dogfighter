@@ -265,8 +265,9 @@
   function draw(s) {
     for (const key of ["prey", "hunter"]) {
       const p = s[key];
-      const bank = 1 - 0.14 * Math.min(1, Math.abs(p.pull) / MAX_PULL);
-      sprites[key].setAttribute("transform", `translate(${n(p.x)} ${n(p.y)}) rotate(${n((p.th * 180) / Math.PI)}) scale(1 ${(liftSign(p) * bank).toFixed(3)})`);
+      const c = liftSign(p);
+      const sy = (c < 0 ? -1 : 1) * Math.max(Math.abs(c), 0.3) * (1 - 0.14 * Math.min(1, Math.abs(p.pull) / MAX_PULL));
+      sprites[key].setAttribute("transform", `translate(${n(p.x)} ${n(p.y)}) rotate(${n((p.th * 180) / Math.PI)}) scale(1 ${sy.toFixed(3)})`);
       sprites[key].style.opacity = s.fade < 1 ? Math.max(0, s.fade).toFixed(2) : "";
     }
     let d = "";
