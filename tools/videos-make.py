@@ -40,6 +40,7 @@ import sys
 import threading
 import time
 
+import cv2
 import imageio_ffmpeg
 import numpy as np
 import psutil
@@ -454,6 +455,124 @@ def upscale_seedvr2(watch, job, video, level, src, up, shots):
         shutil.rmtree(folder, ignore_errors=True)
 
 
+def rgb(path):
+    return np.asarray(Image.open(path).convert("RGB"))
+
+
+def flat_parts(source, rule, scale):
+    """How much of each made pixel is taken from the smooth upscale, and that upscale. A pixel counts as flat when the
+    game's frame, blurred, changes by less than flat_low levels a pixel within guard pixels of it; up to flat_high it
+    counts partly."""
+    gray = cv2.GaussianBlur(cv2.cvtColor(source, cv2.COLOR_RGB2GRAY).astype(np.float32), (0, 0), rule["blur"])
+    slope = np.hypot(cv2.Sobel(gray, cv2.CV_32F, 1, 0), cv2.Sobel(gray, cv2.CV_32F, 0, 1)) / 8
+    slope = cv2.dilate(slope, np.ones((2 * rule["guard"] + 1,) * 2, np.uint8))
+    weight = np.clip((rule["flat_high"] - slope) / (rule["flat_high"] - rule["flat_low"]), 0, 1)
+    size = (source.shape[1] * scale, source.shape[0] * scale)
+    weight = cv2.resize(cv2.GaussianBlur(weight, (0, 0), rule["feather"]), size, interpolation=cv2.INTER_LINEAR)[..., None]
+    smooth = cv2.resize(cv2.GaussianBlur(source.astype(np.float32), (0, 0), rule["blur"]), size, interpolation=cv2.INTER_CUBIC)
+    return weight, smooth
+
+
+def detail(picture, rule):
+    return picture - cv2.GaussianBlur(picture, (0, 0), rule["detail"])
+
+
+def moved(picture, source, toward, scale, rule):
+    """picture, made from the game's frame toward, moved onto the game's frame source, and how far to trust each pixel.
+    The motion is found on the game's frames both ways; where the two disagree by trust pixels of the game's frame or
+    more, as where something comes into view, the pixel is not trusted at all."""
+    gray = [cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY) for frame in (source, toward)]
+    finder = cv2.DISOpticalFlow_create(cv2.DISOPTICAL_FLOW_PRESET_MEDIUM)
+    flow, back = finder.calc(gray[0], gray[1], None), finder.calc(gray[1], gray[0], None)
+    grid = np.mgrid[0:source.shape[0], 0:source.shape[1]].astype(np.float32)
+    back = cv2.remap(back, grid[1] + flow[..., 0], grid[0] + flow[..., 1], cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+    miss = cv2.GaussianBlur(np.hypot(*(flow + back).transpose(2, 0, 1)), (0, 0), 1)
+    height, width = picture.shape[:2]
+    trust = cv2.resize(np.clip(1 - miss / rule["trust"], 0, 1), (width, height), interpolation=cv2.INTER_LINEAR)[..., None]
+    flow = cv2.resize(flow, (width, height), interpolation=cv2.INTER_LINEAR) * scale
+    grid = np.mgrid[0:height, 0:width].astype(np.float32)
+    return cv2.remap(picture, grid[1] + flow[..., 0], grid[0] + flow[..., 1], cv2.INTER_LANCZOS4,
+                     borderMode=cv2.BORDER_REPLICATE), trust
+
+
+def unfade(blend, other, trust, rule):
+    """A frame upscale_seedvr2 faded from one chunk to the next, with the fine detail of other instead.
+
+    The fade averages two different sets of made detail, so it is up to a third softer than its neighbours. other is
+    the nearest frame of the chunk with the larger share, moved onto this one, so its detail is that chunk's own. The
+    coarse picture stays the fade's, which keeps the change of colour and light between the chunks gradual."""
+    return blend + trust * (detail(other, rule) - detail(blend, rule))
+
+
+def faded_frames(shots, level):
+    """Frame index: (share of the earlier chunk, last frame of the earlier chunk, first unfaded frame of the later one)."""
+    overlap, fades = level["overlap"], {}
+    for start, end in shots:
+        chunks = spans(start, end, level["chunk"])
+        for first, last in chunks[1:]:
+            after = min(last, first + overlap)
+            if after < last:
+                for at in range(after - first):
+                    fades[first + at] = ((overlap - at) / (overlap + 1), first - 1, after)
+    return fades
+
+
+def between_neighbours(fades, overlap, times):
+    """Output frame number within the video: the frame whose detail a RIFE frame next to a chunk border takes.
+
+    RIFE makes its frames between from the repaired frames, so the frames around a border still mix two sets of
+    detail. Up to the middle of the fade they take the last frame of the earlier chunk, after it the first unfaded
+    frame of the later one, as the repaired frames themselves do."""
+    picks = {}
+    for before, after in {(before, after) for _, before, after in fades.values()}:
+        turn = before + 1 + (overlap - 1) / 2
+        for key in range(before, after):
+            for step in range(1, times):
+                picks[key * times + step] = before if key + step / times <= turn else after
+    return picks
+
+
+def repair(job, video, level, src, up, fixed, shots):
+    """The made frames with two faults of SeedVR2 taken out, in fixed/; frames it does not change are linked.
+
+    In the frames of the video's smooth_flat ranges, SeedVR2 draws dark smudges into the flat sky. There each pixel the
+    game's frame shows as flat comes from a smooth upscale of that frame instead (see flat_parts). The frames where
+    two chunks were faded get one chunk's detail back (see unfade)."""
+    if stage(fixed, video["keys"]["fixed"]) and finished(fixed):
+        return
+    for name in os.listdir(fixed):
+        if ".part" in name:
+            os.remove(os.path.join(fixed, name))
+    rule, scale, names = job["spec"]["repair"], job["scale"], pictures(src)
+    flat = {k - video["first"] for first, last in video["smooth_flat"] for k in range(first, last + 1)}
+    fades = faded_frames(shots, level) if level["way"] == "seedvr2" else {}
+    for k, name in enumerate(names):
+        target = os.path.join(fixed, name)
+        if os.path.isfile(target):
+            continue
+        if k not in flat and k not in fades:
+            os.link(os.path.join(up, name), target)
+            continue
+        picture = repair_frame(k, names, src, up, flat, fades, rule, scale)
+        save(Image.fromarray(np.clip(np.rint(picture), 0, 255).astype(np.uint8)), target)
+    done(fixed)
+
+
+def repair_frame(k, names, src, up, flat, fades, rule, scale):
+    picture = rgb(os.path.join(up, names[k])).astype(np.float32)
+    source = rgb(os.path.join(src, names[k]))
+    if k in fades:
+        old, before, after = fades[k]
+        neighbour = before if old >= 0.5 else after
+        other, trust = moved(rgb(os.path.join(up, names[neighbour])).astype(np.float32), source,
+                             rgb(os.path.join(src, names[neighbour])), scale, rule)
+        picture = unfade(picture, other, trust, rule)
+    if k in flat:
+        weight, smooth = flat_parts(source, rule, scale)
+        picture = picture * (1 - weight) + smooth * weight
+    return picture
+
+
 def match_scores(src, up, scale):
     """PSNR of each made frame, shrunk by block average, against the game's frame: how far the picture moved away."""
     scores = []
@@ -462,9 +581,11 @@ def match_scores(src, up, scale):
     return scores
 
 
-def interpolate_and_encode(watch, job, video, up, seg, shots):
+def interpolate_and_encode(watch, job, video, up, seg, shots, src=None, fades=None):
     spec, names = job["spec"], pictures(up)
     times = spec["fps"] // RATE
+    rule = spec.get("repair", {})
+    picks = between_neighbours(fades, video["level"]["overlap"], times) if fades and rule.get("between") else {}
     encode = spec["encode"]
     still = {k - video["first"] for first, last in video["no_interpolate"] for k in range(first, last + 1)}
     for number, (start, end) in enumerate(shots):
@@ -492,6 +613,20 @@ def interpolate_and_encode(watch, job, video, up, seg, shots):
                 os.link(os.path.join(up, name), frame)
         if len(pictures(out)) != wanted:
             sys.exit("RIFE made %d frames for shot %d, %d wanted" % (len(pictures(out)), number + 1, wanted))
+        for at in range(end - start - 1):
+            if held[at]:
+                continue
+            for step in range(1, times):
+                neighbour = picks.get((start + at) * times + step)
+                if neighbour is None:
+                    continue
+                frame = os.path.join(out, "%08d.png" % (at * times + step + 1))
+                picture = rgb(frame).astype(np.float32)
+                height, width = rgb(os.path.join(src, names[neighbour])).shape[:2]
+                small = np.clip(np.rint(cv2.resize(picture, (width, height), interpolation=cv2.INTER_AREA)), 0, 255).astype(np.uint8)
+                other, trust = moved(rgb(os.path.join(up, names[neighbour])).astype(np.float32), small,
+                                     rgb(os.path.join(src, names[neighbour])), job["scale"], rule)
+                save(Image.fromarray(np.clip(np.rint(unfade(picture, other, trust, rule)), 0, 255).astype(np.uint8)), frame)
         watch.run([FFMPEG, "-nostdin", "-loglevel", "error", "-y", "-framerate", str(spec["fps"]), "-i", os.path.join(out, "%08d.png"),
                    "-vf", "scale=out_color_matrix=bt709:out_range=tv", "-c:v", encode["codec"], "-preset", encode["preset"],
                    "-crf", str(encode["crf"]), "-pix_fmt", encode["pix_fmt"], "-color_primaries", "bt709", "-color_trc", "bt709",
@@ -551,9 +686,15 @@ def main():
                 upscale_seedvr2(watch, job, video, level, src, up, shots)
             done(up)
         scores = match_scores(src, up, job["scale"])
+        fixed = up
+        if video["keys"].get("fixed"):
+            fixed = os.path.join(work, "fixed")
+            watch.log("repair", video["name"])
+            repair(job, video, level, src, up, fixed, shots)
         seg = os.path.join(work, "seg")
         stage(seg, video["keys"]["seg"] + json.dumps(cuts))
-        interpolate_and_encode(watch, job, video, up, seg, shots)
+        fades = faded_frames(shots, level) if fixed != up and level["way"] == "seedvr2" else None
+        interpolate_and_encode(watch, job, video, fixed, seg, shots, src, fades)
         frames = join(watch, job, video, src, seg, count)
         result = {
             "name": video["name"], "file": os.path.basename(video["target"]), "sha256": packs.sha256_of(video["target"]),
