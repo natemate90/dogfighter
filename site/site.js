@@ -404,6 +404,55 @@
     else if (choice !== "denied") setTimeout(showConsent, 1200);
   }
 
+  const viewer = document.getElementById("viewer");
+  const shots = [...document.querySelectorAll(".shot")];
+  if (viewer && typeof viewer.showModal === "function" && shots.length) {
+    const img = viewer.querySelector(".viewer-img");
+    const caption = viewer.querySelector(".viewer-caption");
+    let current = 0, opener = null, touchX = null;
+    const show = (i) => {
+      current = (i + shots.length) % shots.length;
+      const thumb = shots[current].querySelector("img");
+      img.src = shots[current].getAttribute("href");
+      img.alt = thumb.alt;
+      caption.textContent = thumb.alt;
+    };
+    const close = () => viewer.close();
+    shots.forEach((shot, i) => {
+      shot.addEventListener("click", (event) => {
+        if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+        event.preventDefault();
+        opener = shot;
+        show(i);
+        document.documentElement.classList.add("viewer-open");
+        viewer.showModal();
+        viewer.querySelector(".viewer-close").focus();
+      });
+    });
+    viewer.addEventListener("close", () => {
+      document.documentElement.classList.remove("viewer-open");
+      img.removeAttribute("src");
+      if (opener) opener.focus();
+    });
+    viewer.querySelector(".viewer-prev").addEventListener("click", () => show(current - 1));
+    viewer.querySelector(".viewer-next").addEventListener("click", () => show(current + 1));
+    viewer.querySelector(".viewer-close").addEventListener("click", close);
+    viewer.addEventListener("click", (event) => {
+      if (event.target === viewer || event.target.classList.contains("viewer-figure")) close();
+    });
+    viewer.addEventListener("keydown", (event) => {
+      if (event.key === "ArrowLeft") show(current - 1);
+      else if (event.key === "ArrowRight") show(current + 1);
+    });
+    viewer.addEventListener("touchstart", (event) => (touchX = event.touches[0].clientX), { passive: true });
+    viewer.addEventListener("touchend", (event) => {
+      if (touchX === null) return;
+      const dx = event.changedTouches[0].clientX - touchX;
+      touchX = null;
+      if (Math.abs(dx) > 40) show(current + (dx < 0 ? 1 : -1));
+    }, { passive: true });
+  }
+
   document.querySelectorAll(".yt").forEach((link) => {
     link.addEventListener("click", (event) => {
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
