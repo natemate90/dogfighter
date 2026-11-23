@@ -400,12 +400,8 @@ p { margin: 0; }
   background: var(--bp);
 }
 .yt { color: var(--bp-line); text-decoration: none; }
+.yt-thumb { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .yt-art { position: absolute; inset: 0; width: 100%; height: 100%; }
-.yt-bg { fill: var(--bp); }
-.yt-grid { stroke: var(--bp-line); stroke-width: 1; opacity: 0.12; }
-.yt-path { fill: none; stroke: var(--bp-line); stroke-width: 2; stroke-dasharray: 3 10; stroke-linecap: round; opacity: 0.5; }
-.yt-plane { opacity: 0.75; }
-.yt-perf { stroke: var(--bp-line); stroke-width: 10; opacity: 0.12; }
 .yt-play circle { fill: var(--red); stroke: var(--bp-line); stroke-width: 4; transition: transform 0.2s; }
 .yt-play path { fill: #fff; }
 .yt:hover .yt-play circle, .yt:focus-visible .yt-play circle { transform: scale(1.08); }
@@ -630,6 +626,34 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
   .js .ba-card .ba-arrow { stroke-dasharray: 60; stroke-dashoffset: 0; transition: stroke-dashoffset 0.5s ease 0.2s; }
   .js .ba-card:not(.in) .ba-arrow { stroke-dashoffset: 60; }
 }
+
+.drifter { display: none; }
+@media (min-width: 1300px) and (prefers-reduced-motion: no-preference) {
+  .drifter {
+    --x: calc((100vw - 1100px) / 4 - 28px);
+    display: block;
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: -1;
+    width: 56px;
+    height: 56px;
+    pointer-events: none;
+    visibility: hidden;
+    fill: var(--ink);
+    stroke: var(--ink);
+    opacity: 0.2;
+  }
+  .drifter.right { --x: calc(100vw - (100vw - 1100px) / 4 - 28px); }
+  .drifter.pass {
+    visibility: visible;
+    rotate: var(--r, 180deg);
+    animation: drift-by var(--dur, 30s) linear var(--dir, normal) forwards, bob 3.4s ease-in-out infinite alternate;
+  }
+  .drifter-prop { fill: none; stroke-width: 1.6; stroke-linecap: round; }
+}
+@keyframes drift-by { from { translate: var(--x) -90px; } to { translate: var(--x) calc(100vh + 90px); } }
+@keyframes bob { from { transform: translateX(-5px); } to { transform: translateX(5px); } }
 
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }

@@ -1,196 +1,234 @@
 (() => {
-  const W = 640, EDGE = 90, SPAN = W + 2 * EDGE, TOP = 44, FLOOR = 268;
-  const DT = 1 / 120, G = 130, THRUST = 110, DRAG = THRUST / (190 * 190), TURN_DRAG = 0.07;
-  const LIFT = G / (85 * 85), MAX_PULL = 640, ROLL_RATE = 8;
-  const MUZZLE = 380, BULLET_DROP = 70, BULLET_LIFE = 0.6, MAX_BULLETS = 40, HITS_TO_SMOKE = 5;
+  const W = 640, EDGE = 90, SPAN = W + 2 * EDGE, TOP = 44, FLOOR = 268, DT = 1 / 120;
+  const TOP_SPEED = 400, PULL = 200, CLIMB_LOSS = 112, STALL = 120;
+  const PITCH_UP = 6, PITCH_DOWN = 6.6, YAW = 8, TURN_SINK = 0.4, ROLL = 10;
+  const MUZZLE = 2900, BULLET_LIFE = 0.2, GUN_RATE = 25, BURST = 0.4;
+  const LOCK_CONE = 0.05, FIRE_CONE = 0.12, FIRE_RANGE = 470, MAX_BULLETS = 40, HITS_TO_SMOKE = 18;
   const TAU = Math.PI * 2;
 
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   const angle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
   const wrapDx = (dx) => dx - SPAN * Math.round(dx / SPAN);
+  const wrapX = (x) => wrapDx(x - W / 2) + W / 2;
   const rand = (lo, hi) => lo + Math.random() * (hi - lo);
-  const facing = (p) => (Math.cos(p.th) >= 0 ? 1 : -1);
-  const heading = (dir, pitch) => (dir > 0 ? -pitch : Math.PI + pitch);
-  const liftSign = (p) => Math.cos(p.roll);
-  const maxPull = (p) => Math.min(LIFT * p.v * p.v, MAX_PULL);
-
-  function makePlane(size) {
-    return { size, x: 0, y: 0, th: 0, v: 0, roll: 0, rollTo: 0, pull: 0, rate: 0, throttle: 1, wrap: false, push: 0 };
-  }
+  const facing = (p) => (Math.cos(p.psi) >= 0 ? 1 : -1);
+  const turning = (p) => p.psi !== p.yawTo;
+  const nose = (p) => ({ x: Math.cos(p.psi) * Math.cos(p.gam), y: -Math.sin(p.gam) });
+  const velocity = (p) => ({ x: p.v * Math.cos(p.psi) * Math.cos(p.gam), y: -p.v * Math.sin(p.gam) });
 
   function fly(p, dt) {
-    const pull = clamp(p.pull, (p.urgent ? -1 : -0.5) * maxPull(p), maxPull(p));
-    p.rate = (-liftSign(p) * pull + G * Math.cos(p.th)) / Math.max(p.v, 40);
-    p.th = angle(p.th + p.rate * dt);
-    p.v += (THRUST * p.throttle - DRAG * p.v * p.v + G * Math.sin(p.th) - TURN_DRAG * Math.abs(pull)) * dt;
-    p.v = Math.max(p.v, 30);
-    p.x += p.v * Math.cos(p.th) * dt;
-    p.y += p.v * Math.sin(p.th) * dt;
-    if (p.leaving) p.wrap = false;
-    else if (p.wrap) p.x = wrapDx(p.x - W / 2) + W / 2;
-    else if (p.x > -EDGE && p.x < W + EDGE) p.wrap = true;
-    p.roll += clamp(p.rollTo - p.roll, -ROLL_RATE * dt, ROLL_RATE * dt);
-  }
-
-  function steer(p, want, dt, gain = 4) {
-    const err = angle(want - p.th);
-    const rate = clamp(err * gain, -3.5, 3.5);
-    const c = liftSign(p);
-    const need = rate * p.v - G * Math.cos(p.th);
-    p.pull = Math.abs(c) < 0.3 ? 0 : -need / c;
-    p.since += dt;
-    if (p.roll !== p.rollTo || p.since < 0.8 || p.urgent) return;
-    const limit = maxPull(p);
-    p.push = p.pull < -0.5 * limit ? p.push + dt : 0;
-    const inverted = c * Math.cos(p.th) < -0.2 && p.pull < 0.3 * limit;
-    if (p.push > 0.15 || inverted) {
-      p.rollTo = p.rollTo === 0 ? Math.PI : 0;
-      p.push = 0;
-      p.since = 0;
+    p.v += (PULL * (p.throttle - (p.v / p.top) ** 2) - CLIMB_LOSS * Math.sin(p.gam)) * dt;
+    p.v = Math.max(p.v, 20);
+    p.gam += p.pitch * (p.pitch > 0 ? PITCH_UP : PITCH_DOWN) * dt;
+    if (turning(p)) {
+      p.psi += clamp(p.yawTo - p.psi, -YAW * dt, YAW * dt);
+      if (Math.abs(p.pitch) < 0.1 && p.gam > -TURN_SINK) p.gam -= Math.min(p.gam + TURN_SINK, 2 * dt);
     }
+    p.since += dt;
+    if (p.v < STALL) {
+      const drop = angle(-Math.PI / 2 - p.gam);
+      p.gam += Math.sign(drop) * Math.min(Math.abs(drop), 4 * (1 - p.v / STALL) * dt);
+    }
+    p.gam = angle(p.gam);
+    p.roll = Math.min(1, p.roll + (2 * ROLL * dt) / Math.PI);
+    const vel = velocity(p);
+    p.x += vel.x * dt;
+    p.y += vel.y * dt;
+    if (p.leaving) p.wrap = false;
+    else if (p.wrap) p.x = wrapX(p.x);
+    else if (p.x > -EDGE && p.x < W + EDGE) p.wrap = true;
   }
 
-  function keepInside(p, want) {
-    const dir = facing(p);
-    const pitch = -Math.sin(p.th) * dir;
-    const ahead = p.y + Math.sin(p.th) * p.v * 0.7;
-    p.urgent = true;
-    if (Math.max(p.y, ahead) > FLOOR - 10 && Math.sin(p.th) > -0.35) return heading(dir, Math.max(0.45, pitch));
-    if (Math.min(p.y, ahead) < TOP + 10 && Math.sin(p.th) < 0.25 && Math.abs(Math.cos(p.th)) > 0.3) return heading(dir, Math.min(-0.3, pitch));
-    p.urgent = false;
+  function pitchTo(p, want, gain = 5) {
+    p.pitch = clamp(angle(want - p.gam) * gain, -1, 1);
+  }
+
+  function aimAt(p, dx, dy, gain) {
+    const want = Math.atan2(-dy, dx * facing(p));
+    pitchTo(p, want, gain);
     return want;
   }
 
+  function reverse(p) {
+    if (turning(p) || p.since < 0.6 || Math.abs(p.gam) > 0.8) return;
+    p.yawTo = p.yawTo === 0 ? Math.PI : 0;
+    p.since = 0;
+  }
+
+  function rollUpright(p) {
+    if (turning(p) || p.roll < 1 || Math.abs(p.gam) < 2.3) return;
+    p.psi = p.yawTo = Math.PI - p.psi;
+    p.gam = angle(Math.PI - p.gam);
+    p.roll = -1;
+  }
+
+  function keepInside(p) {
+    const ahead = p.y - Math.sin(p.gam) * p.v * 0.35;
+    if (Math.max(p.y, ahead) > FLOOR - 10 && Math.sin(p.gam) < 0.4) p.pitch = Math.cos(p.gam) >= 0 ? 1 : -1;
+    else if (Math.min(p.y, ahead) < TOP + 10 && Math.sin(p.gam) > -0.3) p.pitch = Math.cos(p.gam) >= 0 ? -1 : 1;
+  }
+
+  function makePlane(size, top) {
+    return { size, top, x: 0, y: 0, v: 0, gam: 0, psi: 0, yawTo: 0, pitch: 0, roll: 1, throttle: 1 };
+  }
+
   function world() {
-    const s = { prey: makePlane(1.05), hunter: makePlane(0.92), bullets: [], sparks: [], puffs: [], t: 0 };
+    const s = { prey: makePlane(1.05, TOP_SPEED), hunter: makePlane(0.92, TOP_SPEED * 1.06), bullets: [], sparks: [], puffs: [], t: 0 };
     reset(s);
     return s;
   }
 
-  function reset(s) {
-    const dir = Math.random() < 0.5 ? 1 : -1;
-    const y = rand(120, 200);
-    place(s.prey, dir > 0 ? -EDGE - 10 : W + EDGE + 10, y, dir, 185);
-    place(s.hunter, dir > 0 ? -EDGE - 230 : W + EDGE + 230, y + rand(-30, 30), dir, 205);
-    Object.assign(s.prey, { mode: "cruise", timer: rand(1.2, 2.2), alt: y, hits: 0, smoke: 0, smokeAt: 0, turned: 0 });
-    Object.assign(s.hunter, { mode: "chase", burst: 0, cool: 1, shotAt: 0 });
-    s.exitTime = 0;
-    s.calm = s.t + 4;
-    s.fade = 1;
+  function place(p, x, y, dir, v) {
+    const psi = dir > 0 ? 0 : Math.PI;
+    Object.assign(p, { x, y, v, gam: 0, psi, yawTo: psi, pitch: 0, roll: 1, throttle: 1, wrap: false, leaving: false, gone: false, since: 0 });
   }
 
-  function place(p, x, y, dir, v) {
-    const roll = dir > 0 ? 0 : Math.PI;
-    Object.assign(p, { x, y, v, th: dir > 0 ? 0 : Math.PI, roll, rollTo: roll, wrap: false, leaving: false, gone: false, push: 0, since: 0, urgent: false, rate: 0, throttle: 1 });
+  function reset(s) {
+    const dir = Math.random() < 0.5 ? 1 : -1, y = rand(110, 200);
+    place(s.prey, dir > 0 ? -EDGE - 10 : W + EDGE + 10, y, dir, TOP_SPEED);
+    place(s.hunter, dir > 0 ? -EDGE - 330 : W + EDGE + 330, y + rand(-30, 30), dir, TOP_SPEED * 1.06);
+    Object.assign(s.prey, { mode: "cruise", timer: rand(0.5, 1), alt: y, hits: 0, smoke: 0, smokeAt: 0, turned: 0, jink: false });
+    Object.assign(s.hunter, { mode: "chase", burst: 0, cool: 0.6, shotAt: 0, gun: 1, close: false });
+    s.exitTime = 0;
+    s.fade = 1;
+    s.calm = s.t + 1.5;
   }
 
   function canLoop(p) {
-    return p.v > 165 && p.y > 185 && p.y < FLOOR - 4 && Math.abs(Math.sin(p.th)) < 0.4 && liftSign(p) * Math.cos(p.th) > 0.5 && p.roll === p.rollTo;
+    return p.v > 0.75 * TOP_SPEED && p.y > 190 && p.y < FLOOR && Math.abs(p.gam) < 0.35 && p.roll === 1 && !turning(p);
   }
 
   function nextMove(p) {
     const moves = [];
     if (canLoop(p)) moves.push("loop", "loop", "half");
-    if (p.y < 200) moves.push("dive", "dive");
-    if (p.y > 130 && p.v > 150) moves.push("climb");
+    if (p.y < 190) moves.push("dive", "dive");
+    if (p.y > 140 && p.v > 0.65 * TOP_SPEED) moves.push("climb");
+    if (p.x > 120 && p.x < W - 120 && Math.abs(p.gam) < 0.5) moves.push("reverse");
     if (!p.jink || !moves.length) moves.push("cruise");
     p.jink = false;
     p.mode = moves[Math.floor(Math.random() * moves.length)];
     p.turned = 0;
-    p.timer = p.mode === "cruise" ? rand(0.8, 2) : 6;
-    if (p.mode === "cruise") p.alt = clamp(p.y + rand(-50, 50), 90, 230);
+    p.timer = p.mode === "cruise" ? rand(0.4, 1.1) : 3;
+    if (p.mode === "cruise") p.alt = clamp(p.y + rand(-60, 60), 90, 230);
   }
 
   function evade(s, dt) {
     const p = s.prey;
-    const dir = facing(p);
     p.timer -= dt;
     if (p.mode === "loop" || p.mode === "half") {
-      p.turned += p.rate * dt;
-      const goal = p.mode === "loop" ? TAU - 0.35 : Math.PI - 0.15;
-      if (Math.abs(p.turned) < goal && p.timer > 0) {
-        p.pull = maxPull(p);
-        p.push = 0;
+      p.turned += p.pitch * PITCH_UP * dt;
+      if (p.turned < (p.mode === "loop" ? TAU - 0.1 : Math.PI) && p.timer > 0) {
+        p.pitch = 1;
         return;
       }
       p.mode = "cruise";
-      p.timer = rand(0.6, 1.4);
+      p.timer = rand(0.3, 0.8);
       p.alt = clamp(p.y, 90, 230);
     }
-    let want;
     if (p.mode === "dive") {
-      want = heading(dir, -0.85);
-      if (p.y > 222) {
+      pitchTo(p, -0.8);
+      if (p.y > 215) {
         p.mode = canLoop(p) ? "loop" : "climb";
         p.turned = 0;
-        p.timer = 6;
-        if (p.mode === "loop") return;
+        p.timer = 3;
       }
     } else if (p.mode === "climb") {
-      want = heading(dir, 0.75);
-      if (p.y < 95 || p.v < 110) nextMove(p);
+      pitchTo(p, 0.75);
+      if (p.y < 95 || p.v < 0.6 * TOP_SPEED) nextMove(p);
+    } else if (p.mode === "reverse") {
+      if (p.timer > 2.9) reverse(p);
+      pitchTo(p, 0, 2);
+      if (!turning(p) && p.timer < 2.6) nextMove(p);
     } else {
-      want = heading(dir, clamp((p.y - p.alt) * 0.006, -0.5, 0.5));
+      pitchTo(p, clamp((p.y - p.alt) * 0.012, -0.5, 0.5));
       if (p.mode === "leave") p.leaving = true;
+      else if (p.timer <= 0 && p.wrap) nextMove(p);
     }
-    if (p.mode === "cruise" && p.timer <= 0 && p.wrap) nextMove(p);
-    steer(p, keepInside(p, want), dt, p.mode === "dive" ? 1.5 : 4);
+    rollUpright(p);
+    keepInside(p);
   }
 
   function lead(h, p) {
-    const vb = h.v + MUZZLE, dx = wrapDx(p.x - h.x), dy = p.y - h.y, dist = Math.hypot(dx, dy);
-    let t = dist / vb, ax = dx, ay = dy;
-    for (let i = 0; i < 3; i++) {
-      ax = dx + p.v * Math.cos(p.th) * t;
-      ay = dy + p.v * Math.sin(p.th) * t - 0.5 * BULLET_DROP * t * t;
-      t = Math.hypot(ax, ay) / vb;
+    const dx = wrapDx(p.x - h.x), dy = p.y - h.y, dist = Math.hypot(dx, dy);
+    const pv = velocity(p), speed = h.v + MUZZLE;
+    let t = dist / speed, ax = dx, ay = dy;
+    for (let i = 0; i < 2; i++) {
+      ax = dx + pv.x * t;
+      ay = dy + pv.y * t;
+      t = Math.hypot(ax, ay) / speed;
     }
     return { x: ax, y: ay, dist };
   }
 
   function hunt(s, dt) {
     const h = s.hunter, p = s.prey;
+    h.cool -= dt;
     if (h.mode === "leave") {
       h.leaving = true;
-      h.throttle = 1.2;
-      steer(h, keepInside(h, heading(facing(h), 0.35)), dt);
+      pitchTo(h, 0.35);
+      keepInside(h);
       return;
     }
     const aim = lead(h, p);
-    const want = Math.atan2(aim.y, aim.x) + 0.08 * Math.sin(s.t * 1.7) + 0.05 * Math.sin(s.t * 4.3 + 1);
-    h.throttle = aim.dist < 110 ? 0.6 : aim.dist > 260 ? 1.35 : 1;
-    steer(h, keepInside(h, want), dt, 5);
-    h.cool -= dt;
+    if (aim.dist < 45) h.close = true;
+    else if (aim.dist > 120) h.close = false;
+    h.throttle = aim.dist < 140 ? 0.3 : 1;
+    if (h.close) {
+      pitchTo(h, p.y > h.y ? 0.6 : -0.6);
+    } else {
+      const want = aimAt(h, aim.x, aim.y + 30 * Math.sin(s.t * 2.3), 6);
+      if (Math.abs(want) > 1.7 && Math.abs(wrapDx(p.x - h.x)) > 40) reverse(h);
+    }
+    rollUpright(h);
+    keepInside(h);
     if (h.burst > 0) {
       h.burst -= dt;
       h.shotAt -= dt;
-      if (h.shotAt <= 0) {
-        shoot(s, h);
-        h.shotAt = 1 / 15;
+      while (h.shotAt <= 0 && h.burst > 0) {
+        shoot(s, h, aim);
+        h.shotAt += 1 / GUN_RATE;
       }
-    } else if (h.cool <= 0 && s.t > s.calm && !p.smoke && p.x > 30 && p.x < W - 30 && aim.dist < 300 && Math.abs(angle(want - h.th)) < 0.07) {
-      h.burst = 0.3;
+      return;
+    }
+    const n = nose(h), off = Math.acos(clamp((n.x * aim.x + n.y * aim.y) / (Math.hypot(n.x, n.y) * aim.dist || 1), -1, 1));
+    if (h.cool <= 0 && s.t > s.calm && !p.smoke && !h.close && p.x > 30 && p.x < W - 30 && aim.dist < FIRE_RANGE && off < FIRE_CONE) {
+      h.burst = BURST;
       h.shotAt = 0;
-      h.cool = rand(0.7, 1.3);
-      if (p.mode === "cruise" && Math.random() < 0.5) p.timer = 0;
+      h.cool = BURST + rand(0.4, 0.9);
     }
   }
 
-  function shoot(s, h) {
+  function shoot(s, h, aim) {
     if (s.bullets.length >= MAX_BULLETS) return;
-    const th = h.th + rand(-0.045, 0.045), speed = h.v + MUZZLE, nose = 38 * h.size;
-    s.bullets.push({ x: h.x + Math.cos(h.th) * nose, y: h.y + Math.sin(h.th) * nose, vx: Math.cos(th) * speed, vy: Math.sin(th) * speed, life: BULLET_LIFE });
+    const n = nose(h), len = Math.hypot(n.x, n.y) || 1;
+    let dx = n.x / len, dy = n.y / len;
+    const aimLen = Math.hypot(aim.x, aim.y);
+    if (Math.acos(clamp((dx * aim.x + dy * aim.y) / aimLen, -1, 1)) < LOCK_CONE) {
+      dx = aim.x / aimLen;
+      dy = aim.y / aimLen;
+    }
+    const a = Math.atan2(dy, dx) + rand(-0.05, 0.05), hv = velocity(h);
+    h.gun = -h.gun;
+    const side = 3 * h.gun, front = 34 * h.size;
+    s.bullets.push({
+      x: h.x + n.x * front - Math.sin(a) * side,
+      y: h.y + n.y * front + Math.cos(a) * side,
+      vx: hv.x + Math.cos(a) * MUZZLE,
+      vy: hv.y + Math.sin(a) * MUZZLE,
+      life: BULLET_LIFE,
+    });
   }
 
-  function hits(p, b) {
-    const dx = wrapDx(b.x - p.x), dy = b.y - p.y;
-    const along = dx * Math.cos(p.th) + dy * Math.sin(p.th);
-    const across = -dx * Math.sin(p.th) + dy * Math.cos(p.th);
-    return (along / 40) ** 2 + (across / 11) ** 2 < 1;
+  function hits(p, x, y) {
+    const n = nose(p), len = Math.hypot(n.x, n.y);
+    const dx = wrapDx(x - p.x), dy = y - p.y;
+    if (len < 0.3) return dx * dx + dy * dy < 14 * 14;
+    const along = (dx * n.x + dy * n.y) / len, across = (-dx * n.y + dy * n.x) / len;
+    return (along / (40 * len)) ** 2 + (across / 11) ** 2 < 1;
   }
 
   function puff(s, x, y, r0, r1, life, kind) {
-    if (s.puffs.length >= 32) s.puffs.shift();
+    if (s.puffs.length >= 40) s.puffs.shift();
     s.puffs.push({ x, y, r0, r1, life, age: 0, kind });
   }
 
@@ -204,18 +242,23 @@
 
     for (let i = s.bullets.length - 1; i >= 0; i--) {
       const b = s.bullets[i];
-      b.vy += BULLET_DROP * dt;
-      b.x = wrapDx(b.x + b.vx * dt - W / 2) + W / 2;
+      const x0 = b.x, y0 = b.y;
+      b.x = wrapX(b.x + b.vx * dt);
       b.y += b.vy * dt;
       b.life -= dt;
-      if (!p.smoke && hits(p, b)) {
-        s.sparks.push({ x: b.x, y: b.y, age: 0, spin: rand(0, 1) });
-        puff(s, b.x, b.y, 3, 11, 0.5, "hit");
-        p.hits++;
-        if (p.mode === "cruise") p.timer = 0;
-        p.jink = true;
-        if (p.hits >= HITS_TO_SMOKE) p.smoke = 0.001;
-        b.life = 0;
+      if (!p.smoke) {
+        for (let k = 1; k <= 3; k++) {
+          const x = x0 + (b.vx * dt * k) / 3, y = y0 + (b.vy * dt * k) / 3;
+          if (!hits(p, x, y)) continue;
+          s.sparks.push({ x: wrapX(x), y, age: 0, spin: rand(0, 1) });
+          puff(s, wrapX(x), y, 3, 11, 0.5, "hit");
+          p.hits++;
+          p.jink = true;
+          if (p.mode === "cruise") p.timer = 0;
+          if (p.hits >= HITS_TO_SMOKE) p.smoke = 0.001;
+          b.life = 0;
+          break;
+        }
       }
       if (b.life <= 0) s.bullets.splice(i, 1);
     }
@@ -226,19 +269,19 @@
       p.smoke += dt;
       p.smokeAt -= dt;
       if (p.smokeAt <= 0) {
-        p.smokeAt = 0.07;
-        const tail = -36 * p.size;
-        puff(s, p.x + Math.cos(p.th) * tail, p.y + Math.sin(p.th) * tail, 3, 13, 1.3, "smoke");
+        p.smokeAt = 0.03;
+        const n = nose(p), tail = -36 * p.size;
+        puff(s, p.x + n.x * tail, p.y + n.y * tail, 3, 13, 1, "smoke");
       }
-      if (p.smoke > 1.2 && h.mode !== "leave") h.mode = "leave";
-      if (p.smoke > 2.6 && p.mode !== "leave" && p.mode !== "loop" && p.mode !== "half") {
+      if (p.smoke > 0.6 && h.mode !== "leave") h.mode = "leave";
+      if (p.smoke > 1.4 && p.mode !== "leave" && p.mode !== "loop" && p.mode !== "half") {
         p.mode = "leave";
         p.alt = clamp(p.y + 40, 120, FLOOR - 20);
       }
       if (p.mode === "leave") s.exitTime += dt;
     }
     for (const q of [p, h]) if (q.leaving && (q.x < -EDGE || q.x > W + EDGE)) q.gone = true;
-    if (s.exitTime > 8) s.fade -= dt / 0.6;
+    if (s.exitTime > 5) s.fade -= dt / 0.6;
     if ((p.gone && h.gone) || s.fade <= 0) reset(s);
   }
 
@@ -262,16 +305,17 @@
   let state = null, running = false, onScreen = true, last = 0, acc = 0, pending = 0;
 
   const n = (v) => v.toFixed(1);
+  const atLeast = (v, min) => (v < 0 ? -1 : 1) * Math.max(Math.abs(v), min);
   function draw(s) {
     for (const key of ["prey", "hunter"]) {
       const p = s[key];
-      const c = liftSign(p);
-      const sy = (c < 0 ? -1 : 1) * Math.max(Math.abs(c), 0.3) * (1 - 0.14 * Math.min(1, Math.abs(p.pull) / MAX_PULL));
-      sprites[key].setAttribute("transform", `translate(${n(p.x)} ${n(p.y)}) rotate(${n((p.th * 180) / Math.PI)}) scale(1 ${sy.toFixed(3)})`);
+      const sx = atLeast(Math.cos(p.psi), 0.25) * (turning(p) ? 0.9 : 1);
+      const sy = atLeast(Math.sin((p.roll * Math.PI) / 2), 0.3) * (1 - 0.1 * Math.abs(p.pitch));
+      sprites[key].setAttribute("transform", `translate(${n(p.x)} ${n(p.y)}) scale(${sx.toFixed(3)} 1) rotate(${n((-p.gam * 180) / Math.PI)}) scale(1 ${sy.toFixed(3)})`);
       sprites[key].style.opacity = s.fade < 1 ? Math.max(0, s.fade).toFixed(2) : "";
     }
     let d = "";
-    for (const b of s.bullets) d += `M${n(b.x)} ${n(b.y)}L${n(b.x - b.vx * 0.028)} ${n(b.y - b.vy * 0.028)}`;
+    for (const b of s.bullets) d += `M${n(b.x)} ${n(b.y)}L${n(b.x - b.vx * 0.013)} ${n(b.y - b.vy * 0.013)}`;
     tracers.setAttribute("d", d);
     d = "";
     for (const sp of s.sparks) {
@@ -301,7 +345,7 @@
 
   function frame(now) {
     if (!running) return;
-    acc += Math.min(0.25, (now - last) / 1000);
+    acc += clamp((now - last) / 1000, 0, 0.25);
     last = now;
     while (acc >= DT) {
       step(state, DT);

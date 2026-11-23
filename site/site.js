@@ -105,6 +105,36 @@
   else if (reduce.addListener) reduce.addListener(setMode);
   setMode();
 
+  const drifter = document.querySelector(".drifter");
+  const wide = window.matchMedia("(min-width: 1300px)");
+  let flyTimer = 0;
+  function nextPass(seconds) {
+    clearTimeout(flyTimer);
+    flyTimer = setTimeout(pass, seconds * 1000);
+  }
+  function pass() {
+    if (reduce.matches || !wide.matches || document.hidden) return nextPass(30 + Math.random() * 60);
+    const up = Math.random() < 0.5;
+    drifter.classList.toggle("right", Math.random() < 0.5);
+    drifter.style.setProperty("--dur", `${(20 + Math.random() * 20).toFixed(1)}s`);
+    drifter.style.setProperty("--dir", up ? "reverse" : "normal");
+    drifter.style.setProperty("--r", up ? "0deg" : "180deg");
+    drifter.classList.add("pass");
+  }
+  if (drifter) {
+    drifter.addEventListener("animationend", (event) => {
+      if (event.animationName !== "drift-by") return;
+      drifter.classList.remove("pass");
+      nextPass(30 + Math.random() * 60);
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden || !drifter.classList.contains("pass")) return;
+      drifter.classList.remove("pass");
+      nextPass(30 + Math.random() * 60);
+    });
+    nextPass(8 + Math.random() * 12);
+  }
+
   document.querySelectorAll(".yt").forEach((link) => {
     link.addEventListener("click", (event) => {
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
