@@ -9,3 +9,7 @@ Every photo on the site is a real Second World War photo in the public domain. E
 | `img/scramble.webp` | Pilots of No. 19 Squadron RAF stage a mock 'scramble' from the back of a truck at Fowlmere near Duxford, September 1940 (CH 1398) | F/O S. Devon, Royal Air Force official photographer | https://commons.wikimedia.org/wiki/File:Pilots_of_No._19_Squadron_RAF_stage_a_mock_%27scramble%27_from_the_back_of_a_truck_at_Fowlmere_near_Duxford,_September_1940._CH1398.jpg | Public domain: UK Crown Copyright expired (PD-UKGov) |
 | `img/briefing.webp` | Members of the 332nd Fighter Group attending a briefing in Ramitelli, Italy, March 1945 | Toni Frissell, Library of Congress | https://commons.wikimedia.org/wiki/File:332ndFighterBriefing1945-high-res.jpg | Public domain: given to the public by the photographer (PD-Frissell) |
 | `img/airfield.webp` | Lille-Seclin airfield, Royal Air Force, France, 1939–1940 (C 1519) | H. Hensser, Royal Air Force official photographer | https://commons.wikimedia.org/wiki/File:Lille-Seclin_airfield_-_Royal_Air_Force_-_France,_1939-1940_C1519.jpg | Public domain: UK Crown Copyright expired (PD-UKGov) |
+
+# Fonts
+
+The site serves its own copies of three fonts from Google Fonts, all under the SIL Open Font License 1.1 (https://openfontlicense.org): Domine by Impallari Type, Stardos Stencil by Vernon Adams, and Nanum Pen Script by Sandoll Communication. Each is the Latin subset as WOFF2, in `fonts/`.
