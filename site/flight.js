@@ -18,7 +18,7 @@
   const velocity = (p) => ({ x: p.v * Math.cos(p.psi) * Math.cos(p.gam), y: -p.v * Math.sin(p.gam) });
 
   function fly(p, dt) {
-    const throttle = p.v < STALL + UNIT ? 1 : p.throttle;
+    const throttle = p.v < STALL + 0.5 * UNIT ? 1 : p.throttle;
     p.v += (PULL * (throttle - (p.v / p.top) ** 2) - CLIMB_LOSS * Math.sin(p.gam)) * dt;
     p.v = Math.max(p.v, 20);
     p.gam += p.pitch * (p.pitch > 0 ? PITCH_UP : PITCH_DOWN) * dt;
@@ -106,7 +106,7 @@
     const moves = [];
     if (canLoop(p)) moves.push("loop", "loop", "half");
     if (p.y < 330) moves.push("dive", "dive");
-    if (p.y > 220 && p.v > 0.85 * TOP_SPEED) moves.push("climb");
+    if (p.y > 220 && p.v > 2.4 * UNIT) moves.push("climb");
     if (p.x > 120 && p.x < W - 120 && Math.abs(p.gam) < 0.5) moves.push("reverse");
     if (!p.jink || !moves.length) moves.push("cruise");
     p.jink = false;
@@ -144,7 +144,7 @@
       } else if (p.y > 345 && Math.abs(p.gam) < 0.05) nextMove(p);
     } else if (p.mode === "climb") {
       pitchTo(p, 0.6);
-      if (p.y < 120 || p.v < 0.7 * TOP_SPEED) nextMove(p);
+      if (p.y < 120 || p.v < 2 * UNIT) nextMove(p);
     } else if (p.mode === "reverse") {
       if (p.timer > 11.9) reverse(p);
       pitchTo(p, 0, 2);
@@ -181,10 +181,10 @@
     }
     const aim = lead(h, p);
     if (aim.dist < 2.5 * UNIT) h.close = true;
-    else if (aim.dist > 5 * UNIT) h.close = false;
+    else if (aim.dist > 3.5 * UNIT) h.close = false;
     h.throttle = aim.dist < 4 * UNIT ? 0.3 : aim.dist > 8 * UNIT ? 0.8 : 0.5;
     if (h.close) {
-      pitchTo(h, p.y > h.y ? 0.6 : -0.6);
+      pitchTo(h, p.y > h.y || h.y > FLOOR - 80 ? 0.6 : -0.6);
     } else {
       const want = aimAt(h, aim.x, aim.y + 6 * Math.sin(s.t * 1.3), 4);
       if (Math.abs(want) > 1.7 && Math.abs(wrapDx(p.x - h.x)) > 40) reverse(h);
