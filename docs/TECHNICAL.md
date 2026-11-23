@@ -1227,13 +1227,14 @@ It sets no tracking cookies, so it needs no consent.
 
 - The site key (`TURNSTILE_SITEKEY`) lives in one place: the `data-sitekey` of `<form id="contact-form">` in `site/index.html`.
 - The secret is the Worker secret `TURNSTILE_SECRET`. It is never in the repo.
+- The Google Form's `formResponse` address is the Worker secret `FORM_URL`, so it is never in the repo either. Without it, dogfighter.net answers "not configured".
 - Local runs and preview addresses always use Cloudflare's test keys. On dogfighter.net, without the secret, the form answers "not configured".
 - The test site key `1x00000000000000000000AA` always passes. It shows a "For testing only" note under the widget on previews.
 
 #### Setting up Turnstile
 
 1. In Cloudflare, open Turnstile and click Add widget.
-2. Name it dogfighter.net and add the hostnames `dogfighter.net`, `www.dogfighter.net` and `nathanalder.workers.dev`.
+2. Name it dogfighter.net and add the hostnames `dogfighter.net`, `www.dogfighter.net` and the account's preview hostname.
 3. Choose the Managed mode and create the widget.
 4. Copy the site key into `data-sitekey` in `site/index.html`.
 5. Copy the secret key. Open Workers & Pages › dogfighter › Settings › Variables and secrets.
