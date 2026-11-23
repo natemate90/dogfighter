@@ -455,14 +455,8 @@ def upscale_seedvr2(watch, job, video, level, src, up, shots):
         shutil.rmtree(folder, ignore_errors=True)
 
 
-def read_rgb(path):
-    return cv2.cvtColor(cv2.imread(path, cv2.IMREAD_COLOR), cv2.COLOR_BGR2RGB)
-
-
-def write_rgb(picture, path):
-    cv2.imwrite(path + ".part.png", cv2.cvtColor(np.clip(np.rint(picture), 0, 255).astype(np.uint8), cv2.COLOR_RGB2BGR),
-                [cv2.IMWRITE_PNG_COMPRESSION, 1])
-    os.replace(path + ".part.png", path)
+def rgb(path):
+    return np.asarray(Image.open(path).convert("RGB"))
 
 
 def flat_parts(source, rule, scale):
@@ -531,6 +525,9 @@ def repair(job, video, level, src, up, fixed, shots):
     two chunks were faded get one chunk's detail back (see unfade)."""
     if stage(fixed, video["keys"]["fixed"]) and finished(fixed):
         return
+    for name in os.listdir(fixed):
+        if ".part" in name:
+            os.remove(os.path.join(fixed, name))
     rule, scale, names = job["spec"]["repair"], job["scale"], pictures(src)
     flat = {k - video["first"] for first, last in video["smooth_flat"] for k in range(first, last + 1)}
     fades = faded_frames(shots, level) if level["way"] == "seedvr2" else {}
@@ -541,18 +538,19 @@ def repair(job, video, level, src, up, fixed, shots):
         if k not in flat and k not in fades:
             os.link(os.path.join(up, name), target)
             continue
-        write_rgb(repair_frame(k, names, src, up, flat, fades, rule, scale), target)
+        picture = repair_frame(k, names, src, up, flat, fades, rule, scale)
+        save(Image.fromarray(np.clip(np.rint(picture), 0, 255).astype(np.uint8)), target)
     done(fixed)
 
 
 def repair_frame(k, names, src, up, flat, fades, rule, scale):
-    picture = read_rgb(os.path.join(up, names[k])).astype(np.float32)
-    source = read_rgb(os.path.join(src, names[k]))
+    picture = rgb(os.path.join(up, names[k])).astype(np.float32)
+    source = rgb(os.path.join(src, names[k]))
     if k in fades:
         old, before, after = fades[k]
         neighbour = before if old >= 0.5 else after
-        other, trust = moved(read_rgb(os.path.join(up, names[neighbour])).astype(np.float32), source,
-                             read_rgb(os.path.join(src, names[neighbour])), scale, rule)
+        other, trust = moved(rgb(os.path.join(up, names[neighbour])).astype(np.float32), source,
+                             rgb(os.path.join(src, names[neighbour])), scale, rule)
         picture = unfade(picture, other, trust, rule)
     if k in flat:
         weight, smooth = flat_parts(source, rule, scale)
