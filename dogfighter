@@ -11,6 +11,7 @@ Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [-
                   [--debug=CHANNELS] [--diag[=focus-test[:SECONDS]|move-test|start-test|stall-test|crash-test|fallback-test|draw-test|press-ok|press-cancel]]
                   [--diag-keys=SECONDS:SCANCODE[:HOLDSECONDS],...] [--diag-mouse=SECONDS:DX:DY[:c|:o],...]
                   [--diag-console=SECONDS:COMMAND] [--diag-display=right] [--diag-hold] [--diag-sound]
+                  [--diag-block-input]
                   [--diag-hd-dir=FOLDER] [--diag-draws] [--diag-shot-on=TEXT]
                   [--diag-intros-shown=COUNT]
                   [--diag-end=SECONDS] [--diag-zoom=SECONDS] [--diag-drag=SECONDS]
@@ -186,6 +187,13 @@ Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [-
                     Open the game window on the display furthest to the right, so a
                     test run stays off the screen you work on.
   --diag-hold       Hold the mouse in a test run, as a normal start does.
+  --diag-block-input
+                    Keep keys and mouse clicks from the game until the last
+                    --diag-console command has run, so nobody starts something
+                    by hand while a scripted start is on its way. The window
+                    title says so. Keys from --diag-keys still reach the game;
+                    clicks from --diag-mouse do not. The mouse still moves the
+                    pointer. Needs --diag-console.
   --diag-end=SECONDS
                     End the game this long after its first picture, without the
                     game's own quit, so it does not write its settings.
@@ -237,6 +245,7 @@ DIAG_MOUSE=
 DIAG_CONSOLE=()
 DIAG_DISPLAY=
 DIAG_HOLD=0
+DIAG_BLOCK_INPUT=0
 DIAG_SOUND=0
 DIAG_HD_DIR=
 DIAG_END=
@@ -295,6 +304,7 @@ for arg in "$@"; do
     --diag-console=*) DIAG_CONSOLE+=("${arg#--diag-console=}") ;;
     --diag-display=right) DIAG_DISPLAY=right ;;
     --diag-hold) DIAG_HOLD=1 ;;
+    --diag-block-input) DIAG_BLOCK_INPUT=1 ;;
     --diag-sound) DIAG_SOUND=1 ;;
     --diag-hd-dir=*) DIAG_HD_DIR="${arg#--diag-hd-dir=}" ;;
     --diag-end=*) DIAG_END="${arg#--diag-end=}" ;;
@@ -376,6 +386,10 @@ for command in ${DIAG_CONSOLE[@]+"${DIAG_CONSOLE[@]}"}; do
   [[ "$command" =~ ^[0-9]+(\.[0-9]+)?:[A-Za-z0-9_.+\ -]+$ ]] || { echo "Bad console command: $command" >&2; exit 2; }
   DIAG="${DIAG:-log} console=${command// //}"
 done
+if [ "$DIAG_BLOCK_INPUT" = 1 ] && [ ${#DIAG_CONSOLE[@]} = 0 ]; then
+  echo "--diag-block-input lets keys and clicks through after the last --diag-console command; give one." >&2
+  exit 2
+fi
 [[ -z "$WINE_NAME" || "$WINE_NAME" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "Bad Wine name: $WINE_NAME" >&2; exit 2; }
 [[ -z "$WINE_RULES" || "$WINE_RULES" =~ ^(\;[a-z0-9_]+=[A-Za-z0-9_.,=-]*)+$ ]] || { echo "Bad Wine rule: ${WINE_RULES#;}" >&2; exit 2; }
 if [[ "$DIAG" == draw-test\ * ]]; then
@@ -1221,6 +1235,10 @@ if [ "$FOCUSFIX" = 1 ]; then
   if [ "$WIDE" = 1 ]; then export DOGFIGHTER_WIDEN_VIEW=1; fi
   if [ -n "$DIAG_DISPLAY" ]; then export DOGFIGHTER_TEST_DISPLAY="$DIAG_DISPLAY"; fi
   if [ -n "$DIAG" ] && [ "$DIAG_HOLD" = 0 ]; then export DOGFIGHTER_TEST_LEAVES_MOUSE=1; fi
+  if [ "$DIAG_BLOCK_INPUT" = 1 ]; then
+    export DOGFIGHTER_TEST_INPUT_AFTER_COMMANDS=${#DIAG_CONSOLE[@]}
+    say "Keys and clicks are kept from the game until the scripted start has run."
+  fi
   if [ "$ORIGINAL" = 0 ]; then export DOGFIGHTER_ANISOTROPY=16; fi
   if [ "$ORIGINAL" = 0 ] && [ "$SMOOTH" != 0 ]; then export DOGFIGHTER_EDGE_SAMPLES="$SMOOTH"; fi
   if [ "$KEEP_SHAPE" = 1 ]; then export DOGFIGHTER_KEEP_SHAPE=1; fi

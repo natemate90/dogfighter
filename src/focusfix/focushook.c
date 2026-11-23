@@ -40,6 +40,7 @@ struct wined3d_resource_desc_copy
 #define CONSOLE_COMMAND 0x41664463
 #define CONSOLE_COMMAND_RUN 1
 #define CONSOLE_COMMAND_LATER 2
+#define SCRIPTED_KEY 0x41664464
 #define WIDEN_VIEW (WM_APP + 0x4466)
 #define HIDE_POINTER (WM_APP + 0x4467)
 
@@ -126,6 +127,10 @@ static BOOL test_notes_draws;
    intro videos play. It makes its first depth surface for the main menu, so
    console commands wait for one. */
 static BOOL no_depth_surface_yet;
+/* Test runs only: how many console commands still have to run before the
+   player's keys and clicks reach the game. A mission started by hand while a
+   scripted start is on its way crashes the game. */
+static volatile LONG commands_before_input, inputs_kept;
 static char test_shot_on[64];
 static LONG test_shot_in;
 static volatile LONG flips, direct_draws, gdi_draws, unscaled_draws, to_announce, dinput_clips, dinput_moves;
@@ -981,7 +986,7 @@ static BOOL WINAPI dinput_set_cursor_pos(int x, int y)
    of the cursor, so the event gets another place. Only a build whose code
    does that square is touched. */
 enum { GAME_SENSITIVITY = 100 };
-static HOOKPROC dinput_mouse_hook;
+static HOOKPROC dinput_mouse_hook, dinput_key_hook;
 static float pointer_step, pointer_speed;
 static volatile LONG moves_seen[2], moves_given[2];
 static void *(__cdecl *game_main)(void);
@@ -1059,6 +1064,11 @@ static LRESULT CALLBACK matched_mouse_hook(int code, WPARAM wp, LPARAM lp)
     POINT at;
     void *main;
 
+    if (code == HC_ACTION && wp != WM_MOUSEMOVE && commands_before_input > 0)
+    {
+        InterlockedIncrement(&inputs_kept);
+        return CallNextHookEx(NULL, code, wp, lp);
+    }
     if (code != HC_ACTION || wp != WM_MOUSEMOVE || !event || step <= 0.0f || !mode_set || !game_main
         || !(main = game_main()) || !game_pointer_shown(main) || !picture_target(&client) || !GetCursorPos(&at))
         return dinput_mouse_hook(code, wp, lp);
@@ -1072,8 +1082,26 @@ static LRESULT CALLBACK matched_mouse_hook(int code, WPARAM wp, LPARAM lp)
     return dinput_mouse_hook(code, wp, (LPARAM)&given);
 }
 
+static LRESULT CALLBACK scripted_key_hook(int code, WPARAM wp, LPARAM lp)
+{
+    KBDLLHOOKSTRUCT *event = (KBDLLHOOKSTRUCT *)lp;
+
+    if (code == HC_ACTION && event && event->dwExtraInfo != SCRIPTED_KEY && commands_before_input > 0)
+    {
+        InterlockedIncrement(&inputs_kept);
+        return CallNextHookEx(NULL, code, wp, lp);
+    }
+    return dinput_key_hook(code, wp, lp);
+}
+
 static HHOOK WINAPI dinput_set_hook(int id, HOOKPROC proc, HINSTANCE module, DWORD thread)
 {
+    if (id == WH_KEYBOARD_LL && proc && proc != scripted_key_hook && commands_before_input > 0)
+    {
+        if (!dinput_key_hook) say("DirectInput watches the keyboard through a hook; keys and clicks wait for the last scripted console command");
+        dinput_key_hook = proc;
+        proc = scripted_key_hook;
+    }
     if (id == WH_MOUSE_LL && proc && proc != matched_mouse_hook)
     {
         if (!dinput_mouse_hook) say("DirectInput watches the mouse through a hook; the menu pointer's moves go through the helper");
@@ -1224,10 +1252,12 @@ static BOOL install_hooks(void)
         say("dinput.dll does not import SetCursorPos; its pointer moves are not counted");
     if (!patch_import(dinput, "user32.dll", "ShowCursor", dinput_show_cursor))
         say("dinput.dll does not import ShowCursor; the system pointer cannot be given an empty picture");
-    if (match_pointer && !patch_import(dinput, "user32.dll", "SetWindowsHookExW", dinput_set_hook))
+    if ((match_pointer || commands_before_input) && !patch_import(dinput, "user32.dll", "SetWindowsHookExW", dinput_set_hook))
     {
+        if (match_pointer) say("dinput.dll does not import SetWindowsHookExW; the menu pointer keeps the game's own speed");
+        if (commands_before_input) say("dinput.dll does not import SetWindowsHookExW; keys and clicks are not kept from the game");
         match_pointer = FALSE;
-        say("dinput.dll does not import SetWindowsHookExW; the menu pointer keeps the game's own speed");
+        commands_before_input = 0;
     }
     return TRUE;
 }
@@ -1361,6 +1391,11 @@ static LRESULT CALLBACK hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         say("a click in the picture: the mouse belongs to the game again");
     }
     if ((msg == WM_WINDOWPOSCHANGING || msg == WM_SIZING) && keep_picture_shape(hwnd, msg, wp, lp)) return TRUE;
+    if (msg >= WM_KEYFIRST && msg <= WM_KEYLAST && commands_before_input > 0 && GetMessageExtraInfo() != SCRIPTED_KEY)
+    {
+        InterlockedIncrement(&inputs_kept);
+        return 0;
+    }
     if (msg == WM_COPYDATA && ((COPYDATASTRUCT *)lp)->dwData == CONSOLE_COMMAND)
     {
         COPYDATASTRUCT *data = (COPYDATASTRUCT *)lp;
@@ -1372,6 +1407,8 @@ static LRESULT CALLBACK hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             return CONSOLE_COMMAND_LATER;
         }
         if (data->cbData && !((const char *)data->lpData)[data->cbData - 1]) run_console_command(data->lpData);
+        if (commands_before_input > 0 && !InterlockedDecrement(&commands_before_input))
+            say("the last scripted console command has run; keys and clicks reach the game again, %ld key and button events were kept from it", inputs_kept);
         return CONSOLE_COMMAND_RUN;
     }
     if (msg == WM_ACTIVATEAPP || msg == WM_ACTIVATE || msg == WM_KILLFOCUS || msg == WM_SETFOCUS)
@@ -1799,7 +1836,9 @@ static void make_normal_window(HWND w)
 
 static void keep_mouse_inside(void)
 {
-    static BOOL keys_were_down, ours, titled_free, ctrl_was_down, option_was_down;
+    static BOOL keys_were_down, ours, ctrl_was_down, option_was_down;
+    static const char *titled_as;
+    const char *title;
     static int keys_noted;
     static HWND titled;
     static RECT wanted, applied;
@@ -1855,14 +1894,14 @@ static void keep_mouse_inside(void)
         say("mouse let go");
     }
 
-    if (game_window && mode_set && (titled != game_window || titled_free != mouse_free))
+    title = commands_before_input > 0 ? "Airfix Dogfighter - starting by itself, keys and clicks wait"
+        : mouse_free ? "Airfix Dogfighter - the mouse is free, Ctrl+Option gives it back"
+        : "Airfix Dogfighter - Ctrl+Option frees the mouse";
+    if (game_window && mode_set && (titled != game_window || titled_as != title))
     {
         titled = game_window;
-        titled_free = mouse_free;
-        SendMessageTimeoutA(game_window, WM_SETTEXT, 0,
-                            (LPARAM)(mouse_free ? "Airfix Dogfighter - the mouse is free, Ctrl+Option gives it back"
-                                                : "Airfix Dogfighter - Ctrl+Option frees the mouse"),
-                            SMTO_ABORTIFHUNG, 500, NULL);
+        titled_as = title;
+        SendMessageTimeoutA(game_window, WM_SETTEXT, 0, (LPARAM)title, SMTO_ABORTIFHUNG, 500, NULL);
     }
 }
 
@@ -1929,6 +1968,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
         widen_view = GetEnvironmentVariableA("DOGFIGHTER_WIDEN_VIEW", NULL, 0) != 0;
         test_on_right_display = GetEnvironmentVariableA("DOGFIGHTER_TEST_DISPLAY", NULL, 0) != 0;
         test_leaves_mouse = GetEnvironmentVariableA("DOGFIGHTER_TEST_LEAVES_MOUSE", NULL, 0) != 0;
+        commands_before_input = env_size("DOGFIGHTER_TEST_INPUT_AFTER_COMMANDS").cx;
         anisotropy = env_size("DOGFIGHTER_ANISOTROPY").cx;
         texture_limit = env_size("DOGFIGHTER_TEXTURE_LIMIT").cx;
         edge_samples = env_size("DOGFIGHTER_EDGE_SAMPLES").cx;
