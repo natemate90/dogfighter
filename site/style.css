@@ -157,13 +157,27 @@ kbd {
 h1 { margin: 0; line-height: 0.9; font-family: var(--display); }
 .t1 {
   display: block;
-  font-size: clamp(2.9rem, 12.4vw, 6.6rem);
-  font-size: clamp(2.4rem, 13.6cqi, 6.6rem);
-  font-weight: 700;
+  font-family: "Bangers", var(--display);
+  font-size: clamp(3.2rem, 18cqi, 8.4rem);
+  font-weight: 400;
+  line-height: 0.95;
   text-transform: uppercase;
-  letter-spacing: 0.005em;
-  margin-left: -0.03em;
-  padding-bottom: 0.06em;
+  letter-spacing: 0.02em;
+  margin-left: -0.02em;
+  padding: 0 0.08em 0.06em 0;
+  color: #e89a1c;
+}
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .t1 {
+    width: fit-content;
+    background: linear-gradient(180deg, #fffbe2 0%, #ffe25a 14%, #ffc72c 34%, #f39a1a 58%, #c4620e 80%, #7a3a0c 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    -webkit-text-stroke: 0.025em #2b1606;
+    filter: drop-shadow(0.03em 0.05em 0.04em rgba(15, 8, 0, 0.45));
+  }
+  .t1::selection { background: var(--ink); -webkit-text-fill-color: #ffd23a; }
 }
 .t2 {
   display: block;
