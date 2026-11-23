@@ -1227,7 +1227,7 @@ It sets no tracking cookies, so it needs no consent.
 
 - The site key (`TURNSTILE_SITEKEY`) lives in one place: the `data-sitekey` of `<form id="contact-form">` in `site/index.html`.
 - The secret is the Worker secret `TURNSTILE_SECRET`. It is never in the repo.
-- Local runs and preview addresses always use Cloudflare's test keys. On dogfighter.net, without the secret, the form answers "not configured" and offers the Google Form instead.
+- Local runs and preview addresses always use Cloudflare's test keys. On dogfighter.net, without the secret, the form answers "not configured".
 - The test site key `1x00000000000000000000AA` always passes. It shows a "For testing only" note under the widget on previews.
 
 #### Setting up Turnstile
