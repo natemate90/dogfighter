@@ -517,6 +517,21 @@ def faded_frames(shots, level):
     return fades
 
 
+def between_neighbours(fades, overlap, times):
+    """Output frame number within the video: the frame whose detail a RIFE frame next to a chunk border takes.
+
+    RIFE makes its frames between from the repaired frames, so the frames around a border still mix two sets of
+    detail. Up to the middle of the fade they take the last frame of the earlier chunk, after it the first unfaded
+    frame of the later one, as the repaired frames themselves do."""
+    picks = {}
+    for before, after in {(before, after) for _, before, after in fades.values()}:
+        turn = before + 1 + (overlap - 1) / 2
+        for key in range(before, after):
+            for step in range(1, times):
+                picks[key * times + step] = before if key + step / times <= turn else after
+    return picks
+
+
 def repair(job, video, level, src, up, fixed, shots):
     """The made frames with two faults of SeedVR2 taken out, in fixed/; frames it does not change are linked.
 
@@ -566,9 +581,11 @@ def match_scores(src, up, scale):
     return scores
 
 
-def interpolate_and_encode(watch, job, video, up, seg, shots):
+def interpolate_and_encode(watch, job, video, up, seg, shots, src=None, fades=None):
     spec, names = job["spec"], pictures(up)
     times = spec["fps"] // RATE
+    rule = spec.get("repair", {})
+    picks = between_neighbours(fades, video["level"]["overlap"], times) if fades and rule.get("between") else {}
     encode = spec["encode"]
     still = {k - video["first"] for first, last in video["no_interpolate"] for k in range(first, last + 1)}
     for number, (start, end) in enumerate(shots):
@@ -596,6 +613,20 @@ def interpolate_and_encode(watch, job, video, up, seg, shots):
                 os.link(os.path.join(up, name), frame)
         if len(pictures(out)) != wanted:
             sys.exit("RIFE made %d frames for shot %d, %d wanted" % (len(pictures(out)), number + 1, wanted))
+        for at in range(end - start - 1):
+            if held[at]:
+                continue
+            for step in range(1, times):
+                neighbour = picks.get((start + at) * times + step)
+                if neighbour is None:
+                    continue
+                frame = os.path.join(out, "%08d.png" % (at * times + step + 1))
+                picture = rgb(frame).astype(np.float32)
+                height, width = rgb(os.path.join(src, names[neighbour])).shape[:2]
+                small = np.clip(np.rint(cv2.resize(picture, (width, height), interpolation=cv2.INTER_AREA)), 0, 255).astype(np.uint8)
+                other, trust = moved(rgb(os.path.join(up, names[neighbour])).astype(np.float32), small,
+                                     rgb(os.path.join(src, names[neighbour])), job["scale"], rule)
+                save(Image.fromarray(np.clip(np.rint(unfade(picture, other, trust, rule)), 0, 255).astype(np.uint8)), frame)
         watch.run([FFMPEG, "-nostdin", "-loglevel", "error", "-y", "-framerate", str(spec["fps"]), "-i", os.path.join(out, "%08d.png"),
                    "-vf", "scale=out_color_matrix=bt709:out_range=tv", "-c:v", encode["codec"], "-preset", encode["preset"],
                    "-crf", str(encode["crf"]), "-pix_fmt", encode["pix_fmt"], "-color_primaries", "bt709", "-color_trc", "bt709",
@@ -662,7 +693,8 @@ def main():
             repair(job, video, level, src, up, fixed, shots)
         seg = os.path.join(work, "seg")
         stage(seg, video["keys"]["seg"] + json.dumps(cuts))
-        interpolate_and_encode(watch, job, video, fixed, seg, shots)
+        fades = faded_frames(shots, level) if fixed != up and level["way"] == "seedvr2" else None
+        interpolate_and_encode(watch, job, video, fixed, seg, shots, src, fades)
         frames = join(watch, job, video, src, seg, count)
         result = {
             "name": video["name"], "file": os.path.basename(video["target"]), "sha256": packs.sha256_of(video["target"]),

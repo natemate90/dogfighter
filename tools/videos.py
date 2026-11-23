@@ -30,7 +30,8 @@ video with 22 kHz PCM sound. tools/videos.json says what is made of each:
                two SeedVR2 chunks were faded: detail, the blur in pixels that
                splits fine detail from the picture, and trust, the pixels of
                the game's frame by which the motion found both ways may
-               disagree before a pixel keeps the fade.
+               disagree before a pixel keeps the fade. between also repairs
+               RIFE's frames around each border.
   cuts        how a cut between shots is found (see tools/videos-make.py).
   interpolate  the RIFE model that makes the frames between, 15 to 60.
   encode       x265 10-bit in a .mov, with the game's sound unchanged.
