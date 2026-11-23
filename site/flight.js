@@ -57,7 +57,7 @@
     p.x += vel.x * dt;
     p.y += vel.y * dt;
     if (p.leaving) p.wrap = false;
-    else if (p.wrap) {
+    else if (p.wrap && Math.abs(p.h - CRUISE_H) < 10) {
       p.x = wrapDx(p.x - W / 2) + W / 2;
       p.y = wrapDy(p.y - H / 2) + H / 2;
     } else if (inBox(p, -EDGE)) p.wrap = true;
@@ -134,18 +134,20 @@
       if (p.v >= LOOP_V || p.timer <= 0) startLoop(s, p);
     } else if (p.mode === "circle") {
       p.turn = p.circleDir * 9;
-      p.throttle = 0.8;
+      p.throttle = CRUISE;
       p.turned += Math.abs(angle(p.psi - p.last));
       p.last = p.psi;
       if (p.turned > TAU - 0.6) Object.assign(p, { mode: "cruise", timer: rand(3, 6) });
     } else if (p.mode === "break") {
       steer(p, p.want, 3);
-      p.throttle = 0.7;
+      p.throttle = CRUISE;
       if (Math.abs(angle(p.want - p.psi)) < 0.08) Object.assign(p, { mode: "cruise", want: p.psi, timer: rand(4, 8) });
     } else {
       steer(p, p.want, 1.5);
       p.throttle = CRUISE;
+      p.out = inBox(p, 0) ? 0 : (p.out || 0) + dt;
       if (p.mode === "leave") p.leaving = true;
+      else if (p.out > 2 && p.wrap) Object.assign(p, { mode: "break", out: 0, want: Math.atan2(H / 2 - p.y, W / 2 - p.x) + rand(-0.5, 0.5) });
       else if (p.timer <= 0 && p.wrap) nextMove(s, p);
     }
   }
@@ -219,7 +221,7 @@
       return;
     }
     const n = nose(h), off = Math.acos(clamp((n.x * aim.x + n.y * aim.y) / (Math.hypot(n.x, n.y) * aim.dist || 1), -1, 1));
-    const clear = inBox(h, 0) && (h.obj || (!p.smoke && inBox(p, 70) && Math.abs(p.h - h.h) < 30));
+    const clear = inBox(h, 0) && (h.obj || (!p.smoke && inBox(p, 70) && Math.abs(p.h - h.h) < 30 && Math.hypot(p.x - h.x, p.y - h.y) < FIRE_RANGE));
     if (h.cool <= 0 && s.t > s.calm && clear && aim.dist < FIRE_RANGE && off < FIRE_CONE) {
       h.burst = BURST;
       h.shotAt = 0;
