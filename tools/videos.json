@@ -4,7 +4,7 @@
  "videos": [
   {"name": "companies", "file": "Video/companies.avi", "level": 1, "no_interpolate": [[234, 408]],
    "sha256": "b4f27509ca66c06e4ef161f28b60878a0c0d82e328bb12a4a52398c0a0e9a66e"},
-  {"name": "airfix", "file": "Video/airfix.avi", "level": 2,
+  {"name": "airfix", "file": "Video/airfix.avi", "level": 2, "smooth_flat": [[0, 331]],
    "sha256": "58f330ef306ded4da19302275978f38ee79ce71088541603f10f319bd874b6ea"},
   {"name": "airfix-level3-sample", "file": "Video/airfix.avi", "level": 3, "clip": [31.667, 10], "sample": true,
    "sha256": "58f330ef306ded4da19302275978f38ee79ce71088541603f10f319bd874b6ea"}
@@ -21,6 +21,7 @@
         "color": "lab", "seed": 42, "input_noise": 0.0, "latent_noise": 0.0, "tile": 512, "tile_overlap": 128,
         "mps_low_gb": 6, "mps_high_gb": 26}
  },
+ "repair": {"blur": 1.5, "guard": 3, "flat_low": 1.5, "flat_high": 4, "feather": 2, "detail": 3, "trust": 3, "between": true},
  "cuts": {"reduce": 40, "least": 24, "ratio": 1.95, "black": 8},
  "interpolate": {"model": "rife-v4.26", "uhd": true},
  "encode": {"codec": "libx265", "crf": 14, "preset": "medium", "pix_fmt": "yuv420p10le", "tag": "hvc1",
