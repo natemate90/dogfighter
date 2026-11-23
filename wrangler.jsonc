@@ -2,6 +2,8 @@
   "name": "dogfighter",
   "compatibility_date": "2026-11-01",
   "main": "worker/index.js",
+  // TURNSTILE_SECRET is set in the Cloudflare dashboard and must never be in this public repo; keep_vars stops a deploy from removing it.
+  "keep_vars": true,
   "assets": {
     "directory": "./site",
     "binding": "ASSETS",
