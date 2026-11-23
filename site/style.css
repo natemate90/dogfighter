@@ -154,18 +154,45 @@ kbd {
   border-bottom: 3px solid var(--ink);
 }
 .hero-text { container-type: inline-size; }
+.hero { position: relative; isolation: isolate; }
+.hero-photo {
+  position: absolute;
+  z-index: -2;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  height: 100%;
+  transform: translateX(-50%);
+  object-fit: cover;
+  object-position: 50% 30%;
+  filter: grayscale(1) sepia(0.45) contrast(0.85);
+}
+.hero::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 100vw;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--paper) 94%, transparent) 0%, color-mix(in srgb, var(--paper) 82%, transparent) 45%, color-mix(in srgb, var(--paper) 62%, transparent) 100%);
+}
 h1 { margin: 0; line-height: 0.9; font-family: var(--display); }
 .t1 {
   display: block;
-  font-family: "Bangers", var(--display);
-  font-size: clamp(3.2rem, 18cqi, 8.4rem);
+  font-family: "Anton", var(--display);
+  font-size: clamp(3.4rem, 19cqi, 8.8rem);
   font-weight: 400;
   line-height: 0.95;
   text-transform: uppercase;
-  letter-spacing: 0.02em;
-  margin-left: -0.02em;
+  letter-spacing: 0.01em;
+  margin-left: 0.04em;
   padding: 0 0.08em 0.06em 0;
   color: #e89a1c;
+  transform: skewX(-10deg);
+  transform-origin: 0 100%;
 }
 @supports ((-webkit-background-clip: text) or (background-clip: text)) {
   .t1 {
@@ -255,6 +282,11 @@ h1 { margin: 0; line-height: 0.9; font-family: var(--display); }
 .scene .tracers { fill: none; stroke: #f0a23a; stroke-width: 1.9; stroke-linecap: round; }
 .scene .sparks { fill: none; stroke: #ffd36b; stroke-width: 1.2; stroke-linecap: round; }
 .scene .puffs .hit { fill: #f4f2e8; }
+.scene .glass-body { fill: rgba(196, 228, 242, 0.5); stroke: var(--ink); stroke-width: 1.2; stroke-linejoin: round; }
+.scene .glass-water { fill: rgba(120, 180, 215, 0.45); }
+.scene .glass-shine { fill: none; stroke: rgba(255, 255, 255, 0.85); stroke-width: 1.6; stroke-linecap: round; }
+.scene .glass-cap { fill: var(--red); stroke: var(--ink); stroke-width: 1; }
+.scene .shards { fill: #e6f5fc; stroke: #6fa9c6; stroke-width: 0.7; stroke-linejoin: round; }
 .scene .puffs .dark { fill: #34363b; }
 .scene .puffs .fire { fill: #f28c28; }
 .prop-disc { fill: var(--ink); opacity: 0.12; }
@@ -647,22 +679,19 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
   vertical-align: 0.08em;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Ccircle cx='10' cy='10' r='10' fill='%23e8c547'/%3E%3Ccircle cx='10' cy='10' r='8.6' fill='%23233f7a'/%3E%3Ccircle cx='10' cy='10' r='5.8' fill='%23f4f2e8'/%3E%3Ccircle cx='10' cy='10' r='3' fill='%23c8231b'/%3E%3C/svg%3E") center / contain no-repeat;
 }
-.sec-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 40px; align-items: start; margin-bottom: 2em; }
-.sec-head > :not(.photo) { grid-column: 1; }
+.sec-head { margin-bottom: 2.4em; }
 .sec-head .intro { margin-bottom: 0; }
 .photo {
-  grid-column: 2;
-  grid-row: 1 / span 3;
   position: relative;
-  width: 300px;
-  margin: 0.4em 6px 0 0;
-  padding: 10px 10px 6px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 1.8em auto 0;
+  padding: 12px 12px 8px;
   background: #f6f1e2;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), 0 6px 18px rgba(0, 0, 0, 0.16);
-  transform: rotate(var(--tilt, 1.5deg));
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), 0 8px 24px rgba(0, 0, 0, 0.18);
+  transform: rotate(var(--tilt, 0.8deg));
 }
-.photo.tall { width: 230px; }
-.photo img { display: block; width: 100%; height: auto; filter: sepia(0.6) contrast(1.05) brightness(0.96); }
+.photo img { display: block; width: auto; max-width: 100%; height: auto; max-height: min(72vh, 640px); filter: sepia(0.6) contrast(1.05) brightness(0.96); }
 .photo figcaption { margin-top: 4px; font-family: var(--hand); font-size: 1.2rem; line-height: 1.15; color: #3a3328; }
 .photo::before, .photo::after {
   content: "";
@@ -694,8 +723,7 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .credits ul { margin: 8px 0 0; padding-left: 1.2em; }
 .credits li + li { margin-top: 4px; }
 @media (max-width: 760px) {
-  .sec-head { display: block; }
-  .photo, .photo.tall { width: auto; max-width: min(360px, calc(100% - 16px)); margin: 1.2em 8px 0 0; }
+  .photo { max-width: calc(100% - 12px); margin-top: 1.2em; padding: 8px 8px 6px; }
 }
 
 @media (prefers-reduced-motion: no-preference) {

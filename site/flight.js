@@ -2,10 +2,11 @@
   const W = 640, EDGE = 40, SPAN = W + 2 * EDGE, TOP = 24, FLOOR = 436, DT = 1 / 120;
   const UNIT = 48, DEG = Math.PI / 180, SPRITE = 0.36, CRUISE = 0.42;
   const TOP_SPEED = 4.1 * UNIT, PULL = 1 * UNIT, CLIMB_LOSS = 0.7 * UNIT, STALL = 1.6 * UNIT;
-  const PITCH_UP = 43 * DEG, PITCH_DOWN = 47 * DEG, YAW = 62 * DEG, TURN_SINK = 20 * DEG, SINK_RATE = 15 * DEG, ROLL = Math.PI;
+  const PITCH_UP = 43 * DEG, PITCH_DOWN = 47 * DEG;
   const MUZZLE = 38 * UNIT, BULLET_LIFE = 1.2, GUN_RATE = 8.7, BURST = 0.6;
-  const LOCK_CONE = 0.12, FIRE_CONE = 0.12, FIRE_RANGE = 12 * UNIT, MAX_BULLETS = 40, HITS_TO_SMOKE = 12;
+  const LOCK_CONE = 0.12, FIRE_CONE = 0.12, FIRE_RANGE = 12 * UNIT, MAX_BULLETS = 40, HITS_TO_SMOKE = 18;
   const FALL_ACCEL = 6 * UNIT, FALL_MAX = 6 * UNIT, TAU = Math.PI * 2;
+  const SHARD_GRAVITY = 10 * UNIT, SHARDS_EACH = 22, MAX_SHARDS = 60, GLASS_BACK = 12;
 
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   const angle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -13,7 +14,6 @@
   const wrapX = (x) => wrapDx(x - W / 2) + W / 2;
   const rand = (lo, hi) => lo + Math.random() * (hi - lo);
   const facing = (p) => (Math.cos(p.psi) >= 0 ? 1 : -1);
-  const turning = (p) => p.psi !== p.yawTo;
   const nose = (p) => ({ x: Math.cos(p.psi) * Math.cos(p.gam), y: -Math.sin(p.gam) });
   const velocity = (p) => ({ x: p.v * Math.cos(p.psi) * Math.cos(p.gam), y: -p.v * Math.sin(p.gam) });
 
@@ -25,26 +25,23 @@
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.spin += dt;
-      p.psi = p.yawTo = p.vx >= 0 ? 0 : Math.PI;
+      p.psi = p.vx >= 0 ? 0 : Math.PI;
       p.gam = Math.atan2(-p.vy, Math.abs(p.vx)) + 0.35 * Math.sin(p.spin * 7);
-      p.roll = Math.cos(p.spin * 9);
       return;
     }
     const throttle = p.v < STALL + 0.5 * UNIT ? 1 : p.throttle;
     p.v += (PULL * (throttle - (p.v / p.top) ** 2) - CLIMB_LOSS * Math.sin(p.gam)) * dt;
     p.v = Math.max(p.v, 20);
     p.gam += p.pitch * (p.pitch > 0 ? PITCH_UP : PITCH_DOWN) * dt;
-    if (turning(p)) {
-      p.psi += clamp(p.yawTo - p.psi, -YAW * dt, YAW * dt);
-      if (Math.abs(p.pitch) < 0.1 && p.gam > -TURN_SINK) p.gam -= Math.min(p.gam + TURN_SINK, SINK_RATE * dt);
-    }
-    p.since += dt;
     if (p.v < STALL) {
       const drop = angle(-Math.PI / 2 - p.gam);
       p.gam += Math.sign(drop) * Math.min(Math.abs(drop), 1.2 * (1 - p.v / STALL) * dt);
     }
     p.gam = angle(p.gam);
-    p.roll = Math.min(1, p.roll + (2 * ROLL * dt) / Math.PI);
+    if (Math.abs(p.gam) > Math.PI / 2) {
+      p.psi = Math.PI - p.psi;
+      p.gam = angle(Math.PI - p.gam);
+    }
     const vel = velocity(p);
     p.x += vel.x * dt;
     p.y += vel.y * dt;
@@ -57,25 +54,6 @@
     p.pitch = clamp(angle(want - p.gam) * gain, -1, 1);
   }
 
-  function aimAt(p, dx, dy, gain) {
-    const want = Math.atan2(-dy, dx * facing(p));
-    pitchTo(p, want, gain);
-    return want;
-  }
-
-  function reverse(p) {
-    if (turning(p) || p.since < 0.6 || Math.abs(p.gam) > 0.8) return;
-    p.yawTo = p.yawTo === 0 ? Math.PI : 0;
-    p.since = 0;
-  }
-
-  function rollUpright(p) {
-    if (turning(p) || p.roll < 1 || Math.abs(p.gam) < 2.3) return;
-    p.psi = p.yawTo = Math.PI - p.psi;
-    p.gam = angle(Math.PI - p.gam);
-    p.roll = -1;
-  }
-
   function keepInside(p) {
     const steep = Math.asin(clamp(Math.sin(p.gam), -1, 1)), radius = p.v / PITCH_UP + 10;
     const room = radius * (1 - Math.cos(steep)) + p.v * 0.3;
@@ -84,18 +62,19 @@
   }
 
   function makePlane(size, top) {
-    return { size, top, x: 0, y: 0, v: 0, gam: 0, psi: 0, yawTo: 0, pitch: 0, roll: 1, throttle: 1 };
+    return { size, top, x: 0, y: 0, v: 0, gam: 0, psi: 0, pitch: 0, throttle: 1 };
   }
 
-  function world() {
-    const s = { prey: makePlane(1.05, TOP_SPEED), hunter: makePlane(0.92, TOP_SPEED), bullets: [], sparks: [], puffs: [], t: 0 };
+  function world(boxes = []) {
+    const glass = boxes.map((b) => ({ ...b, broken: false, back: 0 }));
+    const s = { prey: makePlane(1.05, TOP_SPEED), hunter: makePlane(0.92, TOP_SPEED), bullets: [], sparks: [], puffs: [], shards: [], glass, t: 0 };
     reset(s);
     return s;
   }
 
   function place(p, x, y, dir, v) {
     const psi = dir > 0 ? 0 : Math.PI;
-    Object.assign(p, { x, y, v, gam: 0, psi, yawTo: psi, pitch: 0, roll: 1, throttle: 1, wrap: false, leaving: false, gone: false, since: 0 });
+    Object.assign(p, { x, y, v, gam: 0, psi, pitch: 0, throttle: 1, wrap: false, leaving: false, gone: false });
   }
 
   function reset(s) {
@@ -108,10 +87,11 @@
     s.fade = 1;
     s.calm = s.t + 2.5;
     s.started = s.t;
+    for (const g of s.glass) g.broken = false;
   }
 
   function canLoop(p) {
-    return p.v > 2.3 * UNIT && p.v < 2.75 * UNIT && p.y > TOP + 10 + (2 * p.v) / PITCH_UP && p.y < 415 && Math.abs(p.gam) < 0.3 && p.roll === 1 && !turning(p);
+    return p.v > 2.3 * UNIT && p.v < 2.75 * UNIT && p.y > TOP + 10 + (2 * p.v) / PITCH_UP && p.y < 415 && Math.abs(p.gam) < 0.3;
   }
 
   function nextMove(p) {
@@ -119,13 +99,14 @@
     if (canLoop(p)) moves.push("loop", "loop", "half");
     if (p.y < 330) moves.push("dive", "dive");
     if (p.y > 220 && p.v > 2.4 * UNIT) moves.push("climb");
-    if (p.x > 120 && p.x < W - 120 && Math.abs(p.gam) < 0.5) moves.push("reverse");
+    if (p.y < FLOOR - 10 - (2 * p.v) / PITCH_DOWN && Math.abs(p.gam) < 0.3) moves.push("splitS");
     if (!p.jink || !moves.length) moves.push("cruise");
     p.jink = false;
     p.mode = moves[Math.floor(Math.random() * moves.length)];
     p.throttle = CRUISE;
     p.loopV = p.v;
     p.turned = 0;
+    p.loopDir = p.mode === "splitS" ? facing(p) : -facing(p);
     p.timer = p.mode === "cruise" ? rand(1.5, 3.5) : 12;
     if (p.mode === "cruise") p.alt = clamp(p.y + rand(-80, 80), 120, 380);
   }
@@ -134,10 +115,10 @@
     const p = s.prey;
     if (p.falling) return;
     p.timer -= dt;
-    if (p.mode === "loop" || p.mode === "half") {
-      p.turned += p.pitch * PITCH_UP * dt;
-      if (p.turned < (p.mode === "loop" ? TAU - 0.1 : Math.PI) && p.timer > 0) {
-        p.pitch = 1;
+    if (p.mode === "loop" || p.mode === "half" || p.mode === "splitS") {
+      p.turned += (p.pitch > 0 ? PITCH_UP : PITCH_DOWN) * Math.abs(p.pitch) * dt;
+      if (p.turned < (p.mode === "loop" ? TAU - 0.1 : Math.PI - 0.05) && p.timer > 0) {
+        p.pitch = -p.loopDir * Math.cos(p.psi);
         p.throttle = clamp((p.loopV / p.top) ** 2 + (CLIMB_LOSS / PULL) * Math.sin(p.gam) + (p.loopV - p.v) / UNIT, 0, 1);
         return;
       }
@@ -152,22 +133,18 @@
       if (canLoop(p)) {
         p.mode = "loop";
         p.loopV = p.v;
+        p.loopDir = -facing(p);
         p.turned = 0;
         p.timer = 12;
       } else if (p.y > 345 && Math.abs(p.gam) < 0.05) nextMove(p);
     } else if (p.mode === "climb") {
       pitchTo(p, 0.6);
       if (p.y < 120 || p.v < 2 * UNIT) nextMove(p);
-    } else if (p.mode === "reverse") {
-      if (p.timer > 11.9) reverse(p);
-      pitchTo(p, 0, 2);
-      if (!turning(p) && p.timer < 11.5) nextMove(p);
     } else {
       pitchTo(p, clamp((p.y - p.alt) * 0.006, -0.4, 0.4));
       if (p.mode === "leave") p.leaving = true;
       else if (p.timer <= 0 && p.wrap) nextMove(p);
     }
-    rollUpright(p);
     keepInside(p);
   }
 
@@ -199,10 +176,10 @@
     if (h.close) {
       pitchTo(h, p.y > h.y || h.y > FLOOR - 80 ? 0.6 : -0.6);
     } else {
-      const want = aimAt(h, aim.x, aim.y + 6 * Math.sin(s.t * 1.3), 4);
-      if (Math.abs(want) > 1.7 && Math.abs(wrapDx(p.x - h.x)) > 40) reverse(h);
+      let want = Math.atan2(-(aim.y + 6 * Math.sin(s.t * 1.3)), aim.x * facing(h));
+      if (Math.abs(want) > 2) want = (h.y > 220 ? 1 : -1) * (Math.PI / 2 + 0.4);
+      pitchTo(h, want, 4);
     }
-    rollUpright(h);
     keepInside(h);
     if (h.burst > 0) {
       h.burst -= dt;
@@ -250,6 +227,20 @@
     return (along / (15 * p.size * len)) ** 2 + (across / 5.4) ** 2 < 1;
   }
 
+  function shatter(s, g, b) {
+    g.broken = true;
+    g.back = s.t + GLASS_BACK;
+    const push = Math.sign(b.vx) * 40;
+    for (let k = 0; k < SHARDS_EACH && s.shards.length < MAX_SHARDS; k++) {
+      s.shards.push({
+        x: g.x + rand(0, g.w), y: g.y + rand(0, g.h),
+        vx: rand(-110, 110) + push, vy: rand(-170, -20),
+        a: rand(0, TAU), spin: rand(-14, 14), size: rand(3, 6.5),
+        floor: rand(306, 392), life: rand(1.8, 2.6), bounced: false, rest: false,
+      });
+    }
+  }
+
   function shotDown(p) {
     const v = velocity(p);
     Object.assign(p, { falling: true, smoke: 0.001, smokeAt: 0, spin: 0, vx: v.x, vy: v.y, leaving: true, wrap: false, mode: "fall" });
@@ -289,7 +280,32 @@
           break;
         }
       }
+      for (const g of s.glass) {
+        if (g.broken || b.life <= 0) continue;
+        const mx = (x0 + b.x) / 2, my = (y0 + b.y) / 2;
+        if ([[x0, y0], [mx, my], [b.x, b.y]].some(([x, y]) => x > g.x && x < g.x + g.w && y > g.y && y < g.y + g.h)) {
+          shatter(s, g, b);
+          b.life = 0;
+        }
+      }
       if (b.life <= 0) s.bullets.splice(i, 1);
+    }
+    for (const g of s.glass) if (g.broken && s.t > g.back) g.broken = false;
+    for (let i = s.shards.length - 1; i >= 0; i--) {
+      const f = s.shards[i];
+      f.life -= dt;
+      if (!f.rest) {
+        f.vy += SHARD_GRAVITY * dt;
+        f.x += f.vx * dt;
+        f.y += f.vy * dt;
+        f.a += f.spin * dt;
+        if (f.y > f.floor && f.vy > 0) {
+          f.y = f.floor;
+          if (f.bounced) f.rest = true;
+          else Object.assign(f, { vy: -0.35 * f.vy, vx: 0.5 * f.vx, spin: 0.5 * f.spin, bounced: true });
+        }
+      }
+      if (f.life <= 0) s.shards.splice(i, 1);
     }
     for (let i = s.sparks.length - 1; i >= 0; i--) if ((s.sparks[i].age += dt) > 0.2) s.sparks.splice(i, 1);
     for (let i = s.puffs.length - 1; i >= 0; i--) if ((s.puffs[i].age += dt) > s.puffs[i].life) s.puffs.splice(i, 1);
@@ -338,18 +354,19 @@
   const smoke = layer("g", "puffs", sprites.hunter);
   const tracers = layer("path", "tracers", null);
   const sparks = layer("path", "sparks", null);
+  const glassEls = [...scene.querySelectorAll(".glass")];
+  const boxes = glassEls.map((el) => { const [x, y, w, h] = el.dataset.box.split(",").map(Number); return { x, y, w, h }; });
+  const shardPath = layer("path", "shards", sprites.hunter);
   const circles = [];
 
   let state = null, running = false, onScreen = true, last = 0, acc = 0, pending = 0;
 
   const n = (v) => v.toFixed(1);
-  const atLeast = (v, min) => (v < 0 ? -1 : 1) * Math.max(Math.abs(v), min);
   function draw(s) {
     for (const key of ["prey", "hunter"]) {
       const p = s[key];
-      const sx = atLeast(Math.cos(p.psi), 0.25) * (turning(p) ? 0.9 : 1) * SPRITE;
-      const sy = atLeast(Math.sin((p.roll * Math.PI) / 2), 0.3) * (1 - 0.1 * Math.abs(p.pitch));
-      sprites[key].setAttribute("transform", `translate(${n(p.x)} ${n(p.y)}) scale(${sx.toFixed(3)} ${SPRITE}) rotate(${n((-p.gam * 180) / Math.PI)}) scale(1 ${sy.toFixed(3)})`);
+      const sx = Math.cos(p.psi) * SPRITE;
+      sprites[key].setAttribute("transform", `translate(${n(p.x)} ${n(p.y)}) scale(${sx.toFixed(3)} ${SPRITE}) rotate(${n((-p.gam * 180) / Math.PI)})`);
       sprites[key].style.opacity = p.crashed ? "0" : s.fade < 1 ? Math.max(0, s.fade).toFixed(2) : "";
     }
     let d = "";
@@ -364,6 +381,13 @@
       }
     }
     sparks.setAttribute("d", d);
+    d = "";
+    for (const f of s.shards) {
+      const r = f.size * Math.min(1, f.life / 0.6);
+      d += `M${n(f.x + Math.cos(f.a) * r)} ${n(f.y + Math.sin(f.a) * r)}L${n(f.x + Math.cos(f.a + 2.4) * r * 0.7)} ${n(f.y + Math.sin(f.a + 2.4) * r * 0.7)}L${n(f.x + Math.cos(f.a + 4) * r * 0.9)} ${n(f.y + Math.sin(f.a + 4) * r * 0.9)}Z`;
+    }
+    shardPath.setAttribute("d", d);
+    s.glass.forEach((g, i) => (glassEls[i].style.display = g.broken ? "none" : ""));
     s.puffs.forEach((f, i) => {
       let c = circles[i];
       if (!c) {
@@ -403,6 +427,8 @@
         sprites[key].style.opacity = "";
       }
       tracers.setAttribute("d", "");
+      shardPath.setAttribute("d", "");
+      glassEls.forEach((el) => (el.style.display = ""));
       sparks.setAttribute("d", "");
       circles.forEach((c) => (c.style.display = "none"));
     }
@@ -413,7 +439,7 @@
       if (!reduce.matches) scene.pauseAnimations();
       return;
     }
-    if (!state) state = world();
+    if (!state) state = world(boxes);
     scene.classList.add("flying");
     scene.unpauseAnimations();
     last = performance.now();
