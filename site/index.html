@@ -153,7 +153,7 @@
       <a href="#questions">Questions</a>
       <a href="https://github.com/natemate90/dogfighter">Source on GitHub</a>
     </nav>
-    <a class="button small top-cta" href="#install">Get it running</a>
+    <a class="button small top-cta" href="#install"><span class="label-long">Get it running</span><span class="label-short">Install</span></a>
     <button class="menu-btn" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="menu"><span aria-hidden="true"></span></button>
   </div>
 </header>
@@ -179,9 +179,9 @@
     <p class="kicker">Mission briefing</p>
     <h1 id="title"><span class="t1">Dogfighter</span><span class="t2">flies again, on <span class="tail">your Mac. <span class="note">yes, the vase too</span></span></span></h1>
     <p class="lede">Airfix Dogfighter, the Windows game from 2000, runs on your Mac. You bring your own original CD. This project brings the rest, for free.</p>
-    <p class="usp">Sharper textures · crisp lettering · a normal Mac window</p>
+    <ul class="usp"><li>Sharper textures</li><li>crisp lettering</li><li>a normal Mac window</li></ul>
     <p class="cta"><a class="button" href="#install" data-cta="hero">Get it running</a></p>
-    <p class="cta-note">5 steps in Terminal · free</p>
+    <p class="cta-note"><span class="nowrap">5 steps in Terminal</span> · <span class="nowrap">free</span></p>
   </div>
   <div class="hero-video">
     <div class="hero-frame">
@@ -353,12 +353,12 @@
     <ol class="install-steps">
     <li class="istep" data-step="1">
       <h3><span class="inum" aria-hidden="true">1</span> Install Apple's command line tools</h3>
-      <div class="code" data-step="1" data-command="xcode-tools"><pre><code>xcode-select --install</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
+      <div class="code" data-step="1" data-command="xcode-tools"><pre><code><span class="nowrap">xcode-select</span> <span class="nowrap">--install</span></code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
       <p class="fact"><strong>You'll see:</strong> A window opens. Click Install and wait.</p>
     </li>
     <li class="istep" data-step="2">
       <h3><span class="inum" aria-hidden="true">2</span> Install Rosetta 2, only on macOS older than 26.4</h3>
-      <div class="code" data-step="2" data-command="rosetta"><pre><code>softwareupdate --install-rosetta --agree-to-license</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
+      <div class="code" data-step="2" data-command="rosetta"><pre><code>softwareupdate <span class="nowrap">--install-rosetta</span> <span class="nowrap">--agree-to-license</span></code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
       <p class="fact"><strong>Skip it:</strong> On macOS 26.4 or later you can skip this. With Rosetta installed, the game has a backup: if it does not start on Mach9, it starts on the other Wine.</p>
     </li>
     <li class="istep" data-step="3">
@@ -371,7 +371,7 @@
       <p>You need a CD drive and the free tool <code>cdrdao</code>. Install it with <a href="https://brew.sh">Homebrew</a>, a free installer for tools like this:</p>
       <div class="code" data-step="4" data-command="install-cdrdao"><pre><code>brew install cdrdao</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
       <p>Put the disc in the drive and run:</p>
-      <div class="code" data-step="4" data-command="copy-disc"><pre><code>cdrdao read-cd --read-raw --datafile Dogfighter.bin --driver generic-mmc:0x20000 Dogfighter.toc</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
+      <div class="code" data-step="4" data-command="copy-disc"><pre><code>cdrdao <span class="nowrap">read-cd</span> <span class="nowrap">--read-raw</span> <span class="nowrap">--datafile</span> Dogfighter.bin <span class="nowrap">--driver</span> <span class="nowrap">generic-mmc:0x20000</span> Dogfighter.toc</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
       <p class="fact"><strong>You'll see:</strong> <code>Dogfighter.bin</code> in the folder.</p>
       <p class="fact"><strong>Other copies:</strong> Any program that copies the whole disc to one BIN/CUE pair also works: use the <code>.bin</code> file. An <code>.iso</code> file does not work: it has no music. If the <code>.bin</code> is somewhere else, give its place to setup: <code>./setup.sh path/to/Dogfighter.bin</code>.</p>
     </li>
@@ -380,8 +380,8 @@
       <div class="code" data-step="5" data-command="setup"><pre><code>./setup.sh</code></pre><button class="copy" type="button" aria-label="Copy this command">Copy</button></div>
       <p class="fact"><strong>Time:</strong> A few minutes. One run on an M4 Max took about eleven minutes.</p>
       <p class="fact"><strong>What it does:</strong> It downloads what it needs and checks each download. It copies the game and the music from your disc file. Last, it makes sharper textures for the game.</p>
-      <p class="fact"><strong>You'll see:</strong> <code>Setup is done. Start the game with ./dogfighter, or double-click Dogfighter.app.</code></p>
-      <p class="fact"><strong>Language:</strong> This installs the game in English. For another language, add it at the end: <code>--language=French</code>, <code>--language=German</code> or <code>--language=Italian</code>.</p>
+      <p class="fact"><strong>You'll see:</strong> <code>Setup is done. Start the game with ./dogfighter, or <span class="nowrap">double-click</span> Dogfighter.app.</code></p>
+      <p class="fact"><strong>Language:</strong> This installs the game in English. For another language, add it at the end: <code><span class="nowrap">--language=French</span></code>, <code><span class="nowrap">--language=German</span></code> or <code><span class="nowrap">--language=Italian</span></code>.</p>
       <p class="fact"><strong>If it fails:</strong> Setup says what went wrong. Fix that and run <code>./setup.sh</code> again. Finished steps are skipped. If it says a tool is missing, it names the tool, and in most cases the command that installs it.</p>
     </li>
     <li class="istep fly" data-step="6">
@@ -390,7 +390,7 @@
       <p class="fact"><strong>First start:</strong> about a minute longer. It prepares Wine for the game. The very first start shows the game's setup window: click OK.</p>
       <p class="fact"><strong>Without Terminal:</strong> double-click <code>Dogfighter.app</code> in the folder. You can drag it to Applications or the Dock.</p>
       <p class="fact"><strong>Mouse:</strong> Ctrl+Option frees the mouse. Click in the picture to give it back.</p>
-      <p class="fact"><strong>If something goes wrong:</strong> run <code>./dogfighter --doctor</code>. It checks the install and prints a fix for each problem.</p>
+      <p class="fact"><strong>If something goes wrong:</strong> run <code>./dogfighter <span class="nowrap">--doctor</span></code>. It checks the install and prints a fix for each problem.</p>
       <p class="stamp-line"><span class="stamp" style="--stamp-tilt: -3deg">Cleared for take-off</span></p>
     </li>
     </ol>
@@ -558,12 +558,12 @@
       <details class="faq-item"><summary>Does it run on Intel Macs?</summary><p>No. It needs M1 or later.</p></details>
       <details class="faq-item"><summary>Is the game included, and is this official?</summary><p>No, this project holds only the tools that set the game up. It is for personal use with a disc you own. It is unofficial and not affiliated with Unique Development Studios, Paradox Entertainment or Hornby.</p></details>
       <details class="faq-item"><summary>How long does setup take?</summary><p>A few minutes. It also makes the sharper textures on your Mac: one run on an M4 Max took about eleven minutes. The sharper intro videos are optional and made in a separate step.</p></details>
-      <details class="faq-item"><summary>Can I play the plain original version?</summary><p>Yes. Start it with <code>./dogfighter --original</code> and the game looks as it did in 2000. To leave out only the sharper textures, use <code>./dogfighter --no-hd-textures</code>.</p></details>
-      <details class="faq-item"><summary>Where are my saves, and how do I back them up?</summary><p>Your pilots, levels, photos and stickers are in <code>game/User</code>. Run <code>./dogfighter --backup</code> to write a dated zip file to the <code>backups</code> folder. To put the newest one back, quit the game and run <code>./dogfighter --restore</code>.</p></details>
+      <details class="faq-item"><summary>Can I play the plain original version?</summary><p>Yes. Start it with <code>./dogfighter <span class="nowrap">--original</span></code> and the game looks as it did in 2000. To leave out only the sharper textures, use <code>./dogfighter <span class="nowrap">--no-hd-textures</span></code>.</p></details>
+      <details class="faq-item"><summary>Where are my saves, and how do I back them up?</summary><p>Your pilots, levels, photos and stickers are in <code>game/User</code>. Run <code>./dogfighter <span class="nowrap">--backup</span></code> to write a dated zip file to the <code>backups</code> folder. To put the newest one back, quit the game and run <code>./dogfighter <span class="nowrap">--restore</span></code>.</p></details>
       <details class="faq-item"><summary>Does a controller work?</summary><p>Xbox, PlayStation and Nintendo Switch Pro controllers, and USB or Bluetooth joysticks, should work. Nobody has tried a real controller yet. Connect it before you start, and the launcher turns on Joystick in the game's Options.</p></details>
       <details class="faq-item"><summary>Can I play with friends?</summary><p>Yes, over the network. Tailscale, a free app, is the easiest way and needs no router settings. Without it, the host forwards UDP port 19400 to their Mac in the router's settings.</p></details>
       <details class="faq-item"><summary>Is it safe?</summary><p>Setup checks every download before it uses it. The sharper textures are made on your Mac from your own game files, and nothing is uploaded. Your game files are never changed.</p></details>
-      <details class="faq-item"><summary>Something broke. What now?</summary><p>Run <code>./dogfighter --doctor</code>. It checks the installation and prints a fix for each problem. When you ask for help, include the log file from the <code>logs</code> folder. Still stuck? <a href="#contact">Send a message</a>.</p></details>
+      <details class="faq-item"><summary>Something broke. What now?</summary><p>Run <code>./dogfighter <span class="nowrap">--doctor</span></code>. It checks the installation and prints a fix for each problem. When you ask for help, include the log file from the <code>logs</code> folder. Still stuck? <a href="#contact">Send a message</a>.</p></details>
     </div>
   </div>
   <script type="application/ld+json">
