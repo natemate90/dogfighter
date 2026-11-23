@@ -259,7 +259,7 @@
   const sparks = layer("path", "sparks", null);
   const circles = [];
 
-  let state = null, running = false, onScreen = true, last = 0, acc = 0;
+  let state = null, running = false, onScreen = true, last = 0, acc = 0, pending = 0;
 
   const n = (v) => v.toFixed(1);
   function draw(s) {
@@ -308,23 +308,12 @@
       acc -= DT;
     }
     draw(state);
-    requestAnimationFrame(frame);
+    pending = requestAnimationFrame(frame);
   }
 
   function update() {
     const go = !reduce.matches && onScreen && !document.hidden;
-    if (go === running) return;
-    running = go;
-    if (go) {
-      if (!state) state = world();
-      scene.classList.add("flying");
-      scene.unpauseAnimations();
-      last = performance.now();
-      acc = 0;
-      requestAnimationFrame(frame);
-      return;
-    }
-    if (reduce.matches) {
+    if (reduce.matches && state) {
       state = null;
       scene.classList.remove("flying");
       for (const key of ["prey", "hunter"]) {
@@ -334,9 +323,20 @@
       tracers.setAttribute("d", "");
       sparks.setAttribute("d", "");
       circles.forEach((c) => (c.style.display = "none"));
-    } else {
-      scene.pauseAnimations();
     }
+    if (go === running) return;
+    running = go;
+    if (!go) {
+      cancelAnimationFrame(pending);
+      if (!reduce.matches) scene.pauseAnimations();
+      return;
+    }
+    if (!state) state = world();
+    scene.classList.add("flying");
+    scene.unpauseAnimations();
+    last = performance.now();
+    acc = 0;
+    pending = requestAnimationFrame(frame);
   }
 
   if ("IntersectionObserver" in window) {
