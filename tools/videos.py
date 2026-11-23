@@ -23,7 +23,8 @@ video with 22 kHz PCM sound. tools/videos.json says what is made of each:
                in the game's file, whose frames are held instead of getting
                RIFE frames between them, as the game shows them, and
                smooth_flat: ranges like it whose flat areas come from a smooth
-               upscale of the game's frame (see repair in tools/videos-make.py).
+               upscale of the game's frame (see repair in tools/videos-make.py),
+               only at the video's own level, which its thresholds were set for.
   repair       how flat is found for smooth_flat (blur, guard, flat_low and
                flat_high in levels a pixel, feather), and for the frames where
                two SeedVR2 chunks were faded: detail, the blur in pixels that
@@ -234,7 +235,8 @@ def make(args, tools, pinned, upscaler_command, build_helpers):
         keys = {"src": key_of(digest, first, count)}
         pixels = {name: value for name, value in level.items() if not name.startswith("mps_")}
         keys["up"] = key_of(keys["src"], spec["scale"], pixels, used, upscaler, spec["cuts"] if level["way"] == "seedvr2" else None)
-        still, flat = video.get("no_interpolate", []), video.get("smooth_flat", [])
+        still = video.get("no_interpolate", [])
+        flat = video.get("smooth_flat", []) if level_name == str(video["level"]) else []
         if level["way"] == "seedvr2" or flat:
             keys["fixed"] = key_of(keys["up"], spec["repair"], flat)
         keys["seg"] = key_of(keys.get("fixed", keys["up"]), spec["cuts"], spec["fps"], spec["interpolate"], spec["encode"],
