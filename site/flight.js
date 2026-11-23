@@ -134,7 +134,7 @@
       if (p.mode === "leave") p.leaving = true;
     }
     if (p.mode === "cruise" && p.timer <= 0 && p.wrap) nextMove(p);
-    steer(p, keepInside(p, want), dt);
+    steer(p, keepInside(p, want), dt, p.mode === "dive" ? 1.5 : 4);
   }
 
   function lead(h, p) {
