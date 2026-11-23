@@ -209,6 +209,7 @@
   const menu = document.getElementById("menu");
   const menuButton = document.querySelector(".menu-btn");
   let lastY = window.scrollY;
+  bar.addEventListener("focusin", () => bar.classList.remove("tucked"));
   window.addEventListener("scroll", () => {
     const y = window.scrollY;
     const hide = y > 80 && y > lastY && !(menu && !menu.hidden);
