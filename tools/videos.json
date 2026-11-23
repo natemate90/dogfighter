@@ -21,7 +21,7 @@
         "color": "lab", "seed": 42, "input_noise": 0.0, "latent_noise": 0.0, "tile": 512, "tile_overlap": 128,
         "mps_low_gb": 6, "mps_high_gb": 26}
  },
- "repair": {"blur": 1.5, "guard": 3, "flat_low": 1.5, "flat_high": 4, "feather": 2, "detail": 3, "trust": 3},
+ "repair": {"blur": 1.5, "guard": 3, "flat_low": 1.5, "flat_high": 4, "feather": 2, "detail": 3, "trust": 3, "between": true},
  "cuts": {"reduce": 40, "least": 24, "ratio": 1.95, "black": 8},
  "interpolate": {"model": "rife-v4.26", "uhd": true},
  "encode": {"codec": "libx265", "crf": 14, "preset": "medium", "pix_fmt": "yuv420p10le", "tag": "hvc1",
