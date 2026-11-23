@@ -340,7 +340,9 @@
       email: "This does not look like an email address. Leave it empty if you don't want a reply.",
       turnstile: "The spam check has not finished yet. Wait a moment and send again.",
     };
+    const BLOCKED = "The spam check could not load. A blocker may stop it. Reload the page, or use the Google Form below.";
     let widgetId = null;
+    let turnstileFailed = false;
     let token = "";
     let sending = false;
 
@@ -361,18 +363,20 @@
 
     window.onDogfighterTurnstile = () => {
       widgetId = window.turnstile.render("#contact-turnstile", {
-        sitekey: contactForm.dataset.sitekey,
+        sitekey: ["localhost", "127.0.0.1"].includes(location.hostname) ? "1x00000000000000000000AA" : contactForm.dataset.sitekey,
         action: "contact",
         theme: "auto",
         "response-field": false,
         callback: (value) => {
           token = value;
+          turnstileFailed = false;
           showError("turnstile", "");
         },
         "expired-callback": () => (token = ""),
         "error-callback": () => {
           token = "";
-          showError("turnstile", "The spam check could not run. Reload the page, or use the Google Form linked below the form.");
+          turnstileFailed = true;
+          showError("turnstile", BLOCKED);
         },
       });
     };
@@ -382,6 +386,10 @@
       script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onDogfighterTurnstile";
       script.async = true;
       script.dataset.turnstile = "";
+      script.addEventListener("error", () => {
+        turnstileFailed = true;
+        showError("turnstile", BLOCKED);
+      });
       document.head.appendChild(script);
     };
     if ("IntersectionObserver" in window) {
@@ -436,7 +444,7 @@
         invalid.push("turnstile");
         loadTurnstile();
       }
-      Object.keys(fields).forEach((name) => showError(name, invalid.includes(name) ? MESSAGES[name] : ""));
+      Object.keys(fields).forEach((name) => showError(name, invalid.includes(name) ? (name === "turnstile" && turnstileFailed ? BLOCKED : MESSAGES[name]) : ""));
       if (invalid.length) {
         focusField(invalid[0]);
         return;

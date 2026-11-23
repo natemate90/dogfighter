@@ -1011,4 +1011,5 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .contact-result.failed { border-color: var(--red); }
 .contact-result p { margin: 0.4em 0 0; }
 .contact-result .result-title { margin: 0; font-family: var(--stencil); font-weight: 700; font-size: 1.2rem; letter-spacing: 0.04em; text-transform: uppercase; }
-.contact-noscript { max-width: 40em; }
+.contact-noscript, .contact-alt { max-width: 40em; }
+.contact-alt { margin: 14px 0 0; color: var(--ink-soft); font-size: 0.95rem; }
