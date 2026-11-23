@@ -8,6 +8,8 @@
   const bar = document.getElementById("topbar");
   const STAGES = [0.16, 0.3, 0.46, 0.62, 0.82, 1];
   const NAMES = ["", "one", "two", "three", "four", "five", "six", "seven", "eight"];
+  const PART_STEP = [0, 0, 1, 1, 2, 3, 4, 4];
+  const NOTES = ["wings going on", "tailplanes going on", "fuselage going on", "canopy going on", "propeller going on", "ready to fly"];
 
   const clamp = (v) => Math.min(1, Math.max(0, v));
   const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -35,6 +37,68 @@
   }
 
   const drawMain = sprue ? kit(sprue) : null;
+
+  function planeBadge() {
+    const ns = "http://www.w3.org/2000/svg";
+    const el = document.createElement("span");
+    el.className = "plane-badge";
+    el.setAttribute("aria-hidden", "true");
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "240 30 580 580");
+    const plane = document.createElementNS(ns, "g");
+    plane.setAttribute("transform", "rotate(90 530 320)");
+    sprue.querySelectorAll(".part .plastic").forEach((path) => plane.append(path.cloneNode()));
+    svg.append(plane);
+    const num = document.createElement("span");
+    num.className = "plane-num";
+    el.append(svg, num);
+    return el;
+  }
+  const badge = sprue ? planeBadge() : null;
+  const note = document.createElement("span");
+  note.className = "plane-note";
+  note.setAttribute("aria-hidden", "true");
+
+  function mark(i) {
+    cards.forEach((card, k) => {
+      card.classList.toggle("active", k === i);
+      card.classList.toggle("done", k < i);
+    });
+    if (!badge) return;
+    const from = narrow.matches && badge.isConnected ? badge.getBoundingClientRect().top : null;
+    if (i < 0) {
+      badge.remove();
+      note.remove();
+      return;
+    }
+    badge.querySelectorAll("path").forEach((path, j) => path.setAttribute("class", PART_STEP[j] < i ? "fit" : PART_STEP[j] === i ? "going" : "ghost"));
+    badge.lastChild.textContent = cards[i].querySelector(".inum").textContent;
+    note.textContent = NOTES[i];
+    cards[i].append(badge, note);
+    if (from === null || reduce.matches) return;
+    badge.getAnimations().forEach((a) => a.cancel());
+    const gap = from - badge.getBoundingClientRect().top;
+    if (Math.abs(gap) < 2) return;
+    badge.animate([{ transform: `translateY(${gap}px)` }, { transform: "none" }], flight(Math.abs(gap), gap > 0));
+  }
+
+  function flight(distance, climbing) {
+    const accel = climbing ? 520 : 900, top = climbing ? 620 : 950, brake = 2400, drag = accel / (top * top), dt = 1 / 240;
+    let t = 0, x = 0, v = 0, braking = false;
+    const samples = [[0, 0]];
+    while (x < distance && t < 6) {
+      if (!braking && distance - x <= (v * v) / (2 * brake)) braking = true;
+      v = braking ? Math.max(v - brake * dt, 40) : v + (accel - drag * v * v) * dt;
+      x = Math.min(distance, x + v * dt);
+      t += dt;
+      samples.push([t, x / distance]);
+    }
+    const duration = Math.round(t * 1000);
+    if (!CSS.supports("animation-timing-function", "linear(0, 1)")) return { duration, easing: "cubic-bezier(0.5, 0, 0.3, 1)" };
+    const step = Math.max(1, Math.floor(samples.length / 32));
+    const stops = samples.filter((_, k) => k % step === 0 || k === samples.length - 1).map(([s, p]) => `${p.toFixed(4)} ${((s / t) * 100).toFixed(2)}%`);
+    return { duration, easing: `linear(${stops.join(", ")})` };
+  }
   let lastState = -1;
   function drawBig(p) {
     const state = drawMain(p);
@@ -70,9 +134,9 @@
   }
 
   function activeCard() {
-    const kit = install.querySelector(".kit-col");
-    const kitSticks = narrow.matches && getComputedStyle(kit).position === "sticky";
-    const mid = kitSticks ? kit.getBoundingClientRect().bottom + 120 : (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--stick")) || 72) + 100;
+    const mid = narrow.matches
+      ? window.innerHeight * 0.85
+      : (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--stick")) || 72) + 100;
     let found = -1;
     cards.forEach((card, i) => {
       if (card.getBoundingClientRect().top < mid) found = i;
@@ -85,7 +149,7 @@
     const i = activeCard();
     if (i === active) return;
     active = i;
-    cards.forEach((card, k) => card.classList.toggle("active", k === i));
+    mark(i);
     setLevel(i + 1);
   }
 
@@ -115,7 +179,7 @@
       bar.classList.remove("tucked");
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
-      cards.forEach((card) => card.classList.remove("active"));
+      mark(-1);
       if (drawMain) {
         lastState = -1;
         generation++;
@@ -133,7 +197,7 @@
     startAnimations();
     if (drawMain) {
       active = activeCard();
-      cards.forEach((card, k) => card.classList.toggle("active", k === active));
+      mark(active);
       lastState = -1;
       generation++;
       playing = false;
@@ -171,16 +235,9 @@
     });
   });
 
-  function updateStick(inInstall) {
-    const kit = install.querySelector(".kit-col");
-    const sticky = inInstall && getComputedStyle(kit).position === "sticky";
-    const barH = bar.offsetHeight;
-    document.documentElement.style.setProperty("--stick", `${Math.round((sticky ? kit.getBoundingClientRect().height : barH) + 12)}px`);
-  }
-  window.addEventListener("resize", () => {
-    const box = install.getBoundingClientRect();
-    updateStick(narrow.matches && box.top < 60 && box.bottom > 200);
-  });
+  const updateStick = () => document.documentElement.style.setProperty("--stick", `${Math.round(bar.offsetHeight + 12)}px`);
+  updateStick();
+  window.addEventListener("resize", updateStick);
   let touching = false, skipSettle = false, settling = 0, settleQuiet = 0, settleTimer = 0;
   const cancelSettle = () => {
     if (settling) cancelAnimationFrame(settling);
@@ -239,10 +296,7 @@
   bar.addEventListener("focusin", () => bar.classList.remove("tucked"));
   window.addEventListener("scroll", () => {
     const y = window.scrollY;
-    const box = install.getBoundingClientRect();
-    const inInstall = narrow.matches && box.top < 60 && box.bottom > 200;
-    const hide = (inInstall || (y > 80 && y > lastY)) && !(menu && !menu.hidden);
-    updateStick(inInstall);
+    const hide = y > 80 && y > lastY && !(menu && !menu.hidden);
     bar.classList.toggle("tucked", hide);
     lastY = y;
   }, { passive: true });
