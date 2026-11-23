@@ -263,7 +263,7 @@
   });
   function settle() {
     if (skipSettle) return (skipSettle = false);
-    if (reduce.matches || touching || settling || performance.now() < settleQuiet) return;
+    if (!narrow.matches || reduce.matches || touching || settling || performance.now() < settleQuiet) return;
     const box = install.getBoundingClientRect();
     if (box.top > 0 || box.bottom < window.innerHeight * 0.5) return;
     const ideal = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--stick")) || 72;
