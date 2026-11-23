@@ -1,4 +1,3 @@
-const FORM_URL = "https://docs.google.com/forms/d/e/REDACTED-FORM-ID/formResponse";
 const ENTRY = { topic: "entry.470199097", message: "entry.735761902", email: "entry.128772096" };
 const TOPICS = ["Help with installing", "Bug report", "Idea or feedback", "Press or rights", "Something else"];
 const SITEVERIFY = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
@@ -47,8 +46,8 @@ async function contact(request, env, url) {
 
   const production = PRODUCTION_HOSTS.includes(url.hostname);
   const secret = production ? env.TURNSTILE_SECRET : TEST_SECRET;
-  if (!secret) {
-    console.log("contact: TURNSTILE_SECRET is not set");
+  if (!secret || (production && !env.FORM_URL)) {
+    console.log("contact: TURNSTILE_SECRET or FORM_URL is not set");
     return reply(503, { ok: false, error: "not_configured" });
   }
 
@@ -78,7 +77,7 @@ async function contact(request, env, url) {
   });
   let status;
   try {
-    const res = await fetch(FORM_URL, { method: "POST", body: form, redirect: "manual" });
+    const res = await fetch(env.FORM_URL, { method: "POST", body: form, redirect: "manual" });
     status = res.status;
     await res.body?.cancel();
   } catch {
