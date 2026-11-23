@@ -361,6 +361,7 @@ button.button { font: inherit; font-weight: 700; cursor: pointer; }
 .scene .pane-broken { fill: rgba(225, 242, 250, 0.6); stroke: rgba(255, 255, 255, 0.85); stroke-width: 0.6; stroke-linejoin: miter; }
 .scene .puffs .dark { fill: #34363b; }
 .scene .puffs .fire { fill: #f28c28; }
+.scene .flyer-shadow { --hull: #000; --nose: #000; --band: #000; --glass: #000; --line: none; opacity: 0.16; }
 .prop-disc { fill: var(--ink); opacity: 0.12; }
 .prop-blade { fill: none; stroke: #2b2d2f; stroke-width: 3; stroke-linecap: round; }
 
