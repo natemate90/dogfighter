@@ -52,7 +52,7 @@ Setup:
 - `tools\iscab.py` installs the game in `game\`, in the chosen language. Language switching works as on the Mac.
 - `tools\find_tracks.py` and `tools\rip_tracks.py` rip the music. The encoder, `oggenc-min.exe`, is the same libvorbis example program the Mac builds, built for Windows.
 - `game\Music` is a directory junction to `music\`. `game\cache` is one to `hd-textures\cache`. Junctions need no administrator rights, unlike symbolic links.
-- With `-BuildHelpers` it builds the helpers itself instead. It then downloads llvm-mingw (about 190 MB), libogg, libvorbis and ogg-winmm, and uses the compiler flags of `tools/build-winmm.sh` and `tools/build-focusfix.sh`.
+- With `-BuildHelpers` it deletes the helpers in `build\` and builds them itself instead. It then downloads llvm-mingw (about 190 MB), libogg, libvorbis and ogg-winmm, and uses the compiler flags of `tools/build-winmm.sh` and `tools/build-focusfix.sh`.
 
 The launcher:
 - Sets the game's resolution to the largest listed size that fits the screen, as the Mac launcher does. With `-Windowed` it leaves 80 pixels of height and 16 of width for the title bar, the frame and the taskbar.
@@ -160,16 +160,16 @@ tools/build-windows-helpers.sh toolchain/llvm-mingw-20261117-ucrt-macos-universa
 
 | File | Built from | Licence |
 | --- | --- | --- |
-| `focusfix.exe`, `focushook.dll`, `joylist.exe` | `src/focusfix` of this repo | This repo's |
+| `focusfix.exe`, `focushook.dll`, `joylist.exe` | `src/focusfix` of this repo | None stated: the repo has no licence file yet |
 | `winmm.dll` | ogg-winmm at `09859f0`, with libogg 1.3.6 and libvorbis 1.3.7 linked in | ISC; BSD |
 | `oggenc-min.exe` | libvorbis 1.3.7 `examples/encoder_example.c`, quality 0.5, with libogg 1.3.6 | BSD |
 
 All of them link in llvm-mingw's mingw-w64 runtime.
-`THIRD-PARTY-NOTICES.txt` carries the ISC notice and both BSD licence texts, as those licences ask for binary copies.
+`THIRD-PARTY-NOTICES.txt` carries the ISC notice, both BSD licence texts and the mingw-w64 runtime notices, as those licences ask for binary copies. The runtime's text is kept in `tools/mingw-w64-runtime-licence.txt`, from the mingw-w64 repository; the toolchain does not ship it.
 None of the files holds game data. Each is compiled only from the sources above.
 
 `tools/windows-helpers.sha256` pins the release's files. `setup.ps1` reads the tag from its own `$HelpersTag`.
-When anything under `src/focusfix`, or the ogg-winmm, libogg or libvorbis pins, changes, make a new release:
+When anything under `src/focusfix`, the ogg-winmm, libogg or libvorbis pins, or the encoder quality in `tools/rip-music.sh` changes, make a new release:
 1. Run `tools/build-windows-helpers.sh`.
 2. Copy `dist/windows-helpers/SHA256SUMS` to `tools/windows-helpers.sha256`.
 3. Set `$HelpersTag` in `setup.ps1` to a new tag.
@@ -218,6 +218,7 @@ Do these in order and keep each run's log from `logs\`.
 
 ## Open decisions
 
+- A licence for this repo's own code, before the release with `focusfix.exe`, `focushook.dll` and `joylist.exe` is published.
 - Graphics: dgVoodoo2 as the default, or wait for a WineD3D test?
 - dgVoodoo2's licence: ask its author, or keep the download-at-setup reading above?
 - PowerShell scripts, or small exes as #13 suggests? PowerShell was chosen for this first version because it needs no build step and reads like the bash scripts.

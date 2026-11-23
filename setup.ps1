@@ -186,10 +186,9 @@ function Get-Helpers {
     }
 }
 
-function Remove-ReleaseHelpers {
+function Remove-Helpers {
     foreach ($pin in (Get-HelperPins)) {
-        $target = Join-Path $Build $pin[0]
-        if (Test-Sha256 $target $pin[1]) { Remove-Item -LiteralPath $target -Force }
+        Remove-Item -LiteralPath (Join-Path $Build $pin[0]) -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -404,7 +403,7 @@ Test-Requirements
 if (-not (Test-Path -LiteralPath (Join-Path $Game 'Resource.up'))) { Test-Space 3 }
 New-Item -ItemType Directory -Force -Path $Build | Out-Null
 if ($BuildHelpers) {
-    Remove-ReleaseHelpers
+    Remove-Helpers
     Get-Toolchain
     Get-Sources
     Build-Winmm

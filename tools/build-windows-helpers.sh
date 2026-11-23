@@ -49,6 +49,9 @@ done
   echo
   echo "== libvorbis =="
   cat "$V/COPYING"
+  echo
+  echo "== mingw-w64 runtime =="
+  cat "$ROOT/tools/mingw-w64-runtime-licence.txt"
 } > "$OUT/THIRD-PARTY-NOTICES.txt"
 
 (cd "$OUT" && shasum -a 256 winmm.dll focusfix.exe focushook.dll joylist.exe oggenc-min.exe THIRD-PARTY-NOTICES.txt > SHA256SUMS)
