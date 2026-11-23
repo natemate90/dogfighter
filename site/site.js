@@ -26,6 +26,7 @@
       parts.forEach((part, i) => {
         const t = ease(clamp((p - 0.04 - i * 0.075) / 0.28));
         if (t === 1) fitted++;
+        part.el.classList.toggle("painted", t === 1);
         const k = 1 - t;
         const lift = Math.sin(t * Math.PI) * -18;
         part.el.setAttribute("transform", `translate(${(part.dx * k).toFixed(2)} ${(part.dy * k + lift).toFixed(2)}) rotate(${(part.r * k).toFixed(2)} ${part.cx} ${part.cy})`);
