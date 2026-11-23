@@ -406,7 +406,7 @@ while [ -L "$SELF" ]; do
   SELF="$(readlink "$SELF")"
   [[ "$SELF" == /* ]] || SELF="$LINK_DIR/$SELF"
 done
-HERE="$(cd -P "$(dirname "$SELF")" && pwd)"
+HERE="${DOGFIGHTER_HOME:-$(cd -P "$(dirname "$SELF")" && pwd)}"
 
 apple_silicon() {
   [ "$(uname -m)" = arm64 ] || [ "$(sysctl -n hw.optional.arm64 2>/dev/null || true)" = 1 ]
@@ -867,7 +867,7 @@ restore_picture_settings() {
 }
 
 hd_set_complete() {
-  [ -f "$HD_DIR/manifest.json" ] && python3 -I "$HERE/tools/upscale-textures.py" --check --out "$HD_DIR" 2>/dev/null
+  [ -f "$HD_DIR/manifest.json" ] && python3 -I -B "$HERE/tools/upscale-textures.py" --check --out "$HD_DIR" 2>/dev/null
 }
 
 own_photos() {
