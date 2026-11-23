@@ -32,7 +32,7 @@
     const throttle = p.v < STALL + 0.5 * UNIT ? 1 : p.throttle;
     p.v += (PULL * (throttle - (p.v / p.top) ** 2) - CLIMB_LOSS * Math.sin(p.gam)) * dt;
     p.v = Math.max(p.v, 20);
-    p.gam += p.pitch * (p.pitch > 0 ? PITCH_UP : PITCH_DOWN) * dt;
+    p.gam += p.pitch * (p.pitch > 0 || p.looping ? PITCH_UP : PITCH_DOWN) * dt;
     if (p.v < STALL) {
       const drop = angle(-Math.PI / 2 - p.gam);
       p.gam += Math.sign(drop) * Math.min(Math.abs(drop), 1.2 * (1 - p.v / STALL) * dt);
@@ -82,7 +82,7 @@
     place(s.prey, dir > 0 ? -EDGE - 10 : W + EDGE + 10, y, dir, 2.65 * UNIT);
     place(s.hunter, dir > 0 ? -EDGE - 220 : W + EDGE + 220, y + rand(-30, 30), dir, 2.9 * UNIT);
     Object.assign(s.prey, { falling: false, crashed: false, throttle: CRUISE, mode: "cruise", timer: rand(2, 3), alt: y, hits: 0, smoke: 0, smokeAt: 0, turned: 0, jink: false });
-    Object.assign(s.hunter, { mode: "chase", burst: 0, cool: 0.6, shotAt: 0, gun: 1, close: false });
+    Object.assign(s.hunter, { mode: "chase", burst: 0, cool: 0.6, shotAt: 0, gun: 1, close: false, turnDir: 0 });
     s.exitTime = 0;
     s.fade = 1;
     s.calm = s.t + 2.5;
@@ -99,26 +99,27 @@
     if (canLoop(p)) moves.push("loop", "loop", "half");
     if (p.y < 330) moves.push("dive", "dive");
     if (p.y > 220 && p.v > 2.4 * UNIT) moves.push("climb");
-    if (p.y < FLOOR - 10 - (2 * p.v) / PITCH_DOWN && Math.abs(p.gam) < 0.3) moves.push("splitS");
     if (!p.jink || !moves.length) moves.push("cruise");
     p.jink = false;
     p.mode = moves[Math.floor(Math.random() * moves.length)];
     p.throttle = CRUISE;
     p.loopV = p.v;
     p.turned = 0;
-    p.loopDir = p.mode === "splitS" ? facing(p) : -facing(p);
+    p.loopDir = -facing(p);
     p.timer = p.mode === "cruise" ? rand(1.5, 3.5) : 12;
     if (p.mode === "cruise") p.alt = clamp(p.y + rand(-80, 80), 120, 380);
   }
 
   function evade(s, dt) {
     const p = s.prey;
+    p.looping = false;
     if (p.falling) return;
     p.timer -= dt;
-    if (p.mode === "loop" || p.mode === "half" || p.mode === "splitS") {
-      p.turned += (p.pitch > 0 ? PITCH_UP : PITCH_DOWN) * Math.abs(p.pitch) * dt;
+    if (p.mode === "loop" || p.mode === "half") {
+      p.turned += PITCH_UP * Math.abs(p.pitch) * dt;
       if (p.turned < (p.mode === "loop" ? TAU - 0.1 : Math.PI - 0.05) && p.timer > 0) {
         p.pitch = -p.loopDir * Math.cos(p.psi);
+        p.looping = true;
         p.throttle = clamp((p.loopV / p.top) ** 2 + (CLIMB_LOSS / PULL) * Math.sin(p.gam) + (p.loopV - p.v) / UNIT, 0, 1);
         return;
       }
@@ -177,10 +178,16 @@
       pitchTo(h, p.y > h.y || h.y > FLOOR - 80 ? 0.6 : -0.6);
     } else {
       let want = Math.atan2(-(aim.y + 6 * Math.sin(s.t * 1.3)), aim.x * facing(h));
-      if (Math.abs(want) > 2) want = (h.y > 220 ? 1 : -1) * (Math.PI / 2 + 0.4);
+      if (Math.abs(want) > 2) {
+        if (!h.turnDir) {
+          const room = (2.4 * h.v) / PITCH_UP + 30;
+          h.turnDir = h.y - room > TOP ? 1 : h.y + room < FLOOR ? -1 : 0;
+        }
+        want = h.turnDir * (Math.PI / 2 + 0.4);
+      } else h.turnDir = 0;
       pitchTo(h, want, 4);
     }
-    keepInside(h);
+    if (!h.turnDir) keepInside(h);
     if (h.burst > 0) {
       h.burst -= dt;
       h.shotAt -= dt;
