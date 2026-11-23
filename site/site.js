@@ -4,6 +4,8 @@
   const sprue = document.getElementById("sprue");
   const caption = document.getElementById("caption");
   const cards = [...document.querySelectorAll(".istep")];
+  const install = document.getElementById("install");
+  const bar = document.getElementById("topbar");
   const STAGES = [0.16, 0.3, 0.46, 0.62, 0.82, 1];
   const NAMES = ["", "one", "two", "three", "four", "five", "six", "seven", "eight"];
 
@@ -74,57 +76,14 @@
   }
 
   function onScroll() {
-    if (!drawMain || narrow.matches) return;
+    if (!drawMain) return;
+    if (narrow.matches) bar.classList.toggle("in-install", install.getBoundingClientRect().top < 60 && install.getBoundingClientRect().bottom > 200);
     const i = activeCard();
     if (i === active) return;
     active = i;
     cards.forEach((card, k) => card.classList.toggle("active", k === i));
     setTarget(i < 0 ? 0 : STAGES[i]);
   }
-
-  const miniDone = new WeakSet();
-  function playMini(card) {
-    if (miniDone.has(card)) return;
-    miniDone.add(card);
-    const i = cards.indexOf(card);
-    const from = i > 0 ? STAGES[i - 1] : 0, to = STAGES[i];
-    const draw = card.miniDraw;
-    if (!draw) return;
-    const t0 = performance.now();
-    const tick = (now) => {
-      const t = Math.min(1, (now - t0) / 900);
-      draw(from + (to - from) * t);
-      if (t < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  }
-
-  let minisBuilt = false;
-  function buildMinis() {
-    if (minisBuilt || !sprue) return;
-    minisBuilt = true;
-    cards.forEach((card, i) => {
-      const holder = card.querySelector(".mini-kit");
-      if (!holder) return;
-      const copy = sprue.cloneNode(true);
-      copy.removeAttribute("id");
-      copy.removeAttribute("aria-labelledby");
-      copy.setAttribute("aria-hidden", "true");
-      copy.querySelectorAll("[id]").forEach((el) => el.removeAttribute("id"));
-      copy.querySelectorAll("title").forEach((el) => el.remove());
-      holder.appendChild(copy);
-      card.miniDraw = kit(copy);
-      card.miniDraw(i > 0 ? STAGES[i - 1] : 0);
-    });
-  }
-
-  const miniObserver = "IntersectionObserver" in window
-    ? new IntersectionObserver((entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) playMini(entry.target);
-        });
-      }, { rootMargin: "0px 0px -25% 0px", threshold: 0.2 })
-    : null;
 
   const animated = [...document.querySelectorAll("svg")].filter((svg) => svg.querySelector("animate, animateMotion, animateTransform"));
   let started = false;
@@ -165,12 +124,8 @@
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     startAnimations();
-    if (narrow.matches && miniObserver) {
-      buildMinis();
-      cards.forEach((card) => miniObserver.observe(card));
-    }
     if (drawMain) {
-      active = narrow.matches ? -1 : activeCard();
+      active = activeCard();
       cards.forEach((card, k) => card.classList.toggle("active", k === active));
       lastState = -1;
       shown = target = active < 0 ? 0 : STAGES[active];
@@ -205,7 +160,6 @@
     });
   });
 
-  const bar = document.getElementById("topbar");
   const menu = document.getElementById("menu");
   const menuButton = document.querySelector(".menu-btn");
   let lastY = window.scrollY;
