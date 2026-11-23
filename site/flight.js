@@ -168,7 +168,7 @@
         shoot(s, h);
         h.shotAt = 1 / 15;
       }
-    } else if (h.cool <= 0 && s.t > s.calm && !p.smoke && p.wrap && aim.dist < 300 && Math.abs(angle(want - h.th)) < 0.07) {
+    } else if (h.cool <= 0 && s.t > s.calm && !p.smoke && p.x > 30 && p.x < W - 30 && aim.dist < 300 && Math.abs(angle(want - h.th)) < 0.07) {
       h.burst = 0.3;
       h.shotAt = 0;
       h.cool = rand(0.7, 1.3);
@@ -205,7 +205,7 @@
     for (let i = s.bullets.length - 1; i >= 0; i--) {
       const b = s.bullets[i];
       b.vy += BULLET_DROP * dt;
-      b.x += b.vx * dt;
+      b.x = wrapDx(b.x + b.vx * dt - W / 2) + W / 2;
       b.y += b.vy * dt;
       b.life -= dt;
       if (!p.smoke && hits(p, b)) {
