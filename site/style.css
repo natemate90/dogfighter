@@ -1132,3 +1132,6 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .contact-result p { margin: 0.4em 0 0; }
 .contact-result .result-title { margin: 0; font-family: var(--stencil); font-weight: 700; font-size: 1.2rem; letter-spacing: 0.04em; text-transform: uppercase; }
 .contact-noscript { max-width: 40em; }
+@media (max-width: 760px) {
+  .button:not(.small), .menu .button { width: calc(100% - 2 * var(--ring-edge)); }
+}

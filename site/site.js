@@ -76,7 +76,28 @@
     note.textContent = NOTES[i];
     cards[i].append(badge, note);
     if (from === null || reduce.matches) return;
-    badge.animate([{ transform: `translateY(${from - badge.getBoundingClientRect().top}px)` }, { transform: "none" }], { duration: 600, easing: "cubic-bezier(0.2, 0.7, 0.2, 1)" });
+    badge.getAnimations().forEach((a) => a.cancel());
+    const gap = from - badge.getBoundingClientRect().top;
+    if (Math.abs(gap) < 2) return;
+    badge.animate([{ transform: `translateY(${gap}px)` }, { transform: "none" }], flight(Math.abs(gap), gap > 0));
+  }
+
+  function flight(distance, climbing) {
+    const accel = climbing ? 520 : 900, top = climbing ? 620 : 950, brake = 2400, drag = accel / (top * top), dt = 1 / 240;
+    let t = 0, x = 0, v = 0, braking = false;
+    const samples = [[0, 0]];
+    while (x < distance && t < 6) {
+      if (!braking && distance - x <= (v * v) / (2 * brake)) braking = true;
+      v = braking ? Math.max(v - brake * dt, 40) : v + (accel - drag * v * v) * dt;
+      x = Math.min(distance, x + v * dt);
+      t += dt;
+      samples.push([t, x / distance]);
+    }
+    const duration = Math.round(t * 1000);
+    if (!CSS.supports("animation-timing-function", "linear(0, 1)")) return { duration, easing: "cubic-bezier(0.5, 0, 0.3, 1)" };
+    const step = Math.max(1, Math.floor(samples.length / 32));
+    const stops = samples.filter((_, k) => k % step === 0 || k === samples.length - 1).map(([s, p]) => `${p.toFixed(4)} ${((s / t) * 100).toFixed(2)}%`);
+    return { duration, easing: `linear(${stops.join(", ")})` };
   }
   let lastState = -1;
   function drawBig(p) {
