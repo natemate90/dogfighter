@@ -5,7 +5,7 @@
   const PITCH_UP = 43 * DEG, PITCH_DOWN = 47 * DEG, YAW = 62 * DEG, TURN_SINK = 20 * DEG, SINK_RATE = 15 * DEG, ROLL = Math.PI;
   const MUZZLE = 38 * UNIT, BULLET_LIFE = 1.2, GUN_RATE = 8.7, BURST = 0.6;
   const LOCK_CONE = 0.12, FIRE_CONE = 0.12, FIRE_RANGE = 12 * UNIT, MAX_BULLETS = 40, HITS_TO_SMOKE = 12;
-  const TAU = Math.PI * 2;
+  const FALL_ACCEL = 6 * UNIT, FALL_MAX = 6 * UNIT, TAU = Math.PI * 2;
 
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
   const angle = (a) => Math.atan2(Math.sin(a), Math.cos(a));
@@ -18,6 +18,18 @@
   const velocity = (p) => ({ x: p.v * Math.cos(p.psi) * Math.cos(p.gam), y: -p.v * Math.sin(p.gam) });
 
   function fly(p, dt) {
+    if (p.falling) {
+      if (p.crashed) return;
+      p.vx *= 1 - 0.4 * dt;
+      p.vy = Math.min(p.vy + FALL_ACCEL * dt, FALL_MAX);
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.spin += dt;
+      p.psi = p.yawTo = p.vx >= 0 ? 0 : Math.PI;
+      p.gam = Math.atan2(-p.vy, Math.abs(p.vx)) + 0.35 * Math.sin(p.spin * 7);
+      p.roll = Math.cos(p.spin * 9);
+      return;
+    }
     const throttle = p.v < STALL + 0.5 * UNIT ? 1 : p.throttle;
     p.v += (PULL * (throttle - (p.v / p.top) ** 2) - CLIMB_LOSS * Math.sin(p.gam)) * dt;
     p.v = Math.max(p.v, 20);
@@ -90,7 +102,7 @@
     const dir = Math.random() < 0.5 ? 1 : -1, y = rand(150, 330);
     place(s.prey, dir > 0 ? -EDGE - 10 : W + EDGE + 10, y, dir, 2.65 * UNIT);
     place(s.hunter, dir > 0 ? -EDGE - 220 : W + EDGE + 220, y + rand(-30, 30), dir, 2.9 * UNIT);
-    Object.assign(s.prey, { throttle: CRUISE, mode: "cruise", timer: rand(2, 3), alt: y, hits: 0, smoke: 0, smokeAt: 0, turned: 0, jink: false });
+    Object.assign(s.prey, { falling: false, crashed: false, throttle: CRUISE, mode: "cruise", timer: rand(2, 3), alt: y, hits: 0, smoke: 0, smokeAt: 0, turned: 0, jink: false });
     Object.assign(s.hunter, { mode: "chase", burst: 0, cool: 0.6, shotAt: 0, gun: 1, close: false });
     s.exitTime = 0;
     s.fade = 1;
@@ -120,6 +132,7 @@
 
   function evade(s, dt) {
     const p = s.prey;
+    if (p.falling) return;
     p.timer -= dt;
     if (p.mode === "loop" || p.mode === "half") {
       p.turned += p.pitch * PITCH_UP * dt;
@@ -175,7 +188,7 @@
     h.cool -= dt;
     if (h.mode === "leave") {
       h.leaving = true;
-      pitchTo(h, 0.35);
+      pitchTo(h, s.prey.falling ? 0.5 : 0.35);
       keepInside(h);
       return;
     }
@@ -237,6 +250,11 @@
     return (along / (15 * p.size * len)) ** 2 + (across / 5.4) ** 2 < 1;
   }
 
+  function shotDown(p) {
+    const v = velocity(p);
+    Object.assign(p, { falling: true, smoke: 0.001, smokeAt: 0, spin: 0, vx: v.x, vy: v.y, leaving: true, wrap: false, mode: "fall" });
+  }
+
   function puff(s, x, y, r0, r1, life, kind) {
     if (s.puffs.length >= 40) s.puffs.shift();
     s.puffs.push({ x, y, r0, r1, life, age: 0, kind });
@@ -266,7 +284,7 @@
           p.hits++;
           p.jink = true;
           if (p.mode === "cruise") p.timer = 0;
-          if (p.hits >= HITS_TO_SMOKE) p.smoke = 0.001;
+          if (p.hits >= HITS_TO_SMOKE) shotDown(p);
           b.life = 0;
           break;
         }
@@ -276,19 +294,26 @@
     for (let i = s.sparks.length - 1; i >= 0; i--) if ((s.sparks[i].age += dt) > 0.2) s.sparks.splice(i, 1);
     for (let i = s.puffs.length - 1; i >= 0; i--) if ((s.puffs[i].age += dt) > s.puffs[i].life) s.puffs.splice(i, 1);
 
-    if (p.smoke) {
+    if (p.falling) {
       p.smoke += dt;
       p.smokeAt -= dt;
-      if (p.smokeAt <= 0) {
-        p.smokeAt = 0.08;
-        const n = nose(p), tail = -14.4 * p.size;
-        puff(s, p.x + n.x * tail, p.y + n.y * tail, 2.4, 10.8, 1.6, "smoke");
+      if (p.smokeAt <= 0 && !p.crashed) {
+        p.smokeAt = 0.035;
+        const n = nose(p), tail = -10 * p.size;
+        puff(s, p.x + n.x * tail, p.y + n.y * tail, 2, 5, 0.3, "fire");
+        if (Math.random() < 0.5) puff(s, p.x + n.x * tail * 1.5, p.y + n.y * tail * 1.5, 3, 13, 1.8, "dark");
       }
-      if (p.smoke > 1.5 && h.mode !== "leave") h.mode = "leave";
-      if (p.smoke > 3 && p.mode !== "leave" && p.mode !== "loop" && p.mode !== "half") {
-        p.mode = "leave";
-        p.alt = clamp(p.y + 30, 150, FLOOR - 30);
+      if (p.smoke > 0.4) h.mode = "leave";
+      if (!p.crashed && (p.y > 446 || p.x < -EDGE || p.x > W + EDGE)) {
+        p.crashed = true;
+        s.endAt = s.t + 3;
+        if (p.y > 446 && p.x > 0 && p.x < W) {
+          for (let k = 0; k < 3; k++) s.sparks.push({ x: p.x + rand(-6, 6), y: 450 + rand(-4, 2), age: rand(-0.1, 0), spin: rand(0, 1) });
+          puff(s, p.x, 448, 6, 22, 0.9, "hit");
+          for (let k = 0; k < 4; k++) puff(s, p.x + rand(-10, 10), 446 - k * 4, 6, 20, 2.2, "dark");
+        }
       }
+      if (p.crashed && s.t > s.endAt) s.fade = h.gone ? 0 : s.fade - dt / 0.6;
     } else if (s.t - s.started > 45 && p.mode === "cruise") {
       p.mode = h.mode = "leave";
     }
@@ -325,14 +350,14 @@
       const sx = atLeast(Math.cos(p.psi), 0.25) * (turning(p) ? 0.9 : 1) * SPRITE;
       const sy = atLeast(Math.sin((p.roll * Math.PI) / 2), 0.3) * (1 - 0.1 * Math.abs(p.pitch));
       sprites[key].setAttribute("transform", `translate(${n(p.x)} ${n(p.y)}) scale(${sx.toFixed(3)} ${SPRITE}) rotate(${n((-p.gam * 180) / Math.PI)}) scale(1 ${sy.toFixed(3)})`);
-      sprites[key].style.opacity = s.fade < 1 ? Math.max(0, s.fade).toFixed(2) : "";
+      sprites[key].style.opacity = p.crashed ? "0" : s.fade < 1 ? Math.max(0, s.fade).toFixed(2) : "";
     }
     let d = "";
     for (const b of s.bullets) d += `M${n(b.x)} ${n(b.y)}L${n(b.x - b.vx * 0.0144)} ${n(b.y - b.vy * 0.0144)}`;
     tracers.setAttribute("d", d);
     d = "";
     for (const sp of s.sparks) {
-      const t = sp.age / 0.2, r0 = 1.8 + 3.6 * t, r1 = 4.8 + 7.2 * t;
+      const t = Math.max(0, sp.age) / 0.2, r0 = 1.8 + 3.6 * t, r1 = 4.8 + 7.2 * t;
       for (let i = 0; i < 6; i++) {
         const a = (i + sp.spin) * (TAU / 6);
         d += `M${n(sp.x + Math.cos(a) * r0)} ${n(sp.y + Math.sin(a) * r0)}L${n(sp.x + Math.cos(a) * r1)} ${n(sp.y + Math.sin(a) * r1)}`;
@@ -348,9 +373,9 @@
       const t = f.age / f.life;
       c.setAttribute("class", f.kind);
       c.setAttribute("cx", n(f.x));
-      c.setAttribute("cy", n(f.y - (f.kind === "smoke" ? 10 * t : 0)));
+      c.setAttribute("cy", n(f.y - (f.kind === "smoke" || f.kind === "dark" ? 10 * t : 0)));
       c.setAttribute("r", n(f.r0 + (f.r1 - f.r0) * Math.sqrt(t)));
-      c.style.opacity = ((1 - t) * (f.kind === "smoke" ? 0.55 : 0.8)).toFixed(2);
+      c.style.opacity = ((1 - t) * (f.kind === "fire" ? 0.95 : f.kind === "hit" ? 0.8 : 0.6)).toFixed(2);
       c.style.display = "";
     });
     for (let i = s.puffs.length; i < circles.length; i++) circles[i].style.display = "none";
