@@ -28,3 +28,5 @@ __pycache__/
 /upscale-tools/
 /texture-overrides/
 /hd-videos/
+/.wrangler/
+/.dev.vars
