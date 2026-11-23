@@ -473,7 +473,8 @@
         track("contact_submit", { topic });
         contactForm.reset();
         contactForm.hidden = true;
-        showResult(true, email ? "It is on its way to the maintainer, who will answer at the email you gave." : "It is on its way to the maintainer.");
+        if (answer.dryRun) showResult(true, "Preview: message not sent. This test copy of the site checks the form but passes nothing on.");
+        else showResult(true, email ? "It is on its way to the maintainer, who will answer at the email you gave." : "It is on its way to the maintainer.");
         return;
       }
       if (answer && answer.error === "invalid" && Array.isArray(answer.fields)) {
