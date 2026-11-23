@@ -9,7 +9,7 @@ Key facts:
 - Needs about 6.2 GB of free disk space (about 5 GB for the game, about 1.2 GB for sharper textures) and an internet connection while you install.
 - The game runs through Wine. Setup makes sharper textures on your Mac from your own game files; nothing is uploaded.
 
-## Install
+Install, in Terminal:
 
 1. Install Apple's command line tools: `xcode-select --install`
 2. Only on macOS older than 26.4, install Rosetta 2: `softwareupdate --install-rosetta --agree-to-license`
