@@ -1,52 +1,50 @@
 (() => {
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const narrow = window.matchMedia("(max-width: 900px)");
   const sprue = document.getElementById("sprue");
-  const build = document.getElementById("build");
   const caption = document.getElementById("caption");
-  const frame = sprue.querySelector(".frame");
-  const parts = [...sprue.querySelectorAll(".part")].map((el) => {
-    const [cx, cy] = el.dataset.c.split(",").map(Number);
-    const [sx, sy, r] = el.dataset.s.split(",").map(Number);
-    return { el, cx, cy, dx: sx - cx, dy: sy - cy, r };
-  });
+  const cards = [...document.querySelectorAll(".istep")];
+  const STAGES = [0.16, 0.3, 0.46, 0.62, 0.82, 1];
+  const NAMES = ["", "one", "two", "three", "four", "five", "six", "seven", "eight"];
 
   const clamp = (v) => Math.min(1, Math.max(0, v));
   const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-  const words = ["", "one", "two", "three", "four", "five", "six", "seven", "eight"];
 
-  let last = -1;
-  function draw(p) {
-    let fitted = 0;
-    parts.forEach((part, i) => {
-      const t = ease(clamp((p - 0.04 - i * 0.075) / 0.28));
-      if (t === 1) fitted++;
-      const k = 1 - t;
-      const lift = Math.sin(t * Math.PI) * -18;
-      part.el.setAttribute(
-        "transform",
-        `translate(${(part.dx * k).toFixed(2)} ${(part.dy * k + lift).toFixed(2)}) rotate(${(part.r * k).toFixed(2)} ${part.cx} ${part.cy})`
-      );
+  function kit(svg) {
+    const frame = svg.querySelector(".frame");
+    const parts = [...svg.querySelectorAll(".part")].map((el) => {
+      const [cx, cy] = el.dataset.c.split(",").map(Number);
+      const [sx, sy, r] = el.dataset.s.split(",").map(Number);
+      return { el, cx, cy, dx: sx - cx, dy: sy - cy, r };
     });
-    frame.style.opacity = (1 - 0.82 * clamp(p / 0.75)).toFixed(3);
-    const painted = p > 0.9;
-    sprue.classList.toggle("painted", painted);
+    return function draw(p) {
+      let fitted = 0;
+      parts.forEach((part, i) => {
+        const t = ease(clamp((p - 0.04 - i * 0.075) / 0.28));
+        if (t === 1) fitted++;
+        const k = 1 - t;
+        const lift = Math.sin(t * Math.PI) * -18;
+        part.el.setAttribute("transform", `translate(${(part.dx * k).toFixed(2)} ${(part.dy * k + lift).toFixed(2)}) rotate(${(part.r * k).toFixed(2)} ${part.cx} ${part.cy})`);
+      });
+      frame.style.opacity = (1 - 0.82 * clamp(p / 0.75)).toFixed(3);
+      svg.classList.toggle("painted", p > 0.9);
+      return p > 0.9 ? 9 : fitted;
+    };
+  }
 
-    const state = painted ? 9 : fitted;
-    if (state === last) return;
-    last = state;
-    if (painted) caption.textContent = "Ready to fly.";
-    else if (fitted === 0) caption.textContent = "Frame A has eight parts. Scroll to put the kit together.";
-    else if (fitted === parts.length) caption.textContent = "Eight of eight parts fitted.";
-    else caption.textContent = `${words[fitted][0].toUpperCase() + words[fitted].slice(1)} of eight parts fitted.`;
+  const drawMain = sprue ? kit(sprue) : null;
+  let lastState = -1;
+  function drawBig(p) {
+    const state = drawMain(p);
+    if (state === lastState) return;
+    lastState = state;
+    if (state === 9) caption.textContent = "Ready to fly.";
+    else if (state === 0) caption.textContent = "Frame A has eight parts.";
+    else caption.textContent = `${NAMES[state][0].toUpperCase() + NAMES[state].slice(1)} of eight parts fitted.`;
   }
 
   const EASE_TIME = 0.4, MAX_RATE = 0.6;
-  let target = 0, shown = 0, easing = false, then = 0;
-  function readTarget() {
-    const rect = build.getBoundingClientRect();
-    const run = rect.height - window.innerHeight;
-    target = run > 0 ? clamp(-rect.top / run) : 0;
-  }
+  let target = 0, shown = 0, easing = false, then = 0, active = -1;
   function follow(now) {
     if (reduce.matches) return (easing = false);
     const dt = Math.max(0, Math.min(0.1, (now - then) / 1000));
@@ -54,30 +52,87 @@
     const step = (target - shown) * (1 - Math.exp(-dt / EASE_TIME));
     shown += Math.max(-MAX_RATE * dt, Math.min(MAX_RATE * dt, step));
     if (Math.abs(target - shown) < 0.0005) shown = target;
-    draw(shown);
+    drawBig(shown);
     if (shown === target) easing = false;
     else requestAnimationFrame(follow);
   }
-  function onScroll() {
-    readTarget();
+  function setTarget(p) {
+    target = p;
     if (easing) return;
     easing = true;
     then = performance.now();
     requestAnimationFrame(follow);
   }
 
+  function activeCard() {
+    const mid = window.innerHeight * 0.55;
+    let found = -1;
+    cards.forEach((card, i) => {
+      if (card.getBoundingClientRect().top < mid) found = i;
+    });
+    return found;
+  }
+
+  function onScroll() {
+    if (!drawMain || narrow.matches) return;
+    const i = activeCard();
+    if (i === active) return;
+    active = i;
+    cards.forEach((card, k) => card.classList.toggle("active", k === i));
+    setTarget(i < 0 ? 0 : STAGES[i]);
+  }
+
+  const miniDone = new WeakSet();
+  function playMini(card) {
+    if (miniDone.has(card)) return;
+    miniDone.add(card);
+    const i = cards.indexOf(card);
+    const from = i > 0 ? STAGES[i - 1] : 0, to = STAGES[i];
+    const draw = card.miniDraw;
+    if (!draw) return;
+    const t0 = performance.now();
+    const tick = (now) => {
+      const t = Math.min(1, (now - t0) / 900);
+      draw(from + (to - from) * t);
+      if (t < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  }
+
+  let minisBuilt = false;
+  function buildMinis() {
+    if (minisBuilt || !sprue) return;
+    minisBuilt = true;
+    cards.forEach((card, i) => {
+      const holder = card.querySelector(".mini-kit");
+      if (!holder) return;
+      const copy = sprue.cloneNode(true);
+      copy.removeAttribute("id");
+      copy.removeAttribute("aria-labelledby");
+      copy.setAttribute("aria-hidden", "true");
+      copy.querySelectorAll("[id]").forEach((el) => el.removeAttribute("id"));
+      copy.querySelectorAll("title").forEach((el) => el.remove());
+      holder.appendChild(copy);
+      card.miniDraw = kit(copy);
+      card.miniDraw(i > 0 ? STAGES[i - 1] : 0);
+    });
+  }
+
+  const miniObserver = "IntersectionObserver" in window
+    ? new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) playMini(entry.target);
+        });
+      }, { rootMargin: "0px 0px -25% 0px", threshold: 0.2 })
+    : null;
+
   const animated = [...document.querySelectorAll("svg")].filter((svg) => svg.querySelector("animate, animateMotion, animateTransform"));
   let started = false;
   function startAnimations() {
-    if (started) {
-      animated.forEach((svg) => svg.unpauseAnimations());
-      return;
-    }
+    if (started) return animated.forEach((svg) => svg.unpauseAnimations());
     started = true;
     document.querySelectorAll("[data-pose]").forEach((g) => g.removeAttribute("transform"));
-    document.querySelectorAll("animate, animateMotion, animateTransform").forEach((el) => {
-      el.beginElementAt(Number(el.getAttribute("data-offset") || 0));
-    });
+    document.querySelectorAll("animate, animateMotion, animateTransform").forEach((el) => el.beginElementAt(Number(el.getAttribute("data-offset") || 0)));
   }
 
   const reveals = document.querySelectorAll(".reveal, .stamp");
@@ -96,30 +151,104 @@
       document.documentElement.classList.add("static");
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
-      last = -1;
-      draw(0);
-      caption.textContent = "The whole kit: eight parts on one frame.";
+      cards.forEach((card) => card.classList.remove("active"));
+      if (drawMain) {
+        lastState = -1;
+        shown = target = 1;
+        drawBig(1);
+      }
       if (started) animated.forEach((svg) => svg.pauseAnimations());
       reveals.forEach((el) => el.classList.add("in"));
-    } else {
-      document.documentElement.classList.remove("static");
-      window.addEventListener("scroll", onScroll, { passive: true });
-      window.addEventListener("resize", onScroll);
-      startAnimations();
-      last = -1;
-      readTarget();
-      shown = target;
-      draw(shown);
-      if (observer) {
-        document.documentElement.classList.add("js");
-        reveals.forEach((el) => el.classList.contains("in") || observer.observe(el));
-      }
+      return;
+    }
+    document.documentElement.classList.remove("static");
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    startAnimations();
+    if (narrow.matches && miniObserver) {
+      buildMinis();
+      cards.forEach((card) => miniObserver.observe(card));
+    }
+    if (drawMain) {
+      active = narrow.matches ? -1 : activeCard();
+      cards.forEach((card, k) => card.classList.toggle("active", k === active));
+      lastState = -1;
+      shown = target = active < 0 ? 0 : STAGES[active];
+      drawBig(shown);
+    }
+    if (observer) {
+      document.documentElement.classList.add("js");
+      reveals.forEach((el) => el.classList.contains("in") || observer.observe(el));
     }
   }
 
   if (reduce.addEventListener) reduce.addEventListener("change", setMode);
   else if (reduce.addListener) reduce.addListener(setMode);
+  if (narrow.addEventListener) narrow.addEventListener("change", setMode);
   setMode();
+
+  document.querySelectorAll(".code .copy").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const text = button.parentElement.querySelector("code").textContent;
+      try {
+        await navigator.clipboard.writeText(text);
+        button.textContent = "Copied";
+      } catch {
+        const range = document.createRange();
+        range.selectNodeContents(button.parentElement.querySelector("code"));
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        button.textContent = "Selected";
+      }
+      setTimeout(() => (button.textContent = "Copy"), 1800);
+    });
+  });
+
+  const bar = document.getElementById("topbar");
+  const menu = document.getElementById("menu");
+  const menuButton = document.querySelector(".menu-btn");
+  let lastY = window.scrollY;
+  window.addEventListener("scroll", () => {
+    const y = window.scrollY;
+    const hide = y > 80 && y > lastY && !(menu && !menu.hidden);
+    bar.classList.toggle("tucked", hide);
+    lastY = y;
+  }, { passive: true });
+
+  function focusables() {
+    return [...menu.querySelectorAll("a, button")];
+  }
+  function openMenu() {
+    menu.hidden = false;
+    menuButton.setAttribute("aria-expanded", "true");
+    document.documentElement.classList.add("menu-open");
+    menu.querySelector(".menu-close").focus();
+  }
+  function closeMenu(restore = true) {
+    menu.hidden = true;
+    menuButton.setAttribute("aria-expanded", "false");
+    document.documentElement.classList.remove("menu-open");
+    if (restore) menuButton.focus();
+  }
+  if (menu && menuButton) {
+    menuButton.addEventListener("click", openMenu);
+    menu.querySelector(".menu-close").addEventListener("click", () => closeMenu());
+    menu.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => closeMenu(false)));
+    menu.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") return closeMenu();
+      if (event.key !== "Tab") return;
+      const items = focusables();
+      const first = items[0], lastItem = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        lastItem.focus();
+      } else if (!event.shiftKey && document.activeElement === lastItem) {
+        event.preventDefault();
+        first.focus();
+      }
+    });
+  }
 
   const drifter = document.querySelector(".drifter");
   const wide = window.matchMedia("(min-width: 1300px)");
