@@ -322,6 +322,163 @@
   document.querySelectorAll("[data-cta]").forEach((link) => {
     link.addEventListener("click", () => track("install_cta_click", { location: link.dataset.cta }));
   });
+
+  const contactForm = document.getElementById("contact-form");
+  if (contactForm) {
+    const FALLBACK = "https://docs.google.com/forms/d/e/1FAIpQLSepS1A8sET4w9kPUKrlcmSQZ52lQl7x_If7ggnzYrP47VJSJQ/viewform";
+    const result = document.getElementById("contact-result");
+    const sendButton = contactForm.querySelector('button[type="submit"]');
+    const fields = {
+      topic: { error: document.getElementById("topic-error"), target: contactForm.querySelector(".topics"), focus: () => contactForm.querySelector('input[name="topic"]') },
+      message: { error: document.getElementById("message-error"), target: document.getElementById("contact-message") },
+      email: { error: document.getElementById("email-error"), target: document.getElementById("contact-email") },
+      turnstile: { error: document.getElementById("turnstile-error"), target: null },
+    };
+    const MESSAGES = {
+      topic: "Choose what it is about.",
+      message: "Write a message of at most 5000 characters.",
+      email: "This does not look like an email address. Leave it empty if you don't want a reply.",
+      turnstile: "The spam check has not finished yet. Wait a moment and send again.",
+    };
+    let widgetId = null;
+    let token = "";
+    let sending = false;
+
+    const showError = (name, text) => {
+      const field = fields[name];
+      field.error.textContent = text || "";
+      field.error.hidden = !text;
+      if (field.target) {
+        if (text) field.target.setAttribute("aria-invalid", "true");
+        else field.target.removeAttribute("aria-invalid");
+      }
+    };
+    const focusField = (name) => {
+      const field = fields[name];
+      const element = field.focus ? field.focus() : field.target;
+      (element || field.error).focus?.();
+    };
+
+    window.onDogfighterTurnstile = () => {
+      widgetId = window.turnstile.render("#contact-turnstile", {
+        sitekey: contactForm.dataset.sitekey,
+        action: "contact",
+        theme: "auto",
+        "response-field": false,
+        callback: (value) => {
+          token = value;
+          showError("turnstile", "");
+        },
+        "expired-callback": () => (token = ""),
+        "error-callback": () => {
+          token = "";
+          showError("turnstile", "The spam check could not run. Reload the page, or use the Google Form linked below the form.");
+        },
+      });
+    };
+    const loadTurnstile = () => {
+      if (document.querySelector("script[data-turnstile]")) return;
+      const script = document.createElement("script");
+      script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit&onload=onDogfighterTurnstile";
+      script.async = true;
+      script.dataset.turnstile = "";
+      document.head.appendChild(script);
+    };
+    if ("IntersectionObserver" in window) {
+      const watcher = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          watcher.disconnect();
+          loadTurnstile();
+        }
+      }, { rootMargin: "600px 0px" });
+      watcher.observe(document.getElementById("contact"));
+    } else {
+      loadTurnstile();
+    }
+    contactForm.addEventListener("focusin", loadTurnstile);
+
+    const showResult = (sent, text) => {
+      result.replaceChildren();
+      const heading = document.createElement("p");
+      heading.className = "result-title";
+      heading.textContent = sent ? "Message sent. Thank you!" : "Your message was not sent.";
+      const body = document.createElement("p");
+      body.textContent = text;
+      result.append(heading, body);
+      if (!sent) {
+        const fallback = document.createElement("p");
+        fallback.append("Your text is still in the form. You can try again, or send it through the ");
+        const link = document.createElement("a");
+        link.href = FALLBACK;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = "Google Form";
+        fallback.append(link, ".");
+        result.append(fallback);
+      }
+      result.classList.toggle("failed", !sent);
+      result.hidden = false;
+      result.focus();
+    };
+
+    contactForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (sending) return;
+      const data = new FormData(contactForm);
+      const topic = data.get("topic") || "";
+      const message = String(data.get("message") || "").trim();
+      const email = String(data.get("email") || "").trim();
+      const invalid = [];
+      if (!topic) invalid.push("topic");
+      if (!message || message.length > 5000) invalid.push("message");
+      if (email && !fields.email.target.checkValidity()) invalid.push("email");
+      if (!token) {
+        invalid.push("turnstile");
+        loadTurnstile();
+      }
+      Object.keys(fields).forEach((name) => showError(name, invalid.includes(name) ? MESSAGES[name] : ""));
+      if (invalid.length) {
+        focusField(invalid[0]);
+        return;
+      }
+      sending = true;
+      sendButton.disabled = true;
+      sendButton.textContent = "Sending…";
+      result.hidden = true;
+      let answer = null;
+      try {
+        const response = await fetch("/api/contact", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ topic, message, email, website: data.get("website") || "", "cf-turnstile-response": token }),
+        });
+        answer = await response.json().catch(() => null);
+      } catch {
+        answer = null;
+      }
+      sending = false;
+      sendButton.disabled = false;
+      sendButton.textContent = "Send";
+      token = "";
+      if (widgetId !== null) window.turnstile.reset(widgetId);
+      if (answer && answer.ok) {
+        track("contact_submit", { topic });
+        contactForm.reset();
+        contactForm.hidden = true;
+        showResult(true, email ? "It is on its way to the maintainer, who will answer at the email you gave." : "It is on its way to the maintainer.");
+        return;
+      }
+      if (answer && answer.error === "invalid" && Array.isArray(answer.fields)) {
+        const known = answer.fields.filter((name) => fields[name]);
+        known.forEach((name) => showError(name, MESSAGES[name]));
+        if (known.length) {
+          focusField(known[0]);
+          return;
+        }
+      }
+      showResult(false, "Something went wrong on the way.");
+    });
+  }
   const depths = [25, 50, 75, 90, 100], sentDepths = new Set();
   window.addEventListener("scroll", () => {
     if (!analyticsLoaded) return;
