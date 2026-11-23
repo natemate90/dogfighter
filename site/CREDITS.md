@@ -17,3 +17,7 @@ The site serves its own copies of three fonts from Google Fonts, all under the S
 # Game screenshots
 
 The seven pictures in `img/game/` are screenshots of Airfix Dogfighter running on a Mac with this project, taken for the site. The game is © its rights holders: Unique Development Studios and Paradox Entertainment; Airfix is a trademark of Hornby. The screenshots show the main menu, a loading screen, the kids' room and the living room with the sharper textures, a dogfight over the sofa, the kids' room in a fight, and the backyard.
+
+# Video preview
+
+`img/video-poster-640.webp` and `img/video-poster-1280.webp` are the thumbnail of the gameplay video "Airfix Dogfighter for PC, gameplay video" by Highretrogamelord (https://www.youtube.com/watch?v=vuBLQVUCmEY), stored on the site so nothing loads from YouTube before a click.
