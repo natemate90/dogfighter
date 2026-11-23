@@ -163,7 +163,7 @@
     document.querySelectorAll("animate, animateMotion, animateTransform").forEach((el) => el.beginElementAt(Number(el.getAttribute("data-offset") || 0)));
   }
 
-  const reveals = document.querySelectorAll(".reveal, .stamp");
+  const reveals = document.querySelectorAll(".reveal, .stamp, .usp-grid");
   const observer = "IntersectionObserver" in window
     ? new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
@@ -210,6 +210,20 @@
       reveals.forEach((el) => el.classList.contains("in") || observer.observe(el));
     }
   }
+
+  document.querySelectorAll(".usp-tile").forEach((tile) => {
+    tile.addEventListener("mouseenter", () => {
+      if (reduce.matches) return;
+      tile.querySelectorAll(".mv").forEach((el) => {
+        if (!el.getAnimations) return;
+        el.getAnimations().forEach((move) => {
+          move.effect.updateTiming({ delay: 0 });
+          move.currentTime = 0;
+          move.play();
+        });
+      });
+    });
+  });
 
   if (reduce.addEventListener) reduce.addEventListener("change", setMode);
   else if (reduce.addListener) reduce.addListener(setMode);
