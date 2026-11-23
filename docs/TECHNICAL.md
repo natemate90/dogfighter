@@ -67,6 +67,50 @@ It runs `./dogfighter` with no options, so it gets the same defaults as a start 
 Its icon is made from `cd/Airfix.ico` on the player's Mac, so the app is not part of this repo.
 The app remembers where the folder is. If the folder moves, run `./setup.sh` again and use the new app.
 
+### The app with everything inside
+
+`tools/build-app.sh --full` makes `dist/Dogfighter.app`. It runs without the repo folder.
+`--data=FOLDER` takes the installed game from another folder; the output then goes to `FOLDER/dist/`.
+It takes about ten seconds and needs a finished `./setup.sh` on macOS 26.4 or later.
+
+What goes into `Contents/Resources`:
+- Mach9 from `wine-mach9/`, without its C headers. The Rosetta Wine stays out, so there is no fallback.
+- The game files, unpacked again from `cd/` in the installed language, and the music player `winmm.dll`.
+- `cd/`, `music/`, the helpers from `build/` and their sources, `tools/`, the launcher and `dogfighter.reg`.
+- From `hd-textures/` only `cache/`, `manifest.json` and `texture-limit`. From `hd-videos/` only `companies.mov` and `airfix.mov`.
+- The saves of `game/` as they are at build time, in `saves/`: `User/`, `user.ini`, `system.ini` and `dogfighter-picture-before.txt`.
+
+The disc image, `replaced/`, the backups, the logs and the screenshots stay out.
+The app was 2.6 GB on the test Mac.
+
+The build checks that the helpers are newer than their sources and that the texture set is complete.
+It signs the app ad hoc, without `--deep`, and stops when `codesign --verify --deep --strict` fails.
+Mach9's own loader keeps its signature: its entitlements need Mach9's provisioning profile, and an ad hoc signature would drop them.
+No link in the app points outside it.
+
+The game writes next to its files, so the app keeps all it writes in `~/Library/Application Support/Dogfighter/`.
+- The first start makes that folder and copies the saves from `saves/` into `game/`. A later start never copies them again. The saves in the repo folder are never touched.
+- `app` is a link to the app's `Contents/Resources`. Each start sets it again, so the app can move.
+- `wine-mach9`, `cd`, `music`, `hd-textures`, `hd-videos`, `build`, `tools`, `src` and `dogfighter.reg` are links through `app`.
+- `game/` is a real folder. Each game file in it is a link through `app`. `user.ini` and `system.ini` are real files, and so is everything the game makes.
+- `prefix-mach9/`, `logs/`, `backups/`, `game/User`, `game/ScreenShots` and the `game/cache` link are made there as usual.
+- `dogfighter` there is a small script that runs the app's launcher with `DOGFIGHTER_HOME` set to that folder. The launcher then uses that folder in place of its own.
+
+Every launcher option works through it, for example `~/Library/Application\ Support/Dogfighter/dogfighter --doctor`.
+The app's own program passes options on as well: `Dogfighter.app/Contents/MacOS/Dogfighter --backup`.
+
+The launcher runs the texture check with `python3 -B`, so Python writes no `__pycache__` into the app.
+
+The app stops at once, with a message, on a Mac without Apple Silicon or with macOS before 26.4: it has no Wine for those.
+A start from Finder writes the launcher's output to `logs/app.log` in that folder.
+When the launcher ends with an error, the app's message shows the last three lines of that file.
+So a stop before the run log exists, such as "Dogfighter is already running", is shown too.
+
+When the app gets TERM, INT or HUP, as at logout, it ends the launcher and runs `--stop` on that folder.
+The game's own quit ends the launcher and then the app.
+
+The app is a separate installation: its lock does not see a game started with `./dogfighter`.
+
 ## The launcher
 
 The first start creates a Wine prefix, which takes a minute: `prefix-mach9/` for Mach9, `prefix/` for the Rosetta Wine.
@@ -1151,6 +1195,7 @@ Collected from the sections above.
 - The desk on the main menu: not yet looked at in the game.
 - The plane paintings and the stamps in the mission book: not yet looked at in the game.
 - `--join`: whether the Multiplayer screen lists the server.
+- The app with everything inside: the end on TERM, INT or HUP. A start from Finder, a test run with a screenshot in a flight and `--stop` through a second copy of the app were run on an M4 Max.
 - The sharper intro videos: the player window, its decoding and the skipping were never run. The game leaving out its own copies was run with `--diag-intros-shown`.
 - The Airfix intro at level 2: only a 4-second clip was made so far. The level 3 sample was not made yet.
 - Controllers: none was ever connected. Open points are whether the game gets its input, the direction of pitch, the triggers as throttle, Xbox over USB, and whether the Key configuration screen takes controller buttons.
@@ -1161,5 +1206,5 @@ Collected from the sections above.
 ## Legal
 
 For personal use with a disc you own.
-Never commit or share the game files: `Dogfighter.bin`, `cd/`, `game/`, `music/`, `hd-textures/`, `hd-videos/` or `Dogfighter.app`.
+Never commit or share the game files: `Dogfighter.bin`, `cd/`, `game/`, `music/`, `hd-textures/`, `hd-videos/`, `Dogfighter.app` or `dist/`.
 `.gitignore` keeps them out of git.
