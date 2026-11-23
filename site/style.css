@@ -174,7 +174,9 @@ kbd {
 .menu .button { align-self: flex-start; }
 .menu-open, .menu-open body { overflow: hidden; }
 @keyframes menu-in { from { transform: translateY(-16px); opacity: 0; } to { transform: none; opacity: 1; } }
-.brand span { font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; line-height: 1.2; }
+.brand span { font-family: var(--display); font-weight: 700; text-transform: uppercase; letter-spacing: 0.02em; line-height: 1.2; white-space: nowrap; }
+.wordmark small { font-size: 0.72em; color: var(--red-text); letter-spacing: 0.04em; }
+.menu-brand { position: absolute; top: 20px; left: 24px; margin: 0; }
 .brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
 .brand svg { width: 26px; height: 26px; transform: rotate(90deg); color: var(--ink); }
 .gh { white-space: nowrap; }
@@ -787,8 +789,7 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .assembly { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 48px; align-items: start; }
 .kit-col { position: sticky; top: 80px; }
 .kit-col .sprue { max-height: calc(100svh - 160px); }
-html:has(#install) { scroll-snap-type: y proximity; }
-.istep { scroll-snap-align: start; scroll-margin-top: 84px; }
+.istep { scroll-margin-top: 12px; }
 .istep.active .inum { background: var(--ink); color: var(--paper); box-shadow: 0 0 0 4px color-mix(in srgb, var(--red) 55%, transparent); }
 .install-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 28px; }
 .istep { padding: 20px 22px 22px; border: 2px solid var(--ink); border-radius: 8px; background: color-mix(in srgb, var(--paper-2) 60%, transparent); transition: border-color 0.3s, box-shadow 0.3s; }
@@ -820,12 +821,10 @@ html:has(#install) { scroll-snap-type: y proximity; }
   .kit-col .sprue { height: 150px; max-height: none; }
   .kit-col .stage-caption { margin-top: 2px; font-size: 0.8rem; }
   .static .kit-col { position: static; }
-  .istep { scroll-margin-top: 206px; }
-  .istep .code, .istep .copy, .istep p { scroll-margin-top: 206px; }
+  .istep, .istep .code, .istep .copy, .istep p { scroll-margin-top: 12px; }
 }
 @media (max-width: 900px) and (max-height: 500px) {
   .kit-col { position: static; }
-  .istep, .istep .code, .istep .copy, .istep p { scroll-margin-top: 72px; }
 }
 @media (max-width: 760px) {
   .topnav { display: none; }

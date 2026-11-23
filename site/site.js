@@ -69,7 +69,9 @@
   }
 
   function activeCard() {
-    const mid = cards.length ? parseFloat(getComputedStyle(cards[0]).scrollMarginTop) + 80 : 0;
+    const kit = install.querySelector(".kit-col");
+    const kitSticks = narrow.matches && getComputedStyle(kit).position === "sticky";
+    const mid = kitSticks ? kit.getBoundingClientRect().bottom + 120 : (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--stick")) || 72) + 100;
     let found = -1;
     cards.forEach((card, i) => {
       if (card.getBoundingClientRect().top < mid) found = i;
@@ -146,7 +148,7 @@
 
   document.querySelectorAll(".code .copy").forEach((button) => {
     button.addEventListener("click", async () => {
-      const text = button.parentElement.querySelector("code").textContent;
+      const text = button.parentElement.querySelector("code").textContent.split("\n").map((line) => line.trim()).filter(Boolean).join(" && ");
       try {
         await navigator.clipboard.writeText(text);
         button.textContent = "Copied";
@@ -164,6 +166,68 @@
     });
   });
 
+  function updateStick(inInstall) {
+    const kit = install.querySelector(".kit-col");
+    const sticky = inInstall && getComputedStyle(kit).position === "sticky";
+    const barH = bar.offsetHeight;
+    document.documentElement.style.setProperty("--stick", `${Math.round((sticky ? kit.getBoundingClientRect().height : barH) + 12)}px`);
+  }
+  window.addEventListener("resize", () => {
+    const box = install.getBoundingClientRect();
+    updateStick(narrow.matches && box.top < 60 && box.bottom > 200);
+  });
+  let touching = false, skipSettle = false, settling = 0, settleQuiet = 0, settleTimer = 0;
+  const cancelSettle = () => {
+    if (settling) cancelAnimationFrame(settling);
+    settling = 0;
+  };
+  window.addEventListener("wheel", () => {
+    skipSettle = false;
+    cancelSettle();
+  }, { passive: true });
+  window.addEventListener("touchstart", () => {
+    touching = true;
+    skipSettle = false;
+    cancelSettle();
+  }, { passive: true });
+  window.addEventListener("touchend", () => (touching = false), { passive: true });
+  window.addEventListener("keydown", () => {
+    skipSettle = true;
+    cancelSettle();
+  });
+  window.addEventListener("hashchange", () => (skipSettle = true));
+  document.addEventListener("click", (event) => {
+    if (event.target.closest && event.target.closest('a[href^="#"]')) skipSettle = true;
+  });
+  function settle() {
+    if (skipSettle) return (skipSettle = false);
+    if (reduce.matches || touching || settling || performance.now() < settleQuiet) return;
+    const box = install.getBoundingClientRect();
+    if (box.top > 0 || box.bottom < window.innerHeight * 0.5) return;
+    const ideal = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--stick")) || 72;
+    let best = null;
+    cards.forEach((card) => {
+      const gap = card.getBoundingClientRect().top - ideal;
+      if (!best || Math.abs(gap) < Math.abs(best)) best = gap;
+    });
+    if (best === null || Math.abs(best) > 90 || Math.abs(best) < 2) return;
+    const from = window.scrollY, t0 = performance.now(), duration = 520;
+    const tick = (now) => {
+      const t = Math.min(1, (now - t0) / duration);
+      window.scrollTo(0, from + best * (1 - Math.pow(1 - t, 3)));
+      if (t < 1) settling = requestAnimationFrame(tick);
+      else {
+        settling = 0;
+        settleQuiet = performance.now() + 300;
+      }
+    };
+    settling = requestAnimationFrame(tick);
+  }
+  if ("onscrollend" in window) window.addEventListener("scrollend", settle);
+  else window.addEventListener("scroll", () => {
+    clearTimeout(settleTimer);
+    settleTimer = setTimeout(settle, 180);
+  }, { passive: true });
   const menu = document.getElementById("menu");
   const menuButton = document.querySelector(".menu-btn");
   let lastY = window.scrollY;
@@ -173,9 +237,7 @@
     const box = install.getBoundingClientRect();
     const inInstall = narrow.matches && box.top < 60 && box.bottom > 200;
     const hide = (inInstall || (y > 80 && y > lastY)) && !(menu && !menu.hidden);
-    const kitBox = install.querySelector(".kit-col").getBoundingClientRect();
-    const sticky = inInstall && getComputedStyle(install.querySelector(".kit-col")).position === "sticky";
-    document.documentElement.style.setProperty("--stick", sticky ? `${Math.round(kitBox.height + 16)}px` : "72px");
+    updateStick(inInstall);
     bar.classList.toggle("tucked", hide);
     lastY = y;
   }, { passive: true });

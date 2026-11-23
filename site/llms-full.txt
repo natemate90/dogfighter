@@ -13,7 +13,7 @@ Key facts:
 
 1. Install Apple's command line tools: `xcode-select --install`
 2. Only on macOS older than 26.4, install Rosetta 2: `softwareupdate --install-rosetta --agree-to-license`
-3. Get the project: `git clone https://github.com/natemate90/dogfighter.git` then `cd dogfighter`
+3. Get the project: `git clone https://github.com/natemate90/dogfighter.git && cd dogfighter`
 4. Copy your disc to a file: `brew install cdrdao`, then `cdrdao read-cd --read-raw --datafile Dogfighter.bin --driver generic-mmc:0x20000 Dogfighter.toc`
 5. Run setup: `./setup.sh` (add `--language=French`, `--language=German` or `--language=Italian` for another language)
 6. Play: `./dogfighter`, or double-click `Dogfighter.app`. If something goes wrong, run `./dogfighter --doctor`.
