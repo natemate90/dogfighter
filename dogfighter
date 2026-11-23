@@ -193,7 +193,8 @@ Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [-
                     by hand while a scripted start is on its way. The window
                     title says so. Keys from --diag-keys still reach the game;
                     clicks from --diag-mouse do not. The mouse still moves the
-                    pointer. Needs --diag-console.
+                    pointer. Needs --diag-console. If a command never runs,
+                    they reach the game 20 seconds after the last one was due.
   --diag-end=SECONDS
                     End the game this long after its first picture, without the
                     game's own quit, so it does not write its settings.
@@ -1245,6 +1246,13 @@ if [ "$FOCUSFIX" = 1 ]; then
   if [ -n "$DIAG" ] && [ "$DIAG_HOLD" = 0 ]; then export DOGFIGHTER_TEST_LEAVES_MOUSE=1; fi
   if [ "$DIAG_BLOCK_INPUT" = 1 ]; then
     export DOGFIGHTER_TEST_INPUT_AFTER_COMMANDS=${#DIAG_CONSOLE[@]}
+    INPUT_WAIT_LIMIT=0
+    for command in "${DIAG_CONSOLE[@]}"; do
+      command="${command%%:*}"
+      command=$((10#${command%%.*} + 21))
+      if [ "$command" -gt "$INPUT_WAIT_LIMIT" ]; then INPUT_WAIT_LIMIT=$command; fi
+    done
+    export DOGFIGHTER_TEST_INPUT_WAIT_LIMIT=$INPUT_WAIT_LIMIT
     say "Keys and clicks are kept from the game until the scripted start has run."
   fi
   if [ "$ORIGINAL" = 0 ]; then export DOGFIGHTER_ANISOTROPY=16; fi

@@ -131,6 +131,10 @@ static BOOL no_depth_surface_yet;
    player's keys and clicks reach the game. A mission started by hand while a
    scripted start is on its way crashes the game. */
 static volatile LONG commands_before_input, inputs_kept;
+/* A command the game window did not answer within windiag's 5 seconds never
+   counts, so the wait also ends this many seconds after the game could first
+   take commands. */
+static DWORD input_wait_limit;
 static char test_shot_on[64];
 static LONG test_shot_in;
 static volatile LONG flips, direct_draws, gdi_draws, unscaled_draws, to_announce, dinput_clips, dinput_moves;
@@ -1905,6 +1909,21 @@ static void keep_mouse_inside(void)
     }
 }
 
+static void end_input_wait_when_late(void)
+{
+    static DWORD since;
+    static BOOL counting;
+
+    if (commands_before_input <= 0 || !input_wait_limit || !mode_set || no_depth_surface_yet) return;
+    if (!counting) since = GetTickCount();
+    counting = TRUE;
+    if (GetTickCount() - since < input_wait_limit * 1000) return;
+    LONG missing = InterlockedExchange(&commands_before_input, 0);
+    if (missing > 0)
+        say("gave up waiting for %ld scripted console command%s after %lu seconds in the game; keys and clicks reach the game again, %ld key and button events were kept from it",
+            missing, missing == 1 ? "" : "s", input_wait_limit, inputs_kept);
+}
+
 static DWORD WINAPI watch(void *arg)
 {
     DWORD pid = GetCurrentProcessId(), owner, ticks = 0, reported_at = GetTickCount();
@@ -1936,6 +1955,7 @@ static DWORD WINAPI watch(void *arg)
         let_screenshots_work_in_32_bit();
         raise_texture_size_limit();
         if (texture_limit || test_shot_on[0]) hook_texture_load();
+        end_input_wait_when_late();
         if (max_client.cx) keep_mouse_inside();
         if (max_client.cx && ++ticks % 100 == 0 && flips + direct_draws + gdi_draws + unscaled_draws != reported)
         {
@@ -1969,6 +1989,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, void *reserved)
         test_on_right_display = GetEnvironmentVariableA("DOGFIGHTER_TEST_DISPLAY", NULL, 0) != 0;
         test_leaves_mouse = GetEnvironmentVariableA("DOGFIGHTER_TEST_LEAVES_MOUSE", NULL, 0) != 0;
         commands_before_input = env_size("DOGFIGHTER_TEST_INPUT_AFTER_COMMANDS").cx;
+        input_wait_limit = env_size("DOGFIGHTER_TEST_INPUT_WAIT_LIMIT").cx;
         anisotropy = env_size("DOGFIGHTER_ANISOTROPY").cx;
         texture_limit = env_size("DOGFIGHTER_TEXTURE_LIMIT").cx;
         edge_samples = env_size("DOGFIGHTER_EDGE_SAMPLES").cx;
