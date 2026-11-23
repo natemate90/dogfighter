@@ -49,7 +49,7 @@
   }
   function follow(now) {
     if (reduce.matches) return (easing = false);
-    const dt = Math.min(0.1, (now - then) / 1000);
+    const dt = Math.max(0, Math.min(0.1, (now - then) / 1000));
     then = now;
     const step = (target - shown) * (1 - Math.exp(-dt / EASE_TIME));
     shown += Math.max(-MAX_RATE * dt, Math.min(MAX_RATE * dt, step));
