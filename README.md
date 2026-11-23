@@ -138,6 +138,22 @@ Double-click it to play without Terminal. It starts the game with no options, so
 You can drag it to Applications or the Dock.
 If you move the game folder, run `./setup.sh` again and use the new app.
 
+**One app with everything inside.** After setup, on macOS 26.4 or later, run:
+
+```
+tools/build-app.sh --full
+```
+
+- This makes `dist/Dogfighter.app`, about 2.6 GB. It holds Wine, the game, the music, the sharper textures and the intro videos.
+- It runs without the game folder. You can move it to Applications.
+- It plays like `./dogfighter`, with the same best picture.
+- What the game writes goes to `~/Library/Application Support/Dogfighter`: saves, settings, screenshots, logs and backups.
+- The build copies your saves from `game/` into the app. Its first start copies them from there into that folder. The ones in `game/` are never changed.
+- Saves made with `./dogfighter` after the build are not in the app. Build it again before its first start to take them along. That takes about ten seconds.
+- The first start takes about a minute longer. It prepares Wine.
+- It uses Mach9 only. It has no fallback to the Rosetta Wine.
+- It holds your game files. Keep it to yourself.
+
 **Start from any folder.** Setup may end with a command that starts with `ln -s`.
 Run it once. After that, `dogfighter` works in any Terminal folder.
 
@@ -470,6 +486,6 @@ More picture options and test options are in [docs/TECHNICAL.md](docs/TECHNICAL.
 ## Legal
 
 For personal use with a disc you own.
-Never share the game files: `Dogfighter.bin`, `cd/`, `game/`, `music/`, `hd-textures/`, `hd-videos/` or `Dogfighter.app`.
+Never share the game files: `Dogfighter.bin`, `cd/`, `game/`, `music/`, `hd-textures/`, `hd-videos/`, `Dogfighter.app` or `dist/`.
 
 How it all works, for developers: [docs/TECHNICAL.md](docs/TECHNICAL.md).
