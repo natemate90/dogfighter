@@ -275,7 +275,7 @@ h1 { margin: 0; line-height: 0.9; font-family: var(--display); }
   --ring-edge: 7.5px;
   --drop: 4px;
   border: var(--ring-white) solid var(--rd-white);
-  box-shadow: 0 0 0 var(--ring-outer-white) var(--rd-white), 0 0 0 var(--ring-blue) var(--rd-blue), 0 0 0 var(--ring-yellow) var(--rd-yellow), 0 0 0 var(--ring-edge) var(--ink-fixed), 0 var(--drop) 0 var(--ring-edge) var(--ink);
+  box-shadow: 0 0 0 var(--ring-outer-white) var(--rd-white), 0 0 0 var(--ring-blue) var(--rd-blue), 0 0 0 var(--ring-yellow) var(--rd-yellow), 0 0 0 var(--ring-edge) var(--ink-fixed);
   transition: transform 0.12s, box-shadow 0.12s;
 }
 .button {
@@ -299,6 +299,7 @@ button.button { font: inherit; font-weight: 700; cursor: pointer; }
 .button.ghost, .copy, .menu-btn, .menu-close, .viewer-btn { --ring-outer-white: 2px; --ring-blue: 4.5px; --ring-yellow: 7.5px; --ring-edge: 9px; border-color: var(--red); }
 .copy, .menu-btn, .menu-close { --ring-white: 2px; --ring-outer-white: 1.5px; --ring-blue: 3.5px; --ring-yellow: 5.5px; --ring-edge: 6.5px; --drop: 3px; }
 .button.ghost { background: var(--paper); color: var(--ink); }
+.button.small.ghost { --ring-outer-white: 0px; --ring-blue: 2px; --ring-yellow: 4px; --ring-edge: 5px; }
 @media (prefers-reduced-motion: reduce) {
   .button, .copy, .menu-btn, .menu-close, .viewer-btn { transition: none; }
 }
