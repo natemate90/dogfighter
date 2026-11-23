@@ -45,29 +45,31 @@
     else caption.textContent = `${NAMES[state][0].toUpperCase() + NAMES[state].slice(1)} of eight parts fitted.`;
   }
 
-  const EASE_TIME = 0.4, MAX_RATE = 0.6;
-  let target = 0, shown = 0, easing = false, then = 0, active = -1;
-  function follow(now) {
-    if (reduce.matches) return (easing = false);
-    const dt = Math.max(0, Math.min(0.1, (now - then) / 1000));
-    then = now;
-    const step = (target - shown) * (1 - Math.exp(-dt / EASE_TIME));
-    shown += Math.max(-MAX_RATE * dt, Math.min(MAX_RATE * dt, step));
-    if (Math.abs(target - shown) < 0.0005) shown = target;
-    drawBig(shown);
-    if (shown === target) easing = false;
-    else requestAnimationFrame(follow);
+  const LEVELS = [0, ...STAGES];
+  let level = 0, wanted = 0, playing = false, active = -1;
+  function play() {
+    if (level === wanted) return (playing = false);
+    playing = true;
+    const dir = Math.sign(wanted - level), from = LEVELS[level], to = LEVELS[level + dir];
+    const duration = Math.abs(wanted - level) > 1 ? 300 : 700;
+    const t0 = performance.now();
+    const tick = (now) => {
+      if (reduce.matches) return (playing = false);
+      const t = Math.min(1, (now - t0) / duration);
+      drawBig(from + (to - from) * t);
+      if (t < 1) return requestAnimationFrame(tick);
+      level += dir;
+      play();
+    };
+    requestAnimationFrame(tick);
   }
-  function setTarget(p) {
-    target = p;
-    if (easing) return;
-    easing = true;
-    then = performance.now();
-    requestAnimationFrame(follow);
+  function setLevel(k) {
+    wanted = k;
+    if (!playing) play();
   }
 
   function activeCard() {
-    const mid = window.innerHeight * 0.55;
+    const mid = cards.length ? parseFloat(getComputedStyle(cards[0]).scrollMarginTop) + 80 : 0;
     let found = -1;
     cards.forEach((card, i) => {
       if (card.getBoundingClientRect().top < mid) found = i;
@@ -77,12 +79,11 @@
 
   function onScroll() {
     if (!drawMain) return;
-    if (narrow.matches) bar.classList.toggle("in-install", install.getBoundingClientRect().top < 60 && install.getBoundingClientRect().bottom > 200);
     const i = activeCard();
     if (i === active) return;
     active = i;
     cards.forEach((card, k) => card.classList.toggle("active", k === i));
-    setTarget(i < 0 ? 0 : STAGES[i]);
+    setLevel(i + 1);
   }
 
   const animated = [...document.querySelectorAll("svg")].filter((svg) => svg.querySelector("animate, animateMotion, animateTransform"));
@@ -113,7 +114,7 @@
       cards.forEach((card) => card.classList.remove("active"));
       if (drawMain) {
         lastState = -1;
-        shown = target = 1;
+        level = wanted = LEVELS.length - 1;
         drawBig(1);
       }
       if (started) animated.forEach((svg) => svg.pauseAnimations());
@@ -128,8 +129,8 @@
       active = activeCard();
       cards.forEach((card, k) => card.classList.toggle("active", k === active));
       lastState = -1;
-      shown = target = active < 0 ? 0 : STAGES[active];
-      drawBig(shown);
+      level = wanted = active + 1;
+      drawBig(LEVELS[level]);
     }
     if (observer) {
       document.documentElement.classList.add("js");
@@ -166,7 +167,9 @@
   bar.addEventListener("focusin", () => bar.classList.remove("tucked"));
   window.addEventListener("scroll", () => {
     const y = window.scrollY;
-    const hide = y > 80 && y > lastY && !(menu && !menu.hidden);
+    const box = install.getBoundingClientRect();
+    const inInstall = narrow.matches && box.top < 60 && box.bottom > 200;
+    const hide = (inInstall || (y > 80 && y > lastY)) && !(menu && !menu.hidden);
     bar.classList.toggle("tucked", hide);
     lastY = y;
   }, { passive: true });
