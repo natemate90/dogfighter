@@ -327,7 +327,7 @@ function Build-Winmm {
         Remove-Item -LiteralPath $dir -Recurse -Force
     }
     $installed = Join-Path $Game 'winmm.dll'
-    if (-not (Test-Path -LiteralPath $installed) -or (Get-FileHash $dll).Hash -ne (Get-FileHash $installed).Hash) {
+    if (-not (Test-Path -LiteralPath $installed) -or (Get-FileHash -LiteralPath $dll).Hash -ne (Get-FileHash -LiteralPath $installed).Hash) {
         Copy-Item -LiteralPath $dll -Destination $installed -Force
     }
 }

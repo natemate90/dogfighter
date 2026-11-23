@@ -108,8 +108,8 @@ if ($Doctor) {
     Check 'Music player (game\winmm.dll, game\Music)' 'setup.cmd' { Has-Files $Game @('winmm.dll', 'Music\Track02.ogg') }
     Check 'Helper is built in build\' 'setup.cmd' { Has-Files $Build @('focusfix.exe', 'focushook.dll', 'joylist.exe') }
     Check 'Helper is newer than its source' 'delete build\focusfix.exe and build\focushook.dll, then setup.cmd' {
-        ((Get-Item $FocusfixExe).LastWriteTime -gt (Get-Item (Join-Path $Here 'src\focusfix\focusfix.c')).LastWriteTime) -and
-        ((Get-Item $FocushookDll).LastWriteTime -gt (Get-Item (Join-Path $Here 'src\focusfix\focushook.c')).LastWriteTime)
+        ((Get-Item -LiteralPath $FocusfixExe).LastWriteTime -gt (Get-Item -LiteralPath (Join-Path $Here 'src\focusfix\focusfix.c')).LastWriteTime) -and
+        ((Get-Item -LiteralPath $FocushookDll).LastWriteTime -gt (Get-Item -LiteralPath (Join-Path $Here 'src\focusfix\focushook.c')).LastWriteTime)
     }
     Check 'Save folders in game\User' 'setup.cmd' { Has-Files (Join-Path $Game 'User') @('Rosters', 'Save\Levels', 'Save\Photos', 'Save\Stickers') }
     Check 'Python for the texture check in python\' 'setup.cmd' { Test-Path -LiteralPath $Python }
@@ -292,6 +292,10 @@ Enable-Joystick
 
 $screen = Get-ScreenSize
 if (-not $screen) { $screen = '1024x768'; Say "Could not read the screen size; assuming room for a $screen picture." }
+if ($Windowed) {
+    $wh = $screen -split 'x'
+    $screen = "$([int]$wh[0] - 16)x$([int]$wh[1] - 80)"
+}
 $fit = ($Sizes | Where-Object { Test-Fits $_ $screen } | Select-Object -First 1)
 if (-not $fit) { $fit = '640x480' }
 if (-not $Res) { $Res = $fit }

@@ -54,7 +54,7 @@ Setup:
 - It builds `winmm.dll` with the same compiler flags as `tools/build-winmm.sh`, and the helper with those of `tools/build-focusfix.sh`.
 
 The launcher:
-- Sets the game's resolution to the largest listed size that fits the screen, as the Mac launcher does.
+- Sets the game's resolution to the largest listed size that fits the screen, as the Mac launcher does. With `-Windowed` it leaves 80 pixels of height and 16 of width for the title bar, the frame and the taskbar.
 - Raises the picture settings (32-bit colour, draw distance 450, light shafts, portals). `-Original` puts them back. Both use the same `game\dogfighter-picture-before.txt` as the Mac.
 - Links the larger textures when `hd-textures\` holds a complete set. The check is `tools\upscale-textures.py --check`.
 - Turns on the game's Joystick option when `joylist.exe` sees a controller.
@@ -68,6 +68,11 @@ The launcher:
 
 The hook turns the picture work on only when `DOGFIGHTER_WINDOW` is set. The Windows launcher never sets it.
 The game-level changes run regardless. This is read from the code, not tested.
+
+One Mac behaviour also runs on Windows: the hook takes over the game window's messages and swallows every "focus lost" message (`WM_ACTIVATEAPP`, `WM_ACTIVATE`, `WM_KILLFOCUS`).
+On the Mac that keeps the game running when another app is in front.
+On Windows in full screen, DirectDraw or dgVoodoo2 may then never learn about Alt+Tab. The picture could stay on top or go black.
+This is the first thing to watch in a test. If it breaks, the hook needs a switch for it.
 
 Two small changes to the helper make it usable from a normal Windows account.
 Under Wine it loads `C:\dogfighter-focushook.dll` and logs to `C:\`. A normal Windows user cannot write there.
@@ -169,9 +174,9 @@ Do these in order and keep each run's log from `logs\`.
 2. `dogfighter.cmd -Doctor`.
 3. `dogfighter.cmd -Wrapper none`. Does the game start? Does it ask for the disc? If so, add `-MountCd`.
 4. `dogfighter.cmd`, with dgVoodoo2. Then `dogfighter.cmd -Windowed`.
-5. In the log: does `focushook` say "texture size limit raised" and "the launcher showed the first 2 intro videos"?
+5. In the log: does `focushook` say "the launcher showed the first 2 intro videos"? Press Alt+Tab in full screen and in a window: can you leave the game and come back?
 6. Music in the menus and in flight. `game\winmm.log` is copied next to the run log.
-7. With `hd-textures\` copied from a Mac: are textures and menu letters sharp and the right size?
+7. With `hd-textures\` copied from a Mac: does the log say "texture size limit raised"? Are textures and menu letters sharp and the right size?
 8. A controller: does `-Doctor` list it, and does the throttle work?
 9. Windows Defender stays on. Does it flag `focusfix.exe` or `focushook.dll`? The helper loads its DLL into the game the way some malware does.
 
