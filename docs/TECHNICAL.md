@@ -1182,15 +1182,15 @@ It sets no tracking cookies, so it needs no consent.
 
 - The site key (`TURNSTILE_SITEKEY`) lives in one place: the `data-sitekey` of `<form id="contact-form">` in `site/index.html`.
 - The secret is the Worker secret `TURNSTILE_SECRET`. It is never in the repo.
-- Until the secret exists, local runs and preview addresses use Cloudflare's test secret. On dogfighter.net the form then answers "not configured" and offers the Google Form instead.
-- The test site key `1x00000000000000000000AA` always passes. It shows a "For testing only" note under the widget.
+- Local runs and preview addresses always use Cloudflare's test keys. On dogfighter.net, without the secret, the form answers "not configured" and offers the Google Form instead.
+- The test site key `1x00000000000000000000AA` always passes. It shows a "For testing only" note under the widget on previews.
 
 #### Setting up Turnstile
 
 1. In Cloudflare, open Turnstile and click Add widget.
 2. Name it dogfighter.net and add the hostnames `dogfighter.net`, `www.dogfighter.net` and `nathanalder.workers.dev`.
 3. Choose the Managed mode and create the widget.
-4. Copy the site key into `data-sitekey` in `site/index.html`, in place of the test key.
+4. Copy the site key into `data-sitekey` in `site/index.html`.
 5. Copy the secret key. Open Workers & Pages › dogfighter › Settings › Variables and secrets.
 6. Add a variable of type Secret named `TURNSTILE_SECRET` with that key, and deploy.
 
@@ -1202,7 +1202,7 @@ The page then says "Preview: message not sent".
 So the test keys on previews cannot be used to fill the real form.
 
 Run `npx wrangler dev` and open http://localhost:8787/#contact to try it.
-On localhost the page always uses the test site key, and `wrangler dev` has no `TURNSTILE_SECRET`, so the test secret matches it.
+Previews and localhost always use the test site key and the test secret, so they never need the real ones.
 
 ## Legal
 

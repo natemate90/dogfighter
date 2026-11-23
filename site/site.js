@@ -363,7 +363,7 @@
 
     window.onDogfighterTurnstile = () => {
       widgetId = window.turnstile.render("#contact-turnstile", {
-        sitekey: ["localhost", "127.0.0.1"].includes(location.hostname) ? "1x00000000000000000000AA" : contactForm.dataset.sitekey,
+        sitekey: ["dogfighter.net", "www.dogfighter.net"].includes(location.hostname) ? contactForm.dataset.sitekey : "1x00000000000000000000AA",
         action: "contact",
         theme: "auto",
         "response-field": false,
