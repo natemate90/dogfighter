@@ -40,16 +40,30 @@
     else caption.textContent = `${words[fitted][0].toUpperCase() + words[fitted].slice(1)} of eight parts fitted.`;
   }
 
-  let ticking = false;
+  const EASE_TIME = 0.4, MAX_RATE = 0.6;
+  let target = 0, shown = 0, easing = false, then = 0;
+  function readTarget() {
+    const rect = build.getBoundingClientRect();
+    const run = rect.height - window.innerHeight;
+    target = run > 0 ? clamp(-rect.top / run) : 0;
+  }
+  function follow(now) {
+    if (reduce.matches) return (easing = false);
+    const dt = Math.min(0.1, (now - then) / 1000);
+    then = now;
+    const step = (target - shown) * (1 - Math.exp(-dt / EASE_TIME));
+    shown += Math.max(-MAX_RATE * dt, Math.min(MAX_RATE * dt, step));
+    if (Math.abs(target - shown) < 0.0005) shown = target;
+    draw(shown);
+    if (shown === target) easing = false;
+    else requestAnimationFrame(follow);
+  }
   function onScroll() {
-    if (ticking) return;
-    ticking = true;
-    requestAnimationFrame(() => {
-      ticking = false;
-      const rect = build.getBoundingClientRect();
-      const run = rect.height - window.innerHeight;
-      draw(run > 0 ? clamp(-rect.top / run) : 0);
-    });
+    readTarget();
+    if (easing) return;
+    easing = true;
+    then = performance.now();
+    requestAnimationFrame(follow);
   }
 
   const animated = [...document.querySelectorAll("svg")].filter((svg) => svg.querySelector("animate, animateMotion, animateTransform"));
@@ -93,7 +107,9 @@
       window.addEventListener("resize", onScroll);
       startAnimations();
       last = -1;
-      onScroll();
+      readTarget();
+      shown = target;
+      draw(shown);
       if (observer) {
         document.documentElement.classList.add("js");
         reveals.forEach((el) => el.classList.contains("in") || observer.observe(el));
