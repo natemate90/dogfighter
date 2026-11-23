@@ -6,7 +6,7 @@
 <title>Dogfighter for Apple Silicon</title>
 <meta name="description" content="Play the 2000 Windows game Airfix Dogfighter on a Mac with Apple Silicon, from your own original disc, with a sharper picture. An unofficial fan project.">
 <meta name="color-scheme" content="light dark">
-<meta name="theme-color" content="#e6e9df" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#ebe4cf" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#121b2a" media="(prefers-color-scheme: dark)">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -31,6 +31,7 @@
     <h1 id="title"><span class="t1">Dogfighter</span><span class="t2">for Apple Silicon Macs</span></h1>
     <p class="lede">Airfix Dogfighter is a Windows game from 2000. Model planes fight through a house. This project runs it in a sharp Retina window on a Mac with M1 or later. It was tested on an M4 Max. You bring your own original disc.</p>
     <p class="cta"><a class="button" href="#assembly">How to install</a> <a class="button ghost" href="#sharper">What is new</a></p>
+    <p class="stamp" aria-hidden="true">Unofficial fan project</p>
   </div>
   <div class="scene-box">
     <svg class="scene" id="scene" viewBox="0 0 640 460" role="img" aria-labelledby="scene-title">
@@ -240,8 +241,14 @@
 </section>
 
 <section class="sheet wrap" id="watch" aria-labelledby="watch-h">
+  <div class="sec-head">
   <h2 id="watch-h">See it fly <span class="note">click to load</span></h2>
   <p class="intro">Gameplay of the original game, recorded on a Windows PC.</p>
+  <figure class="photo" style="--tilt: 2deg">
+    <img src="img/formation.webp" width="900" height="919" alt="Four fighters with striped tails bank over a layer of cloud." loading="lazy" decoding="async">
+    <figcaption>Fighters in formation over Italy, 1944.</figcaption>
+  </figure>
+  </div>
   <div class="video reveal">
     <a class="yt" href="https://www.youtube.com/watch?v=vuBLQVUCmEY" data-id="vuBLQVUCmEY" data-title="Airfix Dogfighter for PC, gameplay video" aria-label="Play the video Airfix Dogfighter for PC, gameplay video. This loads YouTube.">
       <img class="yt-thumb" src="https://i.ytimg.com/vi/vuBLQVUCmEY/hqdefault.jpg" width="480" height="360" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer">
@@ -261,7 +268,14 @@
 </section>
 
 <section class="sheet wrap" id="before" aria-labelledby="before-h">
+  <div class="sec-head">
   <h2 id="before-h">Before you start</h2>
+  <p class="intro">Four things to have ready.</p>
+  <figure class="photo" style="--tilt: -2deg">
+    <img src="img/scramble.webp" width="900" height="677" alt="RAF pilots in life jackets jump from the back of a truck and run towards a fighter." loading="lazy" decoding="async">
+    <figcaption>Pilots practise a scramble, Fowlmere, September 1940.</figcaption>
+  </figure>
+  </div>
   <ul class="needs">
     <li class="reveal">
       <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="16" y="16" width="32" height="32" rx="5"/><path d="M24 10v6M32 10v6M40 10v6M24 48v6M32 48v6M40 48v6M10 24h6M10 32h6M10 40h6M48 24h6M48 32h6M48 40h6"/><text x="32" y="38">M1</text></svg>
@@ -287,8 +301,14 @@
 </section>
 
 <section class="sheet wrap" id="assembly" aria-labelledby="assembly-h">
+  <div class="sec-head">
   <h2 id="assembly-h">Assembly <span class="note">3 steps</span></h2>
   <p class="intro">Three steps in Terminal. The <a href="https://github.com/natemate90/dogfighter#readme">README</a> has the details. It also says what to do when a step fails.</p>
+  <figure class="photo tall" style="--tilt: 1.5deg">
+    <img src="img/briefing.webp" width="900" height="1124" alt="Fighter pilots in flight jackets listen closely at a briefing." loading="lazy" decoding="async">
+    <figcaption>Pilots at a briefing, Ramitelli, Italy, March 1945.</figcaption>
+  </figure>
+  </div>
   <ol class="steps">
     <li class="step reveal">
       <span class="stepnum" aria-hidden="true">1</span>
@@ -602,8 +622,14 @@ cd dogfighter
 </section>
 
 <section class="sheet wrap" id="finish" aria-labelledby="finish-h">
+  <div class="sec-head">
   <h2 id="finish-h">Choose a finish</h2>
   <p class="intro">Add one of these after <code>./dogfighter</code>. The <a href="https://github.com/natemate90/dogfighter#all-options">README</a> lists them all.</p>
+  <figure class="photo" style="--tilt: -1.5deg">
+    <img src="img/airfield.webp" width="900" height="672" alt="Ground crew fill ammunition belts at a table on an airfield, with a fighter and a tent behind them." loading="lazy" decoding="async">
+    <figcaption>Armourers fill ammunition belts, Lille-Seclin, France, 1940.</figcaption>
+  </figure>
+  </div>
   <ul class="tins">
     <li class="reveal" style="--tin: var(--green)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">1</text></svg><code>./dogfighter</code><p>The best picture, by default.</p></li>
     <li class="reveal" style="--tin: var(--earth)"><svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tin"/><text x="50" y="77">2</text></svg><code>--original</code><p>The game as it looked in 2000.</p></li>
@@ -627,6 +653,15 @@ cd dogfighter
       <a href="https://github.com/natemate90/dogfighter/issues">Report a problem</a>
     </nav>
     <p class="disclaimer">This is an unofficial fan project. It is not affiliated with or endorsed by Airfix, Hornby Hobbies, Paradox, Unique Development Studios or the other original makers of the game. It contains no game files. You need your own original disc. All trademarks belong to their owners. All drawings on this site are made for it and show no game art.</p>
+    <details class="credits">
+      <summary>Photo credits</summary>
+      <ul>
+        <li>Fighters in formation over Italy, 1944. United States Army Air Forces. <a href="https://commons.wikimedia.org/wiki/File:15AF-P-51D-Mustangs-groups-31FG309FS-flying-in-formation-over-Italy-1944.jpg">Wikimedia Commons</a>. Public domain (US government work).</li>
+        <li>Pilots of No. 19 Squadron RAF stage a mock scramble at Fowlmere, September 1940. F/O S. Devon, Royal Air Force official photographer. <a href="https://commons.wikimedia.org/wiki/File:Pilots_of_No._19_Squadron_RAF_stage_a_mock_%27scramble%27_from_the_back_of_a_truck_at_Fowlmere_near_Duxford,_September_1940._CH1398.jpg">Wikimedia Commons</a>. Public domain (UK Crown Copyright expired).</li>
+        <li>Members of the 332nd Fighter Group at a briefing in Ramitelli, Italy, March 1945. Toni Frissell, Library of Congress. <a href="https://commons.wikimedia.org/wiki/File:332ndFighterBriefing1945-high-res.jpg">Wikimedia Commons</a>. Public domain (given to the public by the photographer).</li>
+        <li>Lille-Seclin airfield, Royal Air Force, France, 1939–1940. H. Hensser, Royal Air Force official photographer. <a href="https://commons.wikimedia.org/wiki/File:Lille-Seclin_airfield_-_Royal_Air_Force_-_France,_1939-1940_C1519.jpg">Wikimedia Commons</a>. Public domain (UK Crown Copyright expired).</li>
+      </ul>
+    </details>
     <p class="made">Made by <a href="https://github.com/natemate90">natemate90</a>. This site uses no cookies and no tracking. The video's preview picture comes from YouTube's image server. The video itself loads only when you click it.</p>
   </div>
 </footer>
