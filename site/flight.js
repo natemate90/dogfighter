@@ -199,14 +199,14 @@
       let want = Math.atan2(-(aim.y + 6 * Math.sin(s.t * 1.3)), aim.x * facing(h));
       if (Math.abs(want) > 2) {
         if (!h.turnDir) {
-          const room = (2.4 * h.v) / PITCH_UP + 30;
+          const room = (2.4 * Math.max(h.v, 3.5 * UNIT)) / PITCH_UP + 30;
           h.turnDir = h.y - room > TOP ? 1 : h.y + room < FLOOR ? -1 : 0;
         }
         want = h.turnDir * (Math.PI / 2 + 0.4);
       } else h.turnDir = 0;
       pitchTo(h, want, 4);
     }
-    if (!h.turnDir) keepInside(h);
+    keepInside(h);
     if (h.burst > 0) {
       h.burst -= dt;
       h.shotAt -= dt;
