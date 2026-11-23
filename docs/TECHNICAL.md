@@ -1203,6 +1203,52 @@ Collected from the sections above.
 - Joystick throttle: no joystick was connected. A lever that is not the third axis is read wrongly through SDL.
 - The macOS side of controllers: that the Home, PS or Xbox button opens Launchpad or the Games overlay, and that System Settings > Game Controllers lists a controller and turns that off. Both are from memory.
 
+## The website
+
+dogfighter.net is a Cloudflare Worker with static assets.
+`site/` holds the pages, and `worker/index.js` answers only `/api/*`.
+Cloudflare deploys `main`, and every branch gets a preview address.
+
+### The contact form
+
+The form in the Contact section posts JSON to `POST /api/contact`.
+The Worker accepts it only from the site's own origin.
+It checks the topic, the message (at most 5000 characters) and the email, if one is given.
+A hidden `website` field catches bots: a filled one gets a quiet success and is dropped.
+The Worker then checks the Cloudflare Turnstile token with `siteverify`, together with the visitor's IP.
+Only then does it pass the topic, message and email on to the Google Form.
+An Apps Script on that form emails each entry to the maintainer.
+The Worker never logs the message or the email.
+
+Turnstile's script loads from challenges.cloudflare.com only when the Contact section comes near.
+It sets no tracking cookies, so it needs no consent.
+
+#### Keys
+
+- The site key (`TURNSTILE_SITEKEY`) lives in one place: the `data-sitekey` of `<form id="contact-form">` in `site/index.html`.
+- The secret is the Worker secret `TURNSTILE_SECRET`. It is never in the repo.
+- Local runs and preview addresses always use Cloudflare's test keys. On dogfighter.net, without the secret, the form answers "not configured" and offers the Google Form instead.
+- The test site key `1x00000000000000000000AA` always passes. It shows a "For testing only" note under the widget on previews.
+
+#### Setting up Turnstile
+
+1. In Cloudflare, open Turnstile and click Add widget.
+2. Name it dogfighter.net and add the hostnames `dogfighter.net`, `www.dogfighter.net` and `nathanalder.workers.dev`.
+3. Choose the Managed mode and create the widget.
+4. Copy the site key into `data-sitekey` in `site/index.html`.
+5. Copy the secret key. Open Workers & Pages › dogfighter › Settings › Variables and secrets.
+6. Add a variable of type Secret named `TURNSTILE_SECRET` with that key, and deploy.
+
+#### Previews and local runs
+
+Only dogfighter.net and www.dogfighter.net pass messages on to the Google Form.
+On any other host the Worker checks the form and the token, then answers success without sending anything.
+The page then says "Preview: message not sent".
+So the test keys on previews cannot be used to fill the real form.
+
+Run `npx wrangler dev` and open http://localhost:8787/#contact to try it.
+Previews and localhost always use the test site key and the test secret, so they never need the real ones.
+
 ## Legal
 
 For personal use with a disc you own.

@@ -29,4 +29,4 @@ Install, in Terminal:
 
 - [Full text for language models](https://dogfighter.net/llms-full.txt)
 - [Source code](https://github.com/natemate90/dogfighter)
-- [Contact form](https://docs.google.com/forms/d/e/1FAIpQLSepS1A8sET4w9kPUKrlcmSQZ52lQl7x_If7ggnzYrP47VJSJQ/viewform): questions and messages to the maintainer
+- [Contact form](https://dogfighter.net/#contact): questions and messages to the maintainer
