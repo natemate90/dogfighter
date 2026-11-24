@@ -69,7 +69,7 @@
       note.remove();
       return;
     }
-    badge.querySelectorAll("path").forEach((path, j) => path.setAttribute("class", PART_STEP[j] < i ? "fit" : PART_STEP[j] === i ? "going" : "ghost"));
+    badge.querySelectorAll("path").forEach((path, j) => path.setAttribute("class", PART_STEP[j] < i || i === cards.length - 1 ? "fit" : PART_STEP[j] === i ? "going" : "ghost"));
     badge.lastChild.textContent = cards[i].querySelector(".inum").textContent;
     note.textContent = NOTES[i];
     cards[i].append(badge, note);
@@ -108,11 +108,15 @@
   }
 
   /** Each step's group flies for FLIGHT ms, then waits HOLD ms so its paint shows before the next group leaves the frame. */
-  const FLIGHT = 450, HOLD = 250;
+  const FLIGHT = 320, HOLD = 0;
   let level = 0, wanted = 0, playing = false, active = -1, generation = 0;
   function play() {
     if (level === wanted) return (playing = false);
     playing = true;
+    if (Math.abs(wanted - level) > 1) {
+      level = wanted - Math.sign(wanted - level);
+      drawBig(level);
+    }
     const dir = Math.sign(wanted - level), from = level, to = level + dir;
     const t0 = performance.now(), gen = generation;
     const tick = (now) => {
