@@ -881,8 +881,8 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .disc li.no::before { content: "\2717"; color: var(--red-text); }
 .disc p { color: var(--ink-soft); font-size: 0.95rem; }
 .assembly { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 56px; align-items: start; }
-.kit-col { order: 1; position: sticky; top: calc(var(--stick, 72px) + 7vh); }
-.kit-col .sprue { max-height: calc(100svh - var(--stick, 72px) - 7vh - 72px); }
+.kit-col { order: 1; position: sticky; top: var(--stick, 72px); box-sizing: border-box; height: calc(100svh - var(--stick, 72px)); display: flex; flex-direction: column; justify-content: flex-end; padding: 3vh 0 8vh; }
+.kit-col .sprue { max-height: calc(100svh - var(--stick, 72px) - 11vh - 3.5em); }
 .istep { scroll-margin-top: 12px; }
 .install-steps {
   --rail: 64px;
