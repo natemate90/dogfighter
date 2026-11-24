@@ -479,7 +479,9 @@ button.button { font: inherit; font-weight: 700; cursor: pointer; }
   font-weight: 600;
   text-align: center;
   color: var(--ink-soft);
+  transition: opacity 0.5s;
 }
+.stage-caption.away { opacity: 0; }
 .static .build { height: auto; }
 .static .stage { position: static; height: auto; padding-block: 40px; }
 
@@ -490,6 +492,7 @@ button.button { font: inherit; font-weight: 700; cursor: pointer; }
 .sprue .tab text { font-family: var(--stencil); font-weight: 700; font-size: 26px; text-anchor: middle; fill: var(--ink); }
 .sprue .tab.num text { font-size: 17px; }
 .sprue .frame { transition: opacity 0.4s; }
+.sprue .shadow { fill: var(--ink-fixed); opacity: 0; pointer-events: none; }
 
 .sprue .plastic { fill: var(--plastic); stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
 .sprue .plastic.clear { fill: color-mix(in srgb, var(--plastic) 55%, var(--paper)); }
@@ -898,6 +901,9 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
   grid-template-columns: minmax(0, 1fr);
   gap: var(--gap);
 }
+@media (min-width: 901px) and (prefers-reduced-motion: no-preference) {
+  .js .install-steps { padding-bottom: 140vh; }
+}
 .istep { position: relative; padding: 20px 22px 22px; border: 2px solid var(--ink); border-radius: 8px; background: color-mix(in srgb, var(--paper-2) 60%, transparent); transition: border-color 0.3s, box-shadow 0.3s; }
 .istep.active { border-color: var(--red); box-shadow: 6px 6px 0 color-mix(in srgb, var(--red) 35%, transparent); }
 .istep::before, .istep::after { content: ""; position: absolute; transition: border-color 0.3s; }
@@ -954,8 +960,9 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
     box-shadow: 0 0 0 4px var(--paper);
   }
   .plane-badge svg { position: absolute; inset: 3px; width: 50px; height: 50px; }
-  .plane-badge path { stroke-width: 1.2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-  .plane-badge .fit { fill: var(--plastic); stroke: var(--ink); }
+  .badge-flyer { position: fixed; z-index: 35; pointer-events: none; }
+  .plane-badge path, .badge-flyer path { stroke-width: 1.2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+  .plane-badge .fit, .badge-flyer .fit { fill: var(--plastic); stroke: var(--ink); }
   .plane-badge .going { fill: color-mix(in srgb, var(--plastic) 55%, transparent); stroke: var(--red); stroke-dasharray: 3 2; }
   .plane-badge .ghost { fill: none; stroke: color-mix(in srgb, var(--ink) 50%, transparent); stroke-width: 1; stroke-dasharray: 3 2; }
   .plane-num { position: absolute; right: -9px; bottom: -9px; display: grid; place-items: center; width: 24px; height: 24px; border: 2px solid var(--ink); border-radius: 50%; background: var(--ink); color: var(--paper); font: 700 0.8rem/1 var(--stencil); }
