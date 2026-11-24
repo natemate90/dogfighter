@@ -114,7 +114,10 @@
   const FLIGHT = 320, HOLD = 0;
   let level = 0, wanted = 0, playing = false, active = -1, generation = 0;
   function play() {
-    if (level === wanted) return (playing = false);
+    if (level === wanted) {
+      playing = false;
+      return maybeFly();
+    }
     playing = true;
     if (Math.abs(wanted - level) > 1) {
       level = wanted - Math.sign(wanted - level);
@@ -160,13 +163,104 @@
     return Math.max(0, Math.min(steps, Math.floor(((y - start) / (end - start)) * steps)));
   }
 
+  const plane = sprue && sprue.querySelector(".parts");
+  const prop = sprue && sprue.querySelectorAll(".part")[6];
+  const shadow = plane && document.createElementNS("http://www.w3.org/2000/svg", "g");
+  if (shadow) {
+    shadow.setAttribute("class", "shadow");
+    sprue.querySelectorAll(".part .plastic").forEach((path) => shadow.appendChild(path.cloneNode()).removeAttribute("class"));
+    plane.before(shadow);
+  }
+  const smooth = (a, b, v) => {
+    const t = clamp((v - a) / (b - a));
+    return t * t * (3 - 2 * t);
+  };
+
+  const PAUSE = 450, ZOOM = 900, CLIMB = 2100, FAR = 0.6, MID_X = 540, MID_Y = 320;
+  let flown = false, trip = 0, waiting = 0, goingDown = false, scrolledTo = window.scrollY;
+  function takeOff() {
+    flown = true;
+    const id = ++trip;
+    const box = sprue.getBoundingClientRect();
+    const unit = Math.min(box.width / 640, box.height / 1000);
+    const oy = box.height / 2 + (500 - MID_X) * unit;
+    const reach = (box.top + oy + 60) / (unit * FAR) + 360;
+    const blade = prop.getAttribute("transform");
+    sprue.style.transformOrigin = `${box.width / 2}px ${oy}px`;
+    sprue.querySelector(".frame").style.opacity = 0;
+    caption.parentElement.classList.add("away");
+    let t0 = 0, last = 0, right = 0, down = 0, travelled = 0, turn = 0;
+    const tick = (now) => {
+      if (id !== trip) return;
+      if (!t0) t0 = last = now;
+      const t = now - t0;
+      const dt = (now - last) / 1000;
+      last = now;
+      sprue.style.transform = `scale(${(1 - (1 - FAR) * ease(clamp(t / ZOOM))).toFixed(4)})`;
+      const blur = clamp((t - 150) / 1000) ** 2;
+      turn += (5 + 34 * blur) * dt;
+      prop.setAttribute("transform", `${blade} translate(721 320) scale(1 ${(Math.cos(turn) * (1 - blur) + blur).toFixed(3)}) translate(-721 -320)`);
+      prop.style.opacity = (1 - 0.55 * blur).toFixed(3);
+      const u = clamp((t - ZOOM) / CLIMB);
+      const s = reach * u ** 2.4;
+      const heading = -15 * smooth(0.1, 0.8, u);
+      const rad = (heading * Math.PI) / 180;
+      right += Math.sin(rad) * (s - travelled);
+      down -= Math.cos(rad) * (s - travelled);
+      travelled = s;
+      const wings = 1 - 0.16 * Math.sin(Math.PI * smooth(0.05, 0.85, u));
+      const onScreen = (x, y, g) => `translate(${(-y).toFixed(2)} ${x.toFixed(2)}) rotate(${heading.toFixed(2)} ${MID_X} ${MID_Y}) translate(${MID_X} ${MID_Y}) scale(${g.toFixed(3)} ${(g * wings).toFixed(3)}) translate(${-MID_X} ${-MID_Y})`;
+      plane.setAttribute("transform", onScreen(right, down, 1 + 0.14 * smooth(0, 1, u)));
+      const lift = smooth(0, 0.55, u);
+      shadow.setAttribute("transform", onScreen(right + 40 * lift, down + 60 * lift, 1));
+      shadow.style.opacity = u > 0 ? (0.2 * (1 - lift)).toFixed(3) : 0;
+      if (u < 1) return requestAnimationFrame(tick);
+      plane.style.visibility = "hidden";
+    };
+    requestAnimationFrame(tick);
+  }
+  function land() {
+    clearTimeout(waiting);
+    waiting = 0;
+    if (!flown) return;
+    flown = false;
+    trip++;
+    sprue.style.transform = "";
+    plane.removeAttribute("transform");
+    plane.style.visibility = "";
+    shadow.style.opacity = "";
+    prop.style.opacity = "";
+    caption.parentElement.classList.remove("away");
+    lastState = -1;
+    drawBig(level);
+    if (!reduce.matches && plane.animate) plane.animate([{ opacity: 0, transform: "translate(70px, 0) scale(1.1)", transformOrigin: `${MID_X}px ${MID_Y}px` }, { opacity: 1, transform: "none", transformOrigin: `${MID_X}px ${MID_Y}px` }], { duration: 550, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+  }
+  function ready() {
+    if (flown || !goingDown || reduce.matches || narrow.matches || playing || active !== cards.length - 1 || level !== cards.length) return false;
+    const box = sprue.getBoundingClientRect();
+    return box.top + box.height * 0.46 > 0;
+  }
+  function maybeFly() {
+    if (waiting || !ready()) return;
+    waiting = setTimeout(() => {
+      waiting = 0;
+      if (ready()) takeOff();
+    }, PAUSE);
+  }
+
   function onScroll() {
     if (!drawMain) return;
+    const y = window.scrollY;
+    if (y !== scrolledTo) goingDown = y > scrolledTo;
+    scrolledTo = y;
     const i = activeCard();
-    if (i === active) return;
-    active = i;
-    mark(i);
-    setLevel(i + 1);
+    if (i !== active) {
+      active = i;
+      if (i !== cards.length - 1) land();
+      mark(i);
+      setLevel(i + 1);
+    }
+    maybeFly();
   }
 
   const animated = [...document.querySelectorAll("svg")].filter((svg) => svg.querySelector("animate, animateMotion, animateTransform"));
@@ -190,6 +284,7 @@
     : null;
 
   function setMode() {
+    land();
     if (reduce.matches) {
       document.documentElement.classList.add("static");
       bar.classList.remove("tucked");

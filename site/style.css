@@ -479,7 +479,9 @@ button.button { font: inherit; font-weight: 700; cursor: pointer; }
   font-weight: 600;
   text-align: center;
   color: var(--ink-soft);
+  transition: opacity 0.5s;
 }
+.stage-caption.away { opacity: 0; }
 .static .build { height: auto; }
 .static .stage { position: static; height: auto; padding-block: 40px; }
 
@@ -490,6 +492,7 @@ button.button { font: inherit; font-weight: 700; cursor: pointer; }
 .sprue .tab text { font-family: var(--stencil); font-weight: 700; font-size: 26px; text-anchor: middle; fill: var(--ink); }
 .sprue .tab.num text { font-size: 17px; }
 .sprue .frame { transition: opacity 0.4s; }
+.sprue .shadow { fill: var(--ink-fixed); opacity: 0; pointer-events: none; }
 
 .sprue .plastic { fill: var(--plastic); stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; }
 .sprue .plastic.clear { fill: color-mix(in srgb, var(--plastic) 55%, var(--paper)); }
@@ -897,6 +900,9 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--gap);
+}
+@media (min-width: 901px) and (prefers-reduced-motion: no-preference) {
+  .install-steps { padding-bottom: 45vh; }
 }
 .istep { position: relative; padding: 20px 22px 22px; border: 2px solid var(--ink); border-radius: 8px; background: color-mix(in srgb, var(--paper-2) 60%, transparent); transition: border-color 0.3s, box-shadow 0.3s; }
 .istep.active { border-color: var(--red); box-shadow: 6px 6px 0 color-mix(in srgb, var(--red) 35%, transparent); }
