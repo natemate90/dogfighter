@@ -450,7 +450,7 @@
   <div class="with-photo">
   <div class="scene-box scene-wide">
     <svg class="scene" id="scene" viewBox="0 0 640 460" role="img" aria-labelledby="scene-title">
-      <title id="scene-title">Two toy planes, seen from above with their shadows below them, chase each other over a model maker's desk. They fly long straight runs, break off in sudden hard turns and now and then loop. On the desk are a kit box, paint tins, a brush and a half-built grey model.</title>
+      <title id="scene-title">A toy Spitfire chases a toy Messerschmitt Bf 109 over a model maker's desk, both seen from above with their shadows below them. They fly long straight runs, break off in sudden hard turns and now and then loop. On the desk are a kit box, paint tins, a brush and a half-built grey model.</title>
       <defs>
         <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" style="stop-color: var(--sky-a)"/>
@@ -569,7 +569,7 @@
       <path id="hero-loop" class="hero-path" d="M-80 215C90 215 220 218 300 215C352 213 394 180 394 134C394 88 360 52 318 52C274 52 250 90 252 132C254 180 296 210 350 210C460 210 580 198 720 190"/>
 
       <g class="flyer-shadow hunter" transform="translate(308 239) rotate(-1)"><use href="#top-body" transform="scale(0.92)"/></g>
-      <g class="flyer-shadow prey" transform="translate(410 152) rotate(-90) scale(1 0.8)"><use href="#top-body" transform="scale(1.05)"/></g>
+      <g class="flyer-shadow prey" transform="translate(410 152) rotate(-90) scale(1 0.8)"><use href="#top-109" transform="scale(1.05)"/></g>
       <g class="flyer hunter" transform="translate(292 215) rotate(-1)">
         <g transform="scale(0.92)">
           <use href="#top-body" style="--hull: var(--blue); --nose: #e8b93a; --band: #e8b93a; --glass: var(--sky)"/>
@@ -578,7 +578,7 @@
       </g>
       <g class="flyer prey" transform="translate(394 128) rotate(-90) scale(1 0.8)">
         <g transform="scale(1.05)">
-          <use href="#top-body" style="--hull: var(--green); --nose: var(--red); --band: var(--sky); --glass: var(--sky)"/>
+          <use href="#top-109" style="--hull: #6c6b76; --camo: #474f50; --nose: var(--rd-yellow); --spinner: var(--stripe-black); --cross: var(--stripe-black); --cross-edge: var(--rd-white); --glass: var(--sky)"/>
           <g transform="translate(41 0)"><ellipse rx="2.6" ry="16" class="prop-disc"/><path d="M0-16V16" class="prop-blade"><animateTransform begin="indefinite" attributeName="transform" type="scale" values="1 1;1 0.15;1 1" dur="0.12s" repeatCount="indefinite"/></path></g>
         </g>
       </g>
@@ -811,6 +811,20 @@
       <path style="fill: none" d="M-27 0H-40"/>
       <path style="fill: var(--glass)" d="M17 0C17 -2.8 12 -3.8 7 -3.8C3 -3.8 0 -2.8 0 0C0 2.8 3 3.8 7 3.8C12 3.8 17 2.8 17 0Z"/>
       <path style="fill: var(--nose)" d="M34 -5C38.5 -4 40.5 -1.5 40.5 0C40.5 1.5 38.5 4 34 5Z"/>
+    </g>
+    <g id="top-109" style="stroke: var(--line, var(--ink)); stroke-width: 1.4; stroke-linejoin: round">
+      <path style="fill: var(--hull)" d="M-30 0L-31.8 -13.6C-32 -15.3 -33 -16 -34.4 -16L-38.4 -16C-39.8 -16 -40.6 -15.2 -40.4 -13.8L-41.4 0L-40.4 13.8C-40.6 15.2 -39.8 16 -38.4 16L-34.4 16C-33 16 -32 15.3 -31.8 13.6Z"/>
+      <path style="fill: var(--camo); stroke: none" d="M-31.5 -6L-32.2 -12L-36 -15L-40 -8ZM-31.2 3L-40.4 3L-39.8 12L-35 9Z"/>
+      <path style="fill: var(--hull)" d="M11 0L6.2 -40.6C5.8 -43.4 4.2 -44.5 1.6 -44.5L-3.4 -44.5C-5.4 -44.5 -6.6 -43.4 -6.9 -41.4L-13 0L-6.9 41.4C-6.6 43.4 -5.4 44.5 -3.4 44.5L1.6 44.5C4.2 44.5 5.8 43.4 6.2 40.6Z"/>
+      <path style="fill: var(--camo); stroke: none" d="M9.6 -5L7.9 -20L-3 -25L-9.5 -18L-11.5 -5ZM7.1 -26L6 -36L-2 -40.5L-7 -34L-1 -31ZM9.6 5L8.8 12L-2 19L-10 15L-11.5 5ZM7.8 21L6.3 33L1 39L-7.6 31L-1 26Z"/>
+      <path style="fill: var(--cross-edge); stroke: none" d="M-2.7 -35.2H1.7V-32.2H4.7V-27.8H1.7V-24.8H-2.7V-27.8H-5.7V-32.2H-2.7ZM-2.7 24.8H1.7V27.8H4.7V32.2H1.7V35.2H-2.7V32.2H-5.7V27.8H-2.7Z"/>
+      <path style="fill: var(--cross); stroke: none" d="M-1.6 -34.2H0.6V-31.1H3.7V-28.9H0.6V-25.8H-1.6V-28.9H-4.7V-31.1H-1.6ZM-1.6 25.8H0.6V28.9H3.7V31.1H0.6V34.2H-1.6V31.1H-4.7V28.9H-1.6Z"/>
+      <path style="fill: var(--hull)" d="M33 -4.6C25 -6 10 -6.2 0 -5.8C-14 -5.2 -30 -3 -40 -1.4C-41.4 -1 -41.4 1 -40 1.4C-30 3 -14 5.2 0 5.8C10 6.2 25 6 33 4.6Z"/>
+      <path style="fill: var(--camo); stroke: none" d="M23 -4.9L18 4.9L8 5.3L13 -5.3ZM-6 -4.8L-14 4.4L-24 3.1L-16 -4.2Z"/>
+      <path style="fill: var(--nose); stroke: none" d="M25 -5L33 -4L33 4L25 5Z"/>
+      <path style="fill: var(--glass)" d="M14 -2.4L13 -3L2 -3.2L1 -2.4L1 2.4L2 3.2L13 3L14 2.4Z"/>
+      <path style="fill: none; stroke-width: 0.9" d="M9 -3.1V3.1M5 -3.2V3.2"/>
+      <path style="fill: var(--spinner)" d="M33 -4.6C37.5 -3.8 40.5 -1.5 40.5 0C40.5 1.5 37.5 3.8 33 4.6Z"/>
     </g>
     <symbol id="tin" viewBox="0 0 100 100">
       <path d="M12 36 V80 A38 12 0 0 0 88 80 V36" style="fill: var(--metal); stroke: var(--ink); stroke-width: 2.5"/>
