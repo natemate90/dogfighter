@@ -81,6 +81,7 @@
       if (typeof previous === "function") previous();
       render();
     };
+    if (!document.querySelector("script[data-turnstile]")) document.getElementById("contact-form")?.dispatchEvent(new FocusEvent("focusin"));
     let script = document.querySelector("script[data-turnstile]");
     if (!script) {
       script = document.createElement("script");
@@ -93,6 +94,9 @@
       turnstileFailed = true;
       showError("turnstile", BLOCKED);
     });
+    setTimeout(() => {
+      if (!window.turnstile) turnstileFailed = true;
+    }, 10000);
   };
   if ("IntersectionObserver" in window) {
     const watcher = new IntersectionObserver((entries) => {
@@ -423,7 +427,7 @@
   };
 
   document.addEventListener("keydown", (event) => {
-    if (survey.hidden || closed || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (survey.hidden || closed || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return;
     if (!survey.contains(document.activeElement) && document.activeElement !== document.body) return;
     const typing = event.target.closest?.("input, textarea");
     const question = QUESTIONS[index];
