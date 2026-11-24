@@ -488,7 +488,7 @@
     const MESSAGES = {
       topic: "Choose what it is about.",
       message: "Write a message of at most 5000 characters.",
-      email: "This does not look like an email address. Leave it empty if you don't want a reply.",
+      email: "Enter an email address the maintainer can reply to.",
       turnstile: "The spam check has not finished yet. Wait a moment and send again.",
     };
     const BLOCKED = "The spam check could not load. A blocker may stop it. Reload the page, or try again with the blocker paused for this site.";
@@ -584,7 +584,7 @@
       const invalid = [];
       if (!topic) invalid.push("topic");
       if (!message || message.length > 5000) invalid.push("message");
-      if (email && !fields.email.target.checkValidity()) invalid.push("email");
+      if (email.length > 254 || !/^[^\s@"<>]+@[^\s@"<>]+\.[^\s@"<>]+$/.test(email)) invalid.push("email");
       if (!token) {
         invalid.push("turnstile");
         loadTurnstile();
@@ -619,7 +619,7 @@
         contactForm.reset();
         contactForm.hidden = true;
         if (answer.dryRun) showResult(true, "Preview: message not sent. This test copy of the site checks the form but passes nothing on.");
-        else showResult(true, email ? "It is on its way to the maintainer, who will answer at the email you gave." : "It is on its way to the maintainer.");
+        else showResult(true, "It is on its way to the maintainer, who will answer at the email you gave.");
         return;
       }
       if (answer && answer.error === "invalid" && Array.isArray(answer.fields)) {

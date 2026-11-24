@@ -1213,12 +1213,13 @@ Cloudflare deploys `main`, and every branch gets a preview address.
 
 The form in the Contact section posts JSON to `POST /api/contact`.
 The Worker accepts it only from the site's own origin.
-It checks the topic, the message (at most 5000 characters) and the email, if one is given.
+It checks the topic, the message (at most 5000 characters) and the email (required, at most 254 characters).
 A hidden `website` field catches bots: a filled one gets a quiet success and is dropped.
 The Worker then checks the Cloudflare Turnstile token with `siteverify`, together with the visitor's IP.
 Only then does it pass the topic, message and email on to the Google Form.
 An Apps Script on that form emails each entry to the maintainer.
-The Worker never logs the message or the email.
+The Worker never logs or stores the message or the email.
+The email is used only to reply.
 
 Turnstile's script loads from challenges.cloudflare.com only when the Contact section comes near.
 It sets no tracking cookies, so it needs no consent.
