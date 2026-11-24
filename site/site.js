@@ -192,7 +192,8 @@
 
   function course(air, start, len, W, H) {
     const k = (H * 0.06) / 45;
-    const roof = bar.getBoundingClientRect().bottom + len * 0.7 + air.rand(10, H * 0.05);
+    const top = bar.getBoundingClientRect().bottom;
+    const roof = top + len * 0.7 + air.rand(10, H * 0.05);
     const words = document.createRange();
     words.selectNodeContents(story);
     const head = words.getBoundingClientRect();
@@ -213,8 +214,9 @@
       } else if (phase === "climb") {
         air.steer(p, -Math.PI / 2, 2);
         p.turn += wander();
+        p.throttle = p.v > air.STALL * 1.7 ? air.CRUISE : BOOST;
         const rate = Math.min(cmd, (air.G * Math.tan(air.bankLimit(p.v))) / p.v);
-        if ((p.v > air.STALL * 1.4 && y - roof <= (p.v / rate) * k * 1.6) || y <= roof) {
+        if ((p.v > air.STALL * 1.4 && y - roof <= (p.v / rate) * k * 2) || y <= roof) {
           phase = "turn";
           turnAt = frames.length;
         }
@@ -244,18 +246,23 @@
       frames.push({ x: p.x * k, y: p.y * k, psi: p.psi, phi: p.phi, th: p.th, h: p.h, v: p.v });
     }
     const ms = (i) => (i * air.DT * 1000) / PACE;
-    return { frames, k, turnAt: ms(turnAt), meetAt: ms(meetAt || frames.length) };
+    const clear = meetAt > 0 && frames.every((f) => f.y > top + len * 0.35);
+    return clear && { frames, k, turnAt: ms(turnAt), meetAt: ms(meetAt) };
   }
 
   function takeOff() {
     const air = window.spitfire;
-    flown = inFlight = retired = true;
-    steered = false;
-    const id = ++trip;
     const m = plane.getScreenCTM();
     const start = new DOMPoint(MID_X, MID_Y).matrixTransform(m);
     const len = LENGTH * Math.hypot(m.a, m.b) * FAR;
-    const { frames, k, turnAt, meetAt } = course(air, start, len, window.innerWidth, window.innerHeight);
+    let plan = false;
+    for (let tries = 0; tries < 6 && !plan; tries++) plan = course(air, start, len, window.innerWidth, window.innerHeight);
+    retired = true;
+    if (!plan) return;
+    const { frames, k, turnAt, meetAt } = plan;
+    flown = inFlight = true;
+    steered = false;
+    const id = ++trip;
     const glideFrom = Math.max(0, Math.min(turnAt, meetAt - 700));
 
     layer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
