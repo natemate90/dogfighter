@@ -1147,7 +1147,8 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 }
 .contact-form textarea, .contact-form input[type="email"] { width: 100%; padding: 12px 14px; border: 2px solid var(--ink); border-radius: 6px; background: var(--code-bg); color: var(--ink); font: inherit; font-size: 1rem; }
 .contact-form textarea { min-height: 12em; resize: vertical; }
-.contact-form [aria-invalid="true"] { border-color: var(--red); }
+.contact-form [aria-invalid="true"], .contact-form input[aria-invalid="true"] { border-color: var(--red); }
+.field-hint { margin: 0 0 6px; color: var(--ink-soft); font-size: 0.95rem; }
 .field-error { margin: 2px 0 0; color: var(--red-text); font-weight: 700; font-size: 0.95rem; }
 .trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 .turnstile { display: flex; justify-content: center; min-height: 65px; margin-top: 18px; }

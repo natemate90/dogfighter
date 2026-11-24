@@ -40,7 +40,7 @@ async function contact(request, env, url) {
   const invalid = [];
   if (!TOPICS.includes(topic)) invalid.push("topic");
   if (!message || message.length > MAX_MESSAGE) invalid.push("message");
-  if (email && (email.length > MAX_EMAIL || !EMAIL.test(email))) invalid.push("email");
+  if (!email || email.length > MAX_EMAIL || !EMAIL.test(email)) invalid.push("email");
   if (!token || token.length > 2048) invalid.push("turnstile");
   if (invalid.length) return reply(422, { ok: false, error: "invalid", fields: invalid });
 
