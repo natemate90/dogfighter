@@ -20,6 +20,7 @@
       const [sx, sy, r] = el.dataset.s.split(",").map(Number);
       return { el, cx, cy, dx: sx - cx, dy: sy - cy, r };
     });
+    const transfers = [...svg.querySelectorAll(".transfer")];
     return function draw(n) {
       parts.forEach((part, i) => {
         const t = ease(clamp(n - PART_STEP[i]));
@@ -30,6 +31,7 @@
       });
       frame.style.opacity = (1 - 0.82 * clamp(n / (GROUPS.length - 1.5))).toFixed(3);
       svg.classList.toggle("painted", n >= GROUPS.length);
+      transfers.forEach((el) => el.classList.toggle("on", n >= Number(el.dataset.at)));
       return Math.floor(n);
     };
   }
@@ -69,7 +71,7 @@
       note.remove();
       return;
     }
-    badge.querySelectorAll("path").forEach((path, j) => path.setAttribute("class", PART_STEP[j] < i ? "fit" : PART_STEP[j] === i ? "going" : "ghost"));
+    badge.querySelectorAll("path").forEach((path, j) => path.setAttribute("class", PART_STEP[j] < i || i === cards.length - 1 ? "fit" : PART_STEP[j] === i ? "going" : "ghost"));
     badge.lastChild.textContent = cards[i].querySelector(".inum").textContent;
     note.textContent = NOTES[i];
     cards[i].append(badge, note);
@@ -104,15 +106,20 @@
     lastState = state;
     if (state === GROUPS.length) caption.textContent = "Spinner on. Ready to fly.";
     else if (state === 0) caption.textContent = "Frame A has eight parts.";
+    else if (state === GROUPS.length - 1) caption.textContent = `Step ${state}: ${GROUPS[state - 1]} on. Decals going on.`;
     else caption.textContent = `Step ${state}: ${GROUPS[state - 1]} on.`;
   }
 
   /** Each step's group flies for FLIGHT ms, then waits HOLD ms so its paint shows before the next group leaves the frame. */
-  const FLIGHT = 450, HOLD = 250;
+  const FLIGHT = 320, HOLD = 0;
   let level = 0, wanted = 0, playing = false, active = -1, generation = 0;
   function play() {
     if (level === wanted) return (playing = false);
     playing = true;
+    if (Math.abs(wanted - level) > 1) {
+      level = wanted - Math.sign(wanted - level);
+      drawBig(level);
+    }
     const dir = Math.sign(wanted - level), from = level, to = level + dir;
     const t0 = performance.now(), gen = generation;
     const tick = (now) => {
@@ -131,13 +138,26 @@
     if (!playing) play();
   }
 
+  /**
+   * On desktop the scroll from "first card fully in view" to "last card's top at the activation line" is cut into
+   * equal parts, one per step, so tall and short cards get the same scroll distance and the kit builds evenly.
+   * Phones keep the plain rule (a card is active once its top passes the line), which their snap relies on.
+   */
   function activeCard() {
     const mid = window.innerHeight * (narrow.matches ? 0.85 : 0.67);
     let found = -1;
     cards.forEach((card, i) => {
-      if (card.getBoundingClientRect().top < mid) found = i;
+      const box = card.getBoundingClientRect();
+      if (box.top < mid || (i === 0 && box.top >= 0 && box.bottom <= window.innerHeight)) found = i;
     });
-    return found;
+    if (narrow.matches || cards.length < 2) return found;
+    const y = window.scrollY;
+    const start = cards[0].getBoundingClientRect().bottom + y - window.innerHeight;
+    const end = cards[cards.length - 1].getBoundingClientRect().top + y - mid;
+    if (end - start < cards.length * 40) return found;
+    if (y < start && cards[0].getBoundingClientRect().top >= mid) return -1;
+    const steps = cards.length - 1;
+    return Math.max(0, Math.min(steps, Math.floor(((y - start) / (end - start)) * steps)));
   }
 
   function onScroll() {
