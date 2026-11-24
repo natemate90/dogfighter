@@ -190,36 +190,20 @@
     return box.bottom > 0 && box.top < window.innerHeight;
   }
 
-  function route(points) {
-    const samples = [{ x: points[0].x, y: points[0].y, dx: points[0].dx, dy: points[0].dy, s: 0 }];
-    let s = 0;
+  function route(points, host) {
+    const line = host.appendChild(document.createElementNS("http://www.w3.org/2000/svg", "path"));
+    line.setAttribute("fill", "none");
+    let d = `M${points[0].x} ${points[0].y}`;
     for (let i = 1; i < points.length; i++) {
       const a = points[i - 1], b = points[i];
       const chord = Math.hypot(b.x - a.x, b.y - a.y);
       const turn = Math.acos(Math.max(-1, Math.min(1, a.dx * b.dx + a.dy * b.dy)));
-      const m = chord * (turn > 0.01 ? (2 * Math.tan(turn / 4)) / Math.sin(turn / 2) : 1);
-      for (let k = 1; k <= 48; k++) {
-        const u = k / 48, u2 = u * u, u3 = u2 * u;
-        const h = [2 * u3 - 3 * u2 + 1, (u3 - 2 * u2 + u) * m, -2 * u3 + 3 * u2, (u3 - u2) * m];
-        const d = [6 * u2 - 6 * u, (3 * u2 - 4 * u + 1) * m, -6 * u2 + 6 * u, (3 * u2 - 2 * u) * m];
-        const x = h[0] * a.x + h[1] * a.dx + h[2] * b.x + h[3] * b.dx;
-        const y = h[0] * a.y + h[1] * a.dy + h[2] * b.y + h[3] * b.dy;
-        const prev = samples[samples.length - 1];
-        s += Math.hypot(x - prev.x, y - prev.y);
-        samples.push({ x, y, dx: d[0] * a.x + d[1] * a.dx + d[2] * b.x + d[3] * b.dx, dy: d[0] * a.y + d[1] * a.dy + d[2] * b.y + d[3] * b.dy, s });
-      }
-      b.s = s;
+      const k = (chord * (turn > 0.01 ? (2 * Math.tan(turn / 4)) / Math.sin(turn / 2) : 1)) / 3;
+      d += ` C${a.x + a.dx * k} ${a.y + a.dy * k} ${b.x - b.dx * k} ${b.y - b.dy * k} ${b.x} ${b.y}`;
+      line.setAttribute("d", d);
+      b.s = line.getTotalLength();
     }
-    let j = 0;
-    return {
-      length: s,
-      at(want) {
-        while (j < samples.length - 2 && samples[j + 1].s < want) j++;
-        const p = samples[j], q = samples[j + 1];
-        const f = clamp((want - p.s) / (q.s - p.s || 1));
-        return { x: p.x + (q.x - p.x) * f, y: p.y + (q.y - p.y) * f, dx: p.dx + (q.dx - p.dx) * f, dy: p.dy + (q.dy - p.dy) * f };
-      },
-    };
+    return line;
   }
 
   const travel = (() => {
@@ -249,8 +233,8 @@
     const m = plane.getScreenCTM();
     const start = new DOMPoint(MID_X, MID_Y).matrixTransform(m);
     const len = LENGTH * Math.hypot(m.a, m.b) * FAR;
-    const top = Math.max(bar.getBoundingClientRect().bottom + 16 + len / 2, H * 0.16);
     const r = H * 0.11;
+    const top = Math.min(Math.max(bar.getBoundingClientRect().bottom + 16 + len / 2, H * 0.16), start.y - r);
     const meet = H * MEET - len * 0.2;
     const down = start.x - 2 * r;
     const points = [{ x: start.x, y: start.y, dx: 0, dy: -1 }];
@@ -258,21 +242,21 @@
     const apex = { x: start.x - r, y: top, dx: -1, dy: 0 };
     const arrive = { x: down, y: Math.max(meet, top + r + 40), dx: 0, dy: 1 };
     points.push(apex, { x: down, y: top + r, dx: 0, dy: 1 }, arrive, { x: down + r, y: arrive.y + r, dx: 1, dy: 0 }, { x: W + len, y: arrive.y + r, dx: 1, dy: 0 });
-    const path = route(points);
-    const T = Math.min(3400, Math.max(2400, path.length / 0.56));
-    const glideFrom = travel.inverse(points[1].s / path.length) * T;
-    const glideTo = travel.inverse(arrive.s / path.length) * T;
-
-    const ns = "http://www.w3.org/2000/svg";
-    layer = document.createElementNS(ns, "svg");
+    layer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     layer.setAttribute("class", `${sprue.getAttribute("class")} kit-flight`);
     layer.setAttribute("aria-hidden", "true");
+    document.body.append(layer);
+    const path = route(points, layer);
+    const total = path.getTotalLength();
+    const T = Math.min(3400, Math.max(2400, total / 0.56));
+    const glideFrom = travel.inverse(points[1].s / total) * T;
+    const glideTo = travel.inverse(arrive.s / total) * T;
+
     const ghost = shadow.cloneNode(true);
     const craft = plane.cloneNode(true);
     const blades = craft.querySelectorAll(".part")[6];
     const blade = blades.getAttribute("transform");
     layer.append(ghost, craft);
-    document.body.append(layer);
     plane.style.visibility = "hidden";
     sprue.querySelector(".frame").style.opacity = 0;
     caption.parentElement.classList.add("away");
@@ -286,9 +270,10 @@
       const dt = Math.max(0.001, (now - last) / 1000);
       last = now;
       const x = clamp(t / T);
-      const s = path.length * travel(x);
-      const p = path.at(s);
-      const next = Math.atan2(p.dx, -p.dy);
+      const s = total * travel(x);
+      const p = path.getPointAtLength(s);
+      const ahead = path.getPointAtLength(Math.min(total, s + 1)), behind = path.getPointAtLength(Math.max(0, s - 1));
+      const next = Math.atan2(ahead.x - behind.x, behind.y - ahead.y);
       let rate = next - heading;
       rate -= Math.round(rate / (2 * Math.PI)) * 2 * Math.PI;
       heading = next;
@@ -332,17 +317,17 @@
     drawBig(level);
     if (seen && !reduce.matches && plane.animate) plane.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: "ease-out" });
   }
-  function ready() {
+  function ready(late) {
     if (flown || retired || inFlight || doneAt === null || reduce.matches || narrow.matches || playing || active !== cards.length - 1 || level !== cards.length) return false;
     if (steps.getBoundingClientRect().bottom > window.innerHeight + 1) return false;
     const box = plane.getBoundingClientRect();
-    return box.top + box.height / 2 > window.innerHeight * 0.3;
+    return box.top + box.height / 2 > (late ? 0 : window.innerHeight * 0.3);
   }
   function maybeFly() {
     if (waiting || !goingDown || !ready()) return;
     waiting = setTimeout(() => {
       waiting = 0;
-      if (ready()) takeOff();
+      if (ready(true)) takeOff();
     }, Math.max(0, doneTime + HOLD_FINISHED - performance.now()));
   }
 
@@ -367,7 +352,11 @@
     cancelAnimationFrame(gliding);
     gliding = 0;
   }
-  window.addEventListener("wheel", (event) => event.deltaY < 0 && stopGlide(), { passive: true });
+  window.addEventListener("wheel", (event) => {
+    if (!gliding) return;
+    if (event.deltaY < 0) stopGlide();
+    else event.preventDefault();
+  }, { passive: false });
   window.addEventListener("touchstart", stopGlide, { passive: true });
   ["keydown", "pointerdown", "hashchange"].forEach((type) => window.addEventListener(type, () => {
     steered = true;
