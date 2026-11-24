@@ -177,8 +177,10 @@
     return t * t * (3 - 2 * t);
   };
 
-  const HOLD_FINISHED = 1200, RUNWAY = 0.25, ZOOM = 900, CLIMB = 2100, FAR = 0.6, MID_X = 540, MID_Y = 320;
-  let flown = false, trip = 0, waiting = 0, goingDown = false, scrolledTo = window.scrollY, doneAt = null, doneTime = 0;
+  const HOLD_FINISHED = 2500, RUNWAY = 0.25, ZOOM = 1100, CLIMB = 2600, FAR = 0.6, MID_X = 540, MID_Y = 320;
+  const steps = document.querySelector(".install-steps");
+  const story = document.getElementById("story-h");
+  let flown = false, retired = false, trip = 0, waiting = 0, gliding = 0, goingDown = false, scrolledTo = window.scrollY, doneAt = null, doneTime = 0;
   function finished() {
     doneAt = window.scrollY;
     doneTime = performance.now();
@@ -221,10 +223,12 @@
       shadow.style.opacity = u > 0 ? (0.2 * (1 - lift)).toFixed(3) : 0;
       if (u < 1) return requestAnimationFrame(tick);
       plane.style.visibility = "hidden";
+      retired = true;
+      glide();
     };
     requestAnimationFrame(tick);
   }
-  function land() {
+  function land(quiet) {
     clearTimeout(waiting);
     waiting = 0;
     if (!flown) return;
@@ -238,10 +242,10 @@
     caption.parentElement.classList.remove("away");
     lastState = -1;
     drawBig(level);
-    if (!reduce.matches && plane.animate) plane.animate([{ opacity: 0, transform: "translate(70px, 0) scale(1.1)", transformOrigin: `${MID_X}px ${MID_Y}px` }, { opacity: 1, transform: "none", transformOrigin: `${MID_X}px ${MID_Y}px` }], { duration: 550, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+    if (!quiet && !reduce.matches && plane.animate) plane.animate([{ opacity: 0, transform: "translate(70px, 0) scale(1.1)", transformOrigin: `${MID_X}px ${MID_Y}px` }, { opacity: 1, transform: "none", transformOrigin: `${MID_X}px ${MID_Y}px` }], { duration: 550, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
   }
   function ready() {
-    if (flown || doneAt === null || reduce.matches || narrow.matches || playing || active !== cards.length - 1 || level !== cards.length) return false;
+    if (flown || retired || doneAt === null || reduce.matches || narrow.matches || playing || active !== cards.length - 1 || level !== cards.length) return false;
     if (window.scrollY - doneAt < window.innerHeight * RUNWAY) return false;
     const box = sprue.getBoundingClientRect();
     return box.top + box.height * 0.46 > 0;
@@ -252,6 +256,43 @@
       waiting = 0;
       if (ready()) takeOff();
     }, Math.max(0, doneTime + HOLD_FINISHED - performance.now()));
+  }
+
+  function glide() {
+    if (!story) return;
+    const from = window.scrollY;
+    const to = from + story.getBoundingClientRect().top - bar.offsetHeight - window.innerHeight * 0.1;
+    let t0 = 0;
+    const tick = (now) => {
+      if (!gliding) return;
+      if (!t0) t0 = now;
+      const t = clamp((now - t0) / 1100);
+      window.scrollTo({ top: from + (to - from) * ease(t), behavior: "instant" });
+      if (t < 1) return (gliding = requestAnimationFrame(tick));
+      gliding = 0;
+      tidy();
+    };
+    gliding = requestAnimationFrame(tick);
+  }
+  const stopGlide = () => {
+    cancelAnimationFrame(gliding);
+    gliding = 0;
+  };
+  ["wheel", "touchstart", "keydown", "pointerdown"].forEach((type) => window.addEventListener(type, stopGlide, { passive: true }));
+
+  function tidy() {
+    const box = sprue.getBoundingClientRect();
+    if (flown && (box.bottom < 0 || box.top > window.innerHeight)) land(true);
+    if (steps.style.paddingBottom === "0px") return;
+    const pad = parseFloat(getComputedStyle(steps).paddingBottom);
+    const gapTop = steps.getBoundingClientRect().bottom - pad;
+    if (gapTop >= window.innerHeight) return (steps.style.paddingBottom = "0px");
+    const hidden = Math.min(pad, -gapTop);
+    if (hidden < 1) return;
+    const y = window.scrollY;
+    steps.style.paddingBottom = `${pad - hidden}px`;
+    window.scrollTo({ top: y - hidden, behavior: "instant" });
+    scrolledTo = window.scrollY;
   }
 
   function onScroll() {
@@ -269,7 +310,8 @@
       mark(i);
       setLevel(i + 1);
     }
-    maybeFly();
+    if (retired && !gliding) tidy();
+    else maybeFly();
   }
 
   const animated = [...document.querySelectorAll("svg")].filter((svg) => svg.querySelector("animate, animateMotion, animateTransform"));
