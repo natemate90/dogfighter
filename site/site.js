@@ -165,7 +165,6 @@
   }
 
   const plane = sprue && sprue.querySelector(".parts");
-  const prop = sprue && sprue.querySelectorAll(".part")[6];
   const shadow = plane && document.createElementNS("http://www.w3.org/2000/svg", "g");
   if (shadow) {
     shadow.setAttribute("class", "shadow");
@@ -177,10 +176,10 @@
     return t * t * (3 - 2 * t);
   };
 
-  const HOLD_FINISHED = 300, ZOOM = 1100, CLIMB = 2600, FAR = 0.6, MID_X = 540, MID_Y = 320;
+  const HOLD_FINISHED = 300, FAR = 0.5, MEET = 0.42, MID_X = 520, MID_Y = 320, LENGTH = 460;
   const steps = document.querySelector(".install-steps");
   const story = document.getElementById("story-h");
-  let flown = false, inFlight = false, retired = false, steered = false, trip = 0, waiting = 0, gliding = 0;
+  let flown = false, inFlight = false, retired = false, steered = false, trip = 0, waiting = 0, gliding = 0, layer = null;
   let goingDown = false, scrolledTo = window.scrollY, doneAt = null, doneTime = 0;
   function finished() {
     doneAt = window.scrollY;
@@ -190,74 +189,154 @@
     const box = sprue.getBoundingClientRect();
     return box.bottom > 0 && box.top < window.innerHeight;
   }
+
+  function route(points) {
+    const samples = [{ x: points[0].x, y: points[0].y, dx: points[0].dx, dy: points[0].dy, s: 0 }];
+    let s = 0;
+    for (let i = 1; i < points.length; i++) {
+      const a = points[i - 1], b = points[i];
+      const chord = Math.hypot(b.x - a.x, b.y - a.y);
+      const turn = Math.acos(Math.max(-1, Math.min(1, a.dx * b.dx + a.dy * b.dy)));
+      const m = chord * (turn > 0.01 ? (2 * Math.tan(turn / 4)) / Math.sin(turn / 2) : 1);
+      for (let k = 1; k <= 48; k++) {
+        const u = k / 48, u2 = u * u, u3 = u2 * u;
+        const h = [2 * u3 - 3 * u2 + 1, (u3 - 2 * u2 + u) * m, -2 * u3 + 3 * u2, (u3 - u2) * m];
+        const d = [6 * u2 - 6 * u, (3 * u2 - 4 * u + 1) * m, -6 * u2 + 6 * u, (3 * u2 - 2 * u) * m];
+        const x = h[0] * a.x + h[1] * a.dx + h[2] * b.x + h[3] * b.dx;
+        const y = h[0] * a.y + h[1] * a.dy + h[2] * b.y + h[3] * b.dy;
+        const prev = samples[samples.length - 1];
+        s += Math.hypot(x - prev.x, y - prev.y);
+        samples.push({ x, y, dx: d[0] * a.x + d[1] * a.dx + d[2] * b.x + d[3] * b.dx, dy: d[0] * a.y + d[1] * a.dy + d[2] * b.y + d[3] * b.dy, s });
+      }
+      b.s = s;
+    }
+    let j = 0;
+    return {
+      length: s,
+      at(want) {
+        while (j < samples.length - 2 && samples[j + 1].s < want) j++;
+        const p = samples[j], q = samples[j + 1];
+        const f = clamp((want - p.s) / (q.s - p.s || 1));
+        return { x: p.x + (q.x - p.x) * f, y: p.y + (q.y - p.y) * f, dx: p.dx + (q.dx - p.dx) * f, dy: p.dy + (q.dy - p.dy) * f };
+      },
+    };
+  }
+
+  const travel = (() => {
+    const table = [0];
+    for (let k = 1; k <= 200; k++) {
+      const x = k / 200;
+      table.push(table[k - 1] + smooth(0, 0.2, x) * (1 + 0.9 * x * x));
+    }
+    const total = table[200];
+    const at = (x) => {
+      const i = Math.min(199, Math.floor(clamp(x) * 200));
+      return (table[i] + (table[i + 1] - table[i]) * (clamp(x) * 200 - i)) / total;
+    };
+    at.inverse = (f) => {
+      let lo = 0, hi = 1;
+      for (let k = 0; k < 30; k++) at((lo + hi) / 2) < f ? (lo = (lo + hi) / 2) : (hi = (lo + hi) / 2);
+      return lo;
+    };
+    return at;
+  })();
+
   function takeOff() {
     flown = inFlight = retired = true;
     steered = false;
     const id = ++trip;
-    const box = sprue.getBoundingClientRect();
-    const unit = Math.min(box.width / 640, box.height / 1000);
-    const oy = box.height / 2 + (500 - MID_X) * unit;
-    const reach = (box.top + oy + 60) / (unit * FAR) + 360;
-    const blade = prop.getAttribute("transform");
-    sprue.style.transformOrigin = `${box.width / 2}px ${oy}px`;
+    const W = window.innerWidth, H = window.innerHeight;
+    const m = plane.getScreenCTM();
+    const start = new DOMPoint(MID_X, MID_Y).matrixTransform(m);
+    const len = LENGTH * Math.hypot(m.a, m.b) * FAR;
+    const top = Math.max(bar.getBoundingClientRect().bottom + 16 + len / 2, H * 0.16);
+    const r = H * 0.11;
+    const meet = H * MEET - len * 0.2;
+    const down = start.x - 2 * r;
+    const points = [{ x: start.x, y: start.y, dx: 0, dy: -1 }];
+    if (start.y - (top + r) > 20) points.push({ x: start.x, y: top + r, dx: 0, dy: -1 });
+    const apex = { x: start.x - r, y: top, dx: -1, dy: 0 };
+    const arrive = { x: down, y: Math.max(meet, top + r + 40), dx: 0, dy: 1 };
+    points.push(apex, { x: down, y: top + r, dx: 0, dy: 1 }, arrive, { x: down + r, y: arrive.y + r, dx: 1, dy: 0 }, { x: W + len, y: arrive.y + r, dx: 1, dy: 0 });
+    const path = route(points);
+    const T = Math.min(3400, Math.max(2400, path.length / 0.56));
+    const glideFrom = travel.inverse(points[1].s / path.length) * T;
+    const glideTo = travel.inverse(arrive.s / path.length) * T;
+
+    const ns = "http://www.w3.org/2000/svg";
+    layer = document.createElementNS(ns, "svg");
+    layer.setAttribute("class", `${sprue.getAttribute("class")} kit-flight`);
+    layer.setAttribute("aria-hidden", "true");
+    const ghost = shadow.cloneNode(true);
+    const craft = plane.cloneNode(true);
+    const blades = craft.querySelectorAll(".part")[6];
+    const blade = blades.getAttribute("transform");
+    layer.append(ghost, craft);
+    document.body.append(layer);
+    plane.style.visibility = "hidden";
     sprue.querySelector(".frame").style.opacity = 0;
     caption.parentElement.classList.add("away");
-    let t0 = 0, last = 0, right = 0, down = 0, travelled = 0, turn = 0;
+
+    const base = `translate(${-start.x} ${-start.y}) matrix(${[m.a, m.b, m.c, m.d, m.e, m.f].join(" ")})`;
+    let t0 = 0, last = 0, turn = 0, bank = 0, heading = 0, glided = false;
     const tick = (now) => {
       if (id !== trip) return;
       if (!t0) t0 = last = now;
       const t = now - t0;
-      const dt = (now - last) / 1000;
+      const dt = Math.max(0.001, (now - last) / 1000);
       last = now;
-      sprue.style.transform = `scale(${(1 - (1 - FAR) * ease(clamp(t / ZOOM))).toFixed(4)})`;
-      const blur = clamp((t - 150) / 1000) ** 2;
+      const x = clamp(t / T);
+      const s = path.length * travel(x);
+      const p = path.at(s);
+      const next = Math.atan2(p.dx, -p.dy);
+      let rate = next - heading;
+      rate -= Math.round(rate / (2 * Math.PI)) * 2 * Math.PI;
+      heading = next;
+      bank += (Math.max(-0.95, Math.min(0.95, (rate / dt) * 0.45)) - bank) * (1 - Math.exp(-dt / 0.15));
+      const size = 1 - (1 - FAR) * ease(clamp(s / apex.s));
+      const lift = smooth(0, 0.6, s / apex.s);
+      const place = (ox, oy) => `translate(${(p.x + ox).toFixed(2)} ${(p.y + oy).toFixed(2)}) rotate(${((heading * 180) / Math.PI).toFixed(2)}) scale(${(size * Math.cos(bank)).toFixed(4)} ${size.toFixed(4)}) ${base}`;
+      craft.setAttribute("transform", place(0, 0));
+      ghost.setAttribute("transform", place(26 * lift * size, 40 * lift * size));
+      ghost.style.opacity = (0.2 * lift).toFixed(3);
+      const blur = clamp((t - 100) / 700) ** 2;
       turn += (5 + 34 * blur) * dt;
-      prop.setAttribute("transform", `${blade} translate(721 320) scale(1 ${(Math.cos(turn) * (1 - blur) + blur).toFixed(3)}) translate(-721 -320)`);
-      prop.style.opacity = (1 - 0.55 * blur).toFixed(3);
-      const u = clamp((t - ZOOM) / CLIMB);
-      const s = reach * u ** 2.4;
-      const heading = -15 * smooth(0.1, 0.8, u);
-      const rad = (heading * Math.PI) / 180;
-      right += Math.sin(rad) * (s - travelled);
-      down -= Math.cos(rad) * (s - travelled);
-      travelled = s;
-      const wings = 1 - 0.16 * Math.sin(Math.PI * smooth(0.05, 0.85, u));
-      const place = (x, y, g) => `translate(${(-y).toFixed(2)} ${x.toFixed(2)}) rotate(${heading.toFixed(2)} ${MID_X} ${MID_Y}) translate(${MID_X} ${MID_Y}) scale(${g.toFixed(3)} ${(g * wings).toFixed(3)}) translate(${-MID_X} ${-MID_Y})`;
-      plane.setAttribute("transform", place(right, down, 1 + 0.14 * smooth(0, 1, u)));
-      const lift = smooth(0, 0.55, u);
-      shadow.setAttribute("transform", place(right + 40 * lift, down + 60 * lift, 1));
-      shadow.style.opacity = u > 0 ? (0.2 * (1 - lift)).toFixed(3) : 0;
-      if (u < 1) return requestAnimationFrame(tick);
-      inFlight = false;
-      plane.style.visibility = "hidden";
-      if (!onScreen()) return restore();
-      if (!steered) glide();
+      blades.setAttribute("transform", `${blade} translate(721 320) scale(1 ${(Math.cos(turn) * (1 - blur) + blur).toFixed(3)}) translate(-721 -320)`);
+      blades.style.opacity = (1 - 0.55 * blur).toFixed(3);
+      if (!glided && t >= glideFrom) {
+        glided = true;
+        if (!steered) glide(glideTo - t);
+      }
+      if (x < 1) return requestAnimationFrame(tick);
+      land();
+      if (!onScreen()) restore();
     };
     requestAnimationFrame(tick);
+  }
+  function land() {
+    trip++;
+    inFlight = false;
+    stopGlide();
+    if (layer) layer.remove();
+    layer = null;
   }
   function restore() {
     clearTimeout(waiting);
     waiting = 0;
     if (!flown) return;
     const seen = onScreen();
-    flown = inFlight = false;
-    trip++;
-    sprue.style.transform = "";
-    plane.removeAttribute("transform");
+    flown = false;
     plane.style.visibility = "";
-    shadow.removeAttribute("transform");
-    shadow.style.opacity = "";
-    prop.style.opacity = "";
     caption.parentElement.classList.remove("away");
     lastState = -1;
     drawBig(level);
     if (seen && !reduce.matches && plane.animate) plane.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: "ease-out" });
   }
   function ready() {
-    if (flown || retired || doneAt === null || reduce.matches || narrow.matches || playing || active !== cards.length - 1 || level !== cards.length) return false;
-    if (cards[cards.length - 1].getBoundingClientRect().bottom > 0) return false;
-    const box = sprue.getBoundingClientRect();
-    return box.top + box.height * 0.46 > 0;
+    if (flown || retired || inFlight || doneAt === null || reduce.matches || narrow.matches || playing || active !== cards.length - 1 || level !== cards.length) return false;
+    if (steps.getBoundingClientRect().bottom > window.innerHeight + 1) return false;
+    const box = plane.getBoundingClientRect();
+    return box.top + box.height / 2 > window.innerHeight * 0.3;
   }
   function maybeFly() {
     if (waiting || !goingDown || !ready()) return;
@@ -267,20 +346,20 @@
     }, Math.max(0, doneTime + HOLD_FINISHED - performance.now()));
   }
 
-  function glide() {
-    if (!story) return;
-    const from = window.scrollY;
-    const to = from + story.getBoundingClientRect().top - bar.offsetHeight - window.innerHeight * 0.1;
-    if (to <= from + 1) return;
-    let t0 = 0;
+  function glide(ms) {
+    if (!story || ms < 50) return;
+    const distance = story.getBoundingClientRect().top + story.offsetHeight / 2 - window.innerHeight * MEET;
+    if (distance <= 1) return;
+    let t0 = 0, done = 0;
     const tick = (now) => {
       if (!gliding) return;
       if (!t0) t0 = now;
-      const t = clamp((now - t0) / 1100);
-      window.scrollTo({ top: from + (to - from) * ease(t), behavior: "instant" });
+      const t = clamp((now - t0) / ms);
+      const step = Math.round(distance * ease(t)) - done;
+      done += step;
+      if (step) window.scrollBy({ top: step, behavior: "instant" });
       if (t < 1) return (gliding = requestAnimationFrame(tick));
       gliding = 0;
-      afterScroll();
     };
     gliding = requestAnimationFrame(tick);
   }
@@ -288,37 +367,23 @@
     cancelAnimationFrame(gliding);
     gliding = 0;
   }
-  ["wheel", "touchstart"].forEach((type) => window.addEventListener(type, stopGlide, { passive: true }));
+  window.addEventListener("wheel", (event) => event.deltaY < 0 && stopGlide(), { passive: true });
+  window.addEventListener("touchstart", stopGlide, { passive: true });
   ["keydown", "pointerdown", "hashchange"].forEach((type) => window.addEventListener(type, () => {
     steered = true;
     stopGlide();
   }, { passive: true }));
 
-  function cutSpacer() {
-    if (!retired || inFlight || gliding || steps.style.paddingBottom === "0px") return;
-    const pad = parseFloat(getComputedStyle(steps).paddingBottom);
-    if (!pad) return;
-    const gapTop = steps.getBoundingClientRect().bottom - pad;
-    if (gapTop >= window.innerHeight) return (steps.style.paddingBottom = "0px");
-    const hidden = Math.min(pad, -gapTop);
-    if (hidden < 1) return;
-    const y = window.scrollY;
-    steps.style.paddingBottom = `${pad - hidden}px`;
-    window.scrollTo({ top: y - hidden, behavior: "instant" });
-    scrolledTo = window.scrollY;
-  }
   let idleTimer = 0;
   function afterScroll() {
     clearTimeout(idleTimer);
     if (!sprue || narrow.matches || gliding) return;
     if (flown && !inFlight && !onScreen()) restore();
-    cutSpacer();
     rearm();
   }
   function rearm() {
-    if (!retired || flown || steps.getBoundingClientRect().bottom < window.innerHeight) return;
+    if (!retired || flown || inFlight || steps.getBoundingClientRect().bottom < window.innerHeight * 1.15) return;
     retired = false;
-    steps.style.paddingBottom = "";
   }
   if ("onscrollend" in window) window.addEventListener("scrollend", afterScroll);
   else window.addEventListener("scroll", () => {
@@ -330,11 +395,6 @@
     retired = true;
     clearTimeout(waiting);
     waiting = 0;
-  }
-  const arrival = location.hash && document.getElementById(location.hash.slice(1));
-  if (arrival && steps && install && !install.contains(arrival) && install.compareDocumentPosition(arrival) & Node.DOCUMENT_POSITION_FOLLOWING) {
-    retired = true;
-    steps.style.paddingBottom = "0px";
   }
 
   let badgeFlown = false, flyer = null, badgeDoneAt = null, badgeDoneTime = 0;
@@ -411,7 +471,12 @@
     }
     if (narrow.matches) return badgeCheck();
     passedBy();
-    if (flown && !gliding && (!onScreen() || (!inFlight && !goingDown))) restore();
+    if (inFlight && !gliding && !goingDown) {
+      land();
+      restore();
+    }
+    if (flown && (!onScreen() || (!inFlight && !goingDown))) restore();
+    rearm();
     maybeFly();
   }
 
@@ -436,6 +501,7 @@
     : null;
 
   function setMode() {
+    land();
     restore();
     restoreBadge();
     badgeDoneAt = null;
@@ -479,7 +545,6 @@
     }
     if (drawMain) {
       passedBy();
-      cutSpacer();
     }
   }
 
