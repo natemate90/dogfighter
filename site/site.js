@@ -387,8 +387,8 @@
     rearm();
   }
   function rearm() {
-    if (!retired || flown || inFlight || steps.getBoundingClientRect().bottom < window.innerHeight * 1.15) return;
-    retired = false;
+    if (!retired || flown || inFlight) return;
+    if (active < cards.length - 1 || steps.getBoundingClientRect().bottom > window.innerHeight + 40) retired = false;
   }
   if ("onscrollend" in window) window.addEventListener("scrollend", afterScroll);
   else window.addEventListener("scroll", () => {
