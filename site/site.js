@@ -331,6 +331,61 @@
     steps.style.paddingBottom = "0px";
   }
 
+  let badgeFlown = false, flyer = null, badgeDoneAt = null, badgeDoneTime = 0;
+  function badgeTakeOff() {
+    badgeFlown = true;
+    const art = badge.querySelector("svg");
+    const box = art.getBoundingClientRect();
+    flyer = art.cloneNode(true);
+    flyer.classList.add("badge-flyer");
+    Object.assign(flyer.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` });
+    document.body.append(flyer);
+    art.style.visibility = "hidden";
+    const rise = box.top + box.height * 2 + 40;
+    const frames = [];
+    for (let k = 0; k <= 40; k++) {
+      const t = k / 40;
+      const u = clamp((t - 0.18) / 0.82);
+      const grow = 1 + 0.6 * (1 - (1 - clamp(t / 0.3)) ** 3) + 0.1 * u;
+      const wings = 1 - 0.18 * Math.sin(Math.PI * smooth(0, 0.9, u));
+      const lift = smooth(0, 0.3, t);
+      frames.push({
+        offset: t,
+        transform: `translate(${(50 * lift + 70 * smooth(0, 1, u)).toFixed(1)}px, ${(-8 * lift - rise * u ** 2.2).toFixed(1)}px) rotate(${(18 * smooth(0.05, 0.6, u)).toFixed(2)}deg) scale(${(grow * wings).toFixed(3)}, ${grow.toFixed(3)})`,
+        filter: `drop-shadow(${(6 * lift).toFixed(1)}px ${(10 * lift).toFixed(1)}px ${(1 + 3 * lift).toFixed(1)}px rgb(0 0 0 / ${(0.3 * (1 - u)).toFixed(2)}))`,
+      });
+    }
+    const run = flyer.animate(frames, { duration: 2200, easing: "linear", fill: "forwards" });
+    run.onfinish = () => {
+      if (flyer) flyer.remove();
+      flyer = null;
+    };
+  }
+  function restoreBadge() {
+    if (flyer) flyer.remove();
+    flyer = null;
+    const art = badge && badge.querySelector("svg");
+    if (!art || !art.style.visibility) return;
+    art.style.visibility = "";
+    if (badge.isConnected && !reduce.matches) art.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, easing: "ease-out" });
+  }
+  function badgeCheck() {
+    if (!badge || active !== cards.length - 1 || reduce.matches) return;
+    if (badgeDoneAt === null) {
+      badgeDoneAt = window.scrollY;
+      badgeDoneTime = performance.now() + Math.max(0, ...badge.getAnimations().map((a) => (a.effect.getComputedTiming().endTime || 0) - (a.currentTime || 0)));
+      return;
+    }
+    if (badgeFlown) {
+      if (!goingDown && !flyer) restoreBadge();
+      return;
+    }
+    if (performance.now() < badgeDoneTime + 1500) return (badgeDoneAt = window.scrollY);
+    if (!goingDown || window.scrollY - badgeDoneAt < 24) return;
+    const box = badge.getBoundingClientRect();
+    if (box.top > 0 && box.bottom < window.innerHeight) badgeTakeOff();
+  }
+
   function onScroll() {
     if (!drawMain) return;
     const y = window.scrollY;
@@ -341,12 +396,13 @@
       active = i;
       if (i !== cards.length - 1) {
         restore();
-        doneAt = null;
+        doneAt = badgeDoneAt = null;
       }
+      restoreBadge();
       mark(i);
       setLevel(i + 1);
     }
-    if (narrow.matches) return;
+    if (narrow.matches) return badgeCheck();
     passedBy();
     if (flown && !gliding && (!onScreen() || (!inFlight && !goingDown))) restore();
     maybeFly();
@@ -374,6 +430,8 @@
 
   function setMode() {
     restore();
+    restoreBadge();
+    badgeDoneAt = null;
     if (reduce.matches) {
       document.documentElement.classList.add("static");
       bar.classList.remove("tucked");
