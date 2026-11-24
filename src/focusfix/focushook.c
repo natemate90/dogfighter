@@ -131,6 +131,7 @@ static BOOL no_depth_surface_yet;
    player's keys and clicks reach the game. A mission started by hand while a
    scripted start is on its way crashes the game. */
 static volatile LONG commands_before_input, inputs_kept;
+static BOOL scripted_char_owed;
 /* A command the game window did not answer within windiag's 5 seconds never
    counts, so the wait also ends this many seconds after the game could first
    take commands. */
@@ -1395,7 +1396,11 @@ static LRESULT CALLBACK hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         say("a click in the picture: the mouse belongs to the game again");
     }
     if ((msg == WM_WINDOWPOSCHANGING || msg == WM_SIZING) && keep_picture_shape(hwnd, msg, wp, lp)) return TRUE;
-    if (msg >= WM_KEYFIRST && msg <= WM_KEYLAST && commands_before_input > 0 && GetMessageExtraInfo() != SCRIPTED_KEY)
+    if (msg >= WM_KEYFIRST && msg <= WM_KEYLAST && commands_before_input > 0 && GetMessageExtraInfo() == SCRIPTED_KEY)
+        scripted_char_owed = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
+    else if ((msg == WM_CHAR || msg == WM_SYSCHAR) && scripted_char_owed)
+        scripted_char_owed = FALSE;
+    else if (msg >= WM_KEYFIRST && msg <= WM_KEYLAST && commands_before_input > 0)
     {
         InterlockedIncrement(&inputs_kept);
         return 0;
