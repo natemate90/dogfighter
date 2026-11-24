@@ -185,14 +185,14 @@
   function finished() {
     doneAt = window.scrollY;
     doneTime = performance.now();
-    maybeFly();
+    maybeFly(true);
   }
   function onScreen() {
     const box = sprue.getBoundingClientRect();
     return box.bottom > 0 && box.top < window.innerHeight;
   }
 
-  function course(air, start, len, W, H, scale) {
+  function course(air, start, len, W, H, scale, loose) {
     const k = ((H * 0.06) / 45) * scale;
     const top = bar.getBoundingClientRect().bottom;
     const roof = top + len * 0.7 + air.rand(10, H * 0.05) * scale;
@@ -207,9 +207,9 @@
     const frames = [];
     let phase = "roll", sim = 0, turned = 0, heading = p.psi, turnAt = 0, meetAt = 0;
     const wander = () => wobble[0] * (Math.sin(1.3 * sim + wobble[1]) + 0.6 * Math.sin(2.9 * sim + wobble[2]));
-    while (sim < 30) {
+    while (sim < 60) {
       const x = p.x * k, y = p.y * k;
-      if (x > W + len || x < -len || y < -len || y > H + len) break;
+      if ((phase === "exit" || !loose) && (x > W + len || x < -len || y < -len || y > H + len)) break;
       if (phase === "roll") {
         p.throttle = BOOST;
         if (p.v >= air.STALL) phase = "climb";
@@ -247,9 +247,12 @@
       sim += air.DT;
       frames.push({ x: p.x * k, y: p.y * k, psi: p.psi, phi: p.phi, th: p.th, h: p.h, v: p.v });
     }
-    const ms = (i) => (i * air.DT * 1000) / PACE;
-    const clear = meetAt > 0 && frames.every((f) => f.y > top + len * 0.35);
-    return clear && { frames, k, turnAt: ms(turnAt), meetAt: ms(meetAt) };
+    const pace = PACE / scale;
+    const ms = (i) => (i * air.DT * 1000) / pace;
+    const end = frames[frames.length - 1];
+    const gone = end && (end.x > W + len || end.x < -len || end.y < -len || end.y > H + len);
+    const clear = meetAt > 0 && gone && (loose || frames.every((f) => f.y > top + len * 0.35));
+    return clear && { frames, k, pace, turnAt: ms(turnAt), meetAt: ms(meetAt) };
   }
 
   function takeOff() {
@@ -259,9 +262,10 @@
     const len = LENGTH * Math.hypot(m.a, m.b) * FAR;
     let plan = false;
     for (const scale of [1, 1, 1, 0.8, 0.65, 0.5, 0.4, 0.3]) plan = plan || course(air, start, len, window.innerWidth, window.innerHeight, scale);
+    plan = plan || course(air, start, len, window.innerWidth, window.innerHeight, 0.5, true);
     if (!plan) return;
     retired = true;
-    const { frames, k, turnAt, meetAt } = plan;
+    const { frames, k, pace, turnAt, meetAt } = plan;
     flown = inFlight = true;
     steered = false;
     const id = ++trip;
@@ -290,7 +294,7 @@
       const t = now - t0;
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
-      const i = Math.min(frames.length - 1, Math.floor((t * PACE) / (air.DT * 1000)));
+      const i = Math.min(frames.length - 1, Math.floor((t * pace) / (air.DT * 1000)));
       const f = frames[i];
       const size = 1 - (1 - FAR) * ease(clamp(t / 900));
       craft.setAttribute("transform", draw(f, f.x, f.y, (size * air.perspective(f.h)) / ground, Math.cos(f.th)));
@@ -333,10 +337,10 @@
     if (!window.spitfire || flown || retired || inFlight || doneAt === null || reduce.matches || narrow.matches || playing || active !== cards.length - 1 || level !== cards.length) return false;
     if (steps.getBoundingClientRect().bottom > window.innerHeight + 1) return false;
     const box = plane.getBoundingClientRect();
-    return box.top + box.height / 2 > (late ? 0 : window.innerHeight * 0.3);
+    return late ? box.bottom > bar.getBoundingClientRect().bottom + 20 : box.top + box.height / 2 > window.innerHeight * 0.3;
   }
-  function maybeFly() {
-    if (waiting || !goingDown || !ready()) return;
+  function maybeFly(late) {
+    if (waiting || !goingDown || !ready(late)) return;
     waiting = setTimeout(() => {
       waiting = 0;
       if (ready(true)) takeOff();
