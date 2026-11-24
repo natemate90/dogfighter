@@ -303,14 +303,10 @@
   document.querySelectorAll(".usp-tile").forEach((tile) => {
     tile.addEventListener("mouseenter", () => {
       if (reduce.matches) return;
-      tile.querySelectorAll(".mv").forEach((el) => {
-        if (!el.getAnimations) return;
-        el.getAnimations().forEach((move) => {
-          move.effect.updateTiming({ delay: 0 });
-          move.currentTime = 0;
-          move.play();
-        });
-      });
+      const ico = tile.querySelector(".usp-ico");
+      if (!ico || !ico.animate || ico.lift) return;
+      ico.lift = ico.animate([{ transform: "none" }, { transform: "translateY(-10%) scale(1.06)" }, { transform: "none" }], { duration: 1600, easing: "cubic-bezier(0.45, 0, 0.55, 1)", composite: "add" });
+      ico.lift.onfinish = ico.lift.oncancel = () => (ico.lift = null);
     });
   });
 
