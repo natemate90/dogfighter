@@ -213,26 +213,62 @@
 
   const uspGrid = document.querySelector(".usp-grid");
   const icons = [...document.querySelectorAll(".usp-ico[data-turn]")];
-  const TURN_FRAMES = 24;
-  const TURN_COLS = 6;
-  const TURN_ROWS = 4;
+  const TURN_FRAMES = 26;
+  const TURN_COLS = 13;
+  const TURN_ROWS = 2;
+  const TURN_MS = 4800;
+  const TURN_EVERY_MS = 3000;
   const TURN_ORDER = [0, 3, 1, 5, 2, 4];
+  const blend = window.CSS && CSS.supports && CSS.supports("mix-blend-mode", "plus-lighter");
   let turnsAsked = false;
   let gridSeen = false;
   let nextTurn = 0;
 
+  function cubicBezier(x1, y1, x2, y2) {
+    const at = (a, b, t) => 3 * a * (1 - t) * (1 - t) * t + 3 * b * (1 - t) * t * t + t * t * t;
+    return (x) => {
+      let lo = 0, hi = 1, t = x;
+      for (let i = 0; i < 24; i++) {
+        if (at(x1, x2, t) < x) lo = t;
+        else hi = t;
+        t = (lo + hi) / 2;
+      }
+      return at(y1, y2, t);
+    };
+  }
+  const turnEase = cubicBezier(0.45, 0, 0.55, 1);
+  const cell = (f) => `translate(${(f % TURN_COLS) * -100 / TURN_COLS}%, ${Math.floor(f / TURN_COLS) * -100 / TURN_ROWS}%)`;
+
+  /**
+   * One full turn, slow at the start and the end. The frame position follows the eased time; with plus-lighter the
+   * next frame fades in over the current one, so the 26 pictures read as one smooth turn. Frame 0 is the still, so
+   * the turn starts and ends on exactly the picture that shows between turns.
+   */
   function turn(ico) {
     if (reduce.matches || !ico.dataset.ready || ico.classList.contains("turning")) return false;
-    const steps = [];
-    for (let k = 0; k <= TURN_FRAMES; k++) {
-      const f = k % TURN_FRAMES;
-      steps.push({ transform: `translate(${(f % TURN_COLS) * -100 / TURN_COLS}%, ${Math.floor(f / TURN_COLS) * -100 / TURN_ROWS}%)`, easing: "step-end" });
-    }
+    const [now, next] = ico.querySelectorAll(".usp-turn i");
+    const start = performance.now();
+    const show = (pos) => {
+      const f = blend ? Math.floor(pos) : Math.round(pos);
+      now.style.transform = cell(f % TURN_FRAMES);
+      next.style.transform = cell((f + 1) % TURN_FRAMES);
+      const mix = blend ? pos - f : 0;
+      now.style.opacity = 1 - mix;
+      next.style.opacity = mix;
+    };
+    const step = (time) => {
+      const p = Math.min(1, (time - start) / TURN_MS);
+      if (p < 1 && !reduce.matches) {
+        show(turnEase(p) * TURN_FRAMES);
+        requestAnimationFrame(step);
+      } else {
+        show(0);
+        ico.classList.remove("turning");
+      }
+    };
+    show(0);
     ico.classList.add("turning");
-    const done = () => ico.classList.remove("turning");
-    const run = ico.querySelector(".usp-turn i").animate(steps, { duration: 1800 });
-    run.onfinish = done;
-    run.oncancel = done;
+    requestAnimationFrame(step);
     return true;
   }
 
@@ -245,7 +281,7 @@
         const done = () => {
           const box = document.createElement("span");
           box.className = "usp-turn";
-          box.appendChild(document.createElement("i")).style.backgroundImage = `url("${sheet.src}")`;
+          for (let k = 0; k < 2; k++) box.appendChild(document.createElement("i")).style.backgroundImage = `url("${sheet.src}")`;
           ico.appendChild(box);
           ico.dataset.ready = "1";
         };
@@ -260,7 +296,7 @@
       const ico = icons[TURN_ORDER[nextTurn % TURN_ORDER.length] % icons.length];
       nextTurn++;
       if (ico) turn(ico);
-    }, 2000);
+    }, TURN_EVERY_MS);
   }
 
   if (uspGrid && "IntersectionObserver" in window) {
