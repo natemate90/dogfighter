@@ -179,7 +179,7 @@
   const MEET = 0.45, MID_X = 520, MID_Y = 320, LENGTH = 460, EASE_TURN = 0.5, STEP = 1 / 120;
   const steps = document.querySelector(".install-steps");
   const story = document.getElementById("story-h");
-  let flown = false, inFlight = false, retired = false, steered = false, trip = 0, gliding = 0, layer = null;
+  let flown = false, inFlight = false, retired = false, steered = false, steeredAt = -Infinity, trip = 0, gliding = 0, layer = null;
   let goingDown = false, scrolledTo = window.scrollY, stepsWere = Infinity, pose = null;
   function onScreen() {
     const box = sprue.getBoundingClientRect();
@@ -234,7 +234,7 @@
     const body = LENGTH * Math.hypot(m.a, m.b) * 0.8;
     const { frames, meetY, turnAt, meetAt } = course(start, body, window.innerWidth, window.innerHeight);
     retired = flown = inFlight = true;
-    steered = false;
+    steered = performance.now() - steeredAt < 1500;
     const id = ++trip;
 
     layer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
@@ -339,8 +339,14 @@
   window.addEventListener("touchstart", stopGlide, { passive: true });
   ["keydown", "pointerdown", "hashchange"].forEach((type) => window.addEventListener(type, () => {
     steered = true;
+    steeredAt = performance.now();
     stopGlide();
   }, { passive: true }));
+  window.addEventListener("resize", () => {
+    if (!steps) return;
+    stepsWere = steps.getBoundingClientRect().bottom;
+    pose = null;
+  });
 
   let idleTimer = 0;
   function afterScroll() {
