@@ -157,7 +157,8 @@
     if (narrow.matches || cards.length < 2) return found;
     const y = window.scrollY;
     const start = cards[0].getBoundingClientRect().bottom + y - window.innerHeight;
-    const end = cards[cards.length - 1].getBoundingClientRect().top + y - mid;
+    const lastBox = cards[cards.length - 1].getBoundingClientRect();
+    const end = Math.min(lastBox.top - mid, lastBox.bottom - window.innerHeight) + y;
     if (end - start < cards.length * 40) return found;
     if (y < start && cards[0].getBoundingClientRect().top >= mid) return -1;
     const steps = cards.length - 1;
@@ -184,16 +185,17 @@
   function finished() {
     doneAt = window.scrollY;
     doneTime = performance.now();
+    maybeFly();
   }
   function onScreen() {
     const box = sprue.getBoundingClientRect();
     return box.bottom > 0 && box.top < window.innerHeight;
   }
 
-  function course(air, start, len, W, H) {
-    const k = (H * 0.06) / 45;
+  function course(air, start, len, W, H, scale) {
+    const k = ((H * 0.06) / 45) * scale;
     const top = bar.getBoundingClientRect().bottom;
-    const roof = top + len * 0.7 + air.rand(10, H * 0.05);
+    const roof = top + len * 0.7 + air.rand(10, H * 0.05) * scale;
     const words = document.createRange();
     words.selectNodeContents(story);
     const head = words.getBoundingClientRect();
@@ -256,9 +258,9 @@
     const start = new DOMPoint(MID_X, MID_Y).matrixTransform(m);
     const len = LENGTH * Math.hypot(m.a, m.b) * FAR;
     let plan = false;
-    for (let tries = 0; tries < 6 && !plan; tries++) plan = course(air, start, len, window.innerWidth, window.innerHeight);
-    retired = true;
+    for (const scale of [1, 1, 1, 0.8, 0.65, 0.5, 0.4, 0.3]) plan = plan || course(air, start, len, window.innerWidth, window.innerHeight, scale);
     if (!plan) return;
+    retired = true;
     const { frames, k, turnAt, meetAt } = plan;
     flown = inFlight = true;
     steered = false;
