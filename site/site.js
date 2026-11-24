@@ -211,9 +211,73 @@
     }
   }
 
+  const uspGrid = document.querySelector(".usp-grid");
+  const icons = [...document.querySelectorAll(".usp-ico[data-turn]")];
+  const TURN_FRAMES = 24;
+  const TURN_COLS = 6;
+  const TURN_ROWS = 4;
+  const TURN_ORDER = [0, 3, 1, 5, 2, 4];
+  let turnsAsked = false;
+  let gridSeen = false;
+  let nextTurn = 0;
+
+  function turn(ico) {
+    if (reduce.matches || !ico.dataset.ready || ico.classList.contains("turning")) return false;
+    const steps = [];
+    for (let k = 0; k <= TURN_FRAMES; k++) {
+      const f = k % TURN_FRAMES;
+      steps.push({ transform: `translate(${(f % TURN_COLS) * -100 / TURN_COLS}%, ${Math.floor(f / TURN_COLS) * -100 / TURN_ROWS}%)`, easing: "step-end" });
+    }
+    ico.classList.add("turning");
+    const done = () => ico.classList.remove("turning");
+    const run = ico.querySelector(".usp-turn i").animate(steps, { duration: 1800 });
+    run.onfinish = done;
+    run.oncancel = done;
+    return true;
+  }
+
+  function loadTurns() {
+    if (turnsAsked || reduce.matches || !uspGrid || !Element.prototype.animate) return;
+    turnsAsked = true;
+    icons.forEach((ico) => {
+      const sheet = new Image();
+      sheet.onload = () => {
+        const done = () => {
+          const box = document.createElement("span");
+          box.className = "usp-turn";
+          box.appendChild(document.createElement("i")).style.backgroundImage = `url("${sheet.src}")`;
+          ico.appendChild(box);
+          ico.dataset.ready = "1";
+        };
+        if (sheet.decode) sheet.decode().then(done, done);
+        else done();
+      };
+      sheet.src = `img/pickups/${ico.dataset.turn}-turn.webp`;
+    });
+    new IntersectionObserver((entries) => { gridSeen = entries[0].isIntersecting; }, { threshold: 0.3 }).observe(uspGrid);
+    setInterval(() => {
+      if (!gridSeen || document.hidden || reduce.matches || !uspGrid.classList.contains("in")) return;
+      const ico = icons[TURN_ORDER[nextTurn % TURN_ORDER.length] % icons.length];
+      nextTurn++;
+      if (ico) turn(ico);
+    }, 2000);
+  }
+
+  if (uspGrid && "IntersectionObserver" in window) {
+    const near = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      near.disconnect();
+      if (document.readyState === "complete") loadTurns();
+      else window.addEventListener("load", loadTurns, { once: true });
+    }, { rootMargin: "300px 0px" });
+    near.observe(uspGrid);
+  }
+
   document.querySelectorAll(".usp-tile").forEach((tile) => {
     tile.addEventListener("mouseenter", () => {
       if (reduce.matches) return;
+      const ico = tile.querySelector(".usp-ico");
+      if (ico && (ico.classList.contains("turning") || turn(ico))) return;
       tile.querySelectorAll(".mv").forEach((el) => {
         if (!el.getAnimations) return;
         el.getAnimations().forEach((move) => {

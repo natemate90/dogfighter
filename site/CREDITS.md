@@ -18,7 +18,7 @@ The site serves its own copies of three fonts from Google Fonts, all under the S
 
 The seven pictures in `img/game/` are screenshots of Airfix Dogfighter running on a Mac with this project, taken for the site. The game is © its rights holders: Unique Development Studios and Paradox Entertainment; Airfix is a trademark of Hornby. The screenshots show the main menu, a loading screen, the kids' room and the living room with the sharper textures, a dogfight over the sofa, the kids' room in a fight, and the backyard.
 
-The six small pictures in `img/pickups/` are cut out of screenshots taken the same way. They show the game's pickups: fuel, star, glue, ammo, paint and model plans. The paint tin and the glue tube carry the Humbrol name as they do in the game; Humbrol is a trademark of Hornby.
+The small pictures in `img/pickups/` are cut out of screenshots taken the same way. They show six of the game's pickups: fuel, repairs, glue, the kit, paint and model plans. Each has one still picture and one sheet of 24 pictures of a full turn, taken from 24 screenshots while the pickup turned in the game. The paint tin and the glue tube carry the Humbrol name and the kit carries the Airfix sign, as they do in the game; both are trademarks of Hornby.
 
 # Video preview
 
