@@ -204,13 +204,20 @@
     const ceiling = top + body * 0.6;
     const meetY = H * MEET;
     let radius = rand(3.3, 4.2) * body;
-    const lowest = start.y - body * 0.5;
+    const lowest = start.y - body * 1.5;
     if (!loose) radius = Math.min(radius, (lowest - ceiling) / 1.15);
     if (radius < 3.3 * body) return false;
     const turnY = loose ? lowest : rand(ceiling + radius * 1.15, Math.min(lowest, ceiling + radius * 1.15 + H * 0.08));
-    const left = start.x - 2.3 * radius > body, right = start.x + 2.3 * radius < W - body;
-    if (!left && !right) return false;
-    const dir = left && right ? (Math.random() < 0.5 ? -1 : 1) : left ? -1 : 1;
+    const words = document.createRange();
+    words.selectNodeContents(story);
+    const head = words.getBoundingClientRect();
+    const over = (side) => {
+      const lane = start.x + side * 2 * radius;
+      return start.x + side * 2.3 * radius > body && start.x + side * 2.3 * radius < W - body && lane > head.left && lane < head.right + body;
+    };
+    const left = over(-1), right = over(1);
+    if (!left && !right && !loose) return false;
+    const dir = left && right ? (Math.random() < 0.5 ? -1 : 1) : right ? 1 : -1;
     const g = (0.65 * c) ** 2 / (3.7 * body * Math.tan(TURN_BANK));
 
     const frames = [];
@@ -253,7 +260,7 @@
           bank = 0;
         }
       } else if (phase === "dive") {
-        v = c * (0.75 + 0.07 * ease(meetY > diveFrom ? (y - diveFrom) / (meetY - diveFrom) : 1));
+        v = c * (0.75 + 0.07 * ease(meetY > diveFrom ? clamp((y - diveFrom) / (meetY - diveFrom)) : 1));
         if (y >= meetY) {
           exitFrom = t;
           exitV = v;
@@ -280,12 +287,12 @@
       t += STEP;
       const lift = phase === "climb" ? ease(clamp((start.y - y) / Math.max(1, start.y - turnY))) : 1;
       const zoom = phase === "turn" ? 1 + 0.25 * Math.sin(Math.PI * Math.min(1, turned / Math.PI)) : 1;
-      frames.push({ x, y, psi, phi: sign * bank, v: v / c, h: lift * zoom });
+      frames.push({ x, y, psi, phi: sign * bank, v: v / c, h: lift * zoom, size: 1 - (1 - body / kit) * lift });
     }
     const end = frames[frames.length - 1];
     const gone = end && (end.x > W + body || end.x < -body || end.y > H + body);
     const clear = meetAt > 0 && gone && (loose || frames.every((f) => f.y > top + body * 0.5));
-    return clear && { frames, body, size: body / kit, turnAt: turnAt * 1000, meetAt: meetAt * 1000 };
+    return clear && { frames, body, turnAt: turnAt * 1000, meetAt: meetAt * 1000 };
   }
 
   function takeOff() {
@@ -297,7 +304,7 @@
     plan = plan || course(start, kit, window.innerWidth, window.innerHeight, 0.55, true);
     if (!plan) return;
     retired = true;
-    const { frames, body, size, turnAt, meetAt } = plan;
+    const { frames, body, turnAt, meetAt } = plan;
     flown = inFlight = true;
     steered = false;
     const id = ++trip;
@@ -327,7 +334,7 @@
       last = now;
       const i = Math.min(frames.length - 1, Math.floor(t / (STEP * 1000)));
       const f = frames[i];
-      const scale = 1 - (1 - size) * ease(clamp(t / 800));
+      const scale = f.size;
       craft.setAttribute("transform", draw(f, f.x, f.y, scale));
       ghost.setAttribute("transform", draw(f, f.x + f.h * body * 0.2, f.y + f.h * body * 0.3, scale));
       ghost.style.opacity = (0.2 * clamp(f.h * 4)).toFixed(3);
