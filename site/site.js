@@ -163,7 +163,7 @@
     document.querySelectorAll("animate, animateMotion, animateTransform").forEach((el) => el.beginElementAt(Number(el.getAttribute("data-offset") || 0)));
   }
 
-  const reveals = document.querySelectorAll(".reveal, .stamp");
+  const reveals = document.querySelectorAll(".reveal, .stamp, .usp-grid");
   const observer = "IntersectionObserver" in window
     ? new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
@@ -190,9 +190,11 @@
       }
       if (started) animated.forEach((svg) => svg.pauseAnimations());
       reveals.forEach((el) => el.classList.add("in"));
+      icons.forEach((ico) => ico.classList.remove("turning"));
       return;
     }
     document.documentElement.classList.remove("static");
+    startSpin();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     startAnimations();
@@ -210,6 +212,103 @@
       reveals.forEach((el) => el.classList.contains("in") || observer.observe(el));
     }
   }
+
+  const uspGrid = document.querySelector(".usp-grid");
+  const icons = [...document.querySelectorAll(".usp-ico[data-turn]")];
+  const TURN_FRAMES = 26;
+  const TURN_COLS = 13;
+  const TURN_ROWS = 2;
+  const blend = window.CSS && CSS.supports && CSS.supports("mix-blend-mode", "plus-lighter");
+  let turnsAsked = false;
+  let gridSeen = false;
+  let spinning = false;
+  let last = 0;
+  const cell = (f) => `translate(${(f % TURN_COLS) * -100 / TURN_COLS}%, ${Math.floor(f / TURN_COLS) * -100 / TURN_ROWS}%)`;
+  const spins = icons.map(() => ({ at: Math.random(), period: 6500 + Math.random() * 2500, wobble: 0.0004 + Math.random() * 0.0004, phase: Math.random() * 6.3 }));
+
+  function show(ico, pos) {
+    const [now, next] = ico.querySelectorAll(".usp-turn i");
+    const f = blend ? Math.floor(pos) : Math.round(pos);
+    now.style.transform = cell(f % TURN_FRAMES);
+    next.style.transform = cell((f + 1) % TURN_FRAMES);
+    const mix = blend ? pos - f : 0;
+    now.style.opacity = 1 - mix;
+    next.style.opacity = mix;
+  }
+
+  /**
+   * Every pickup turns on its own, without pauses: each has its own turn time, start angle and a slow drift in speed,
+   * so the six never line up. With plus-lighter the next of the 26 frames fades in over the current one.
+   */
+  function spin(time) {
+    if (!gridSeen || document.hidden || reduce.matches) {
+      spinning = false;
+      return;
+    }
+    const dt = last ? Math.min(100, time - last) : 0;
+    last = time;
+    icons.forEach((ico, k) => {
+      if (!ico.dataset.ready) return;
+      const s = spins[k];
+      s.at = (s.at + (dt / s.period) * (1 + 0.15 * Math.sin(time * s.wobble + s.phase))) % 1;
+      ico.classList.add("turning");
+      show(ico, s.at * TURN_FRAMES);
+    });
+    requestAnimationFrame(spin);
+  }
+
+  function startSpin() {
+    if (spinning || !gridSeen || document.hidden || reduce.matches) return;
+    spinning = true;
+    last = 0;
+    requestAnimationFrame(spin);
+  }
+
+  function loadTurns() {
+    if (turnsAsked || reduce.matches || !uspGrid || !Element.prototype.animate) return;
+    turnsAsked = true;
+    icons.forEach((ico) => {
+      const sheet = new Image();
+      sheet.onload = () => {
+        const done = () => {
+          const box = document.createElement("span");
+          box.className = "usp-turn";
+          for (let k = 0; k < 2; k++) box.appendChild(document.createElement("i")).style.backgroundImage = `url("${sheet.src}")`;
+          ico.appendChild(box);
+          ico.dataset.ready = "1";
+          show(ico, spins[icons.indexOf(ico)].at * TURN_FRAMES);
+        };
+        if (sheet.decode) sheet.decode().then(done, done);
+        else done();
+      };
+      sheet.src = `img/pickups/${ico.dataset.turn}-turn.webp`;
+    });
+    new IntersectionObserver((entries) => {
+      gridSeen = entries[0].isIntersecting;
+      startSpin();
+    }, { threshold: 0.1 }).observe(uspGrid);
+    document.addEventListener("visibilitychange", startSpin);
+  }
+
+  if (uspGrid && "IntersectionObserver" in window) {
+    const near = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      near.disconnect();
+      if (document.readyState === "complete") loadTurns();
+      else window.addEventListener("load", loadTurns, { once: true });
+    }, { rootMargin: "300px 0px" });
+    near.observe(uspGrid);
+  }
+
+  document.querySelectorAll(".usp-tile").forEach((tile) => {
+    tile.addEventListener("mouseenter", () => {
+      if (reduce.matches) return;
+      const ico = tile.querySelector(".usp-ico");
+      if (!ico || !ico.animate || ico.lift) return;
+      ico.lift = ico.animate([{ transform: "none" }, { transform: "translateY(-10%) scale(1.06)" }, { transform: "none" }], { duration: 1600, easing: "cubic-bezier(0.45, 0, 0.55, 1)", composite: "add" });
+      ico.lift.onfinish = ico.lift.oncancel = () => (ico.lift = null);
+    });
+  });
 
   if (reduce.addEventListener) reduce.addEventListener("change", setMode);
   else if (reduce.addListener) reduce.addListener(setMode);
