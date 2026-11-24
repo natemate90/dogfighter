@@ -20,6 +20,7 @@
       const [sx, sy, r] = el.dataset.s.split(",").map(Number);
       return { el, cx, cy, dx: sx - cx, dy: sy - cy, r };
     });
+    const transfers = [...svg.querySelectorAll(".transfer")];
     return function draw(n) {
       parts.forEach((part, i) => {
         const t = ease(clamp(n - PART_STEP[i]));
@@ -30,6 +31,7 @@
       });
       frame.style.opacity = (1 - 0.82 * clamp(n / (GROUPS.length - 1.5))).toFixed(3);
       svg.classList.toggle("painted", n >= GROUPS.length);
+      transfers.forEach((el) => el.classList.toggle("on", n >= Number(el.dataset.at)));
       return Math.floor(n);
     };
   }
@@ -104,6 +106,7 @@
     lastState = state;
     if (state === GROUPS.length) caption.textContent = "Spinner on. Ready to fly.";
     else if (state === 0) caption.textContent = "Frame A has eight parts.";
+    else if (state === GROUPS.length - 1) caption.textContent = `Step ${state}: ${GROUPS[state - 1]} on. Decals going on.`;
     else caption.textContent = `Step ${state}: ${GROUPS[state - 1]} on.`;
   }
 

@@ -6,6 +6,9 @@
   --rd-blue: #1f3a75;
   --rd-white: #f2efe6;
   --rd-red: #c8102e;
+  --roundel-blue: #2d3c6b;
+  --roundel-red: #a8322b;
+  --stripe-black: #1f2123;
   --paper: #ebe4cf;
   --paper-2: #e0d8bf;
   --grid-line: rgba(26, 47, 85, 0.07);
@@ -496,11 +499,20 @@ button.button { font: inherit; font-weight: 700; cursor: pointer; }
 .sprue .paint { stroke: var(--ink-fixed); stroke-width: 2; stroke-linejoin: round; }
 .sprue .paint.band { fill: var(--sky); stroke: none; }
 .sprue .paint.prop { fill: #2b2d2f; }
-.sprue .paint.tips { fill: var(--red); stroke: none; }
+.sprue .paint.tips { fill: var(--rd-yellow); stroke: none; }
 .sprue .paint.spinner { fill: var(--red); }
 .sprue .part .paint, .sprue .part .decal { transition-duration: 0.25s; }
 .sprue .part.painted .paint, .sprue .part.painted .decal, .sprue.painted .paint, .sprue.painted .decal { opacity: 1; }
 .sprue.painted .line { stroke: #10203d; }
+.sprue .transfer { opacity: 0; transform: scale(1.04); transform-box: fill-box; transform-origin: center; transition: opacity 0.25s ease, transform 0.25s ease; pointer-events: none; }
+.sprue .transfer.on { opacity: 1; transform: none; transition: opacity 0.35s ease var(--d, 0s), transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) var(--d, 0s); animation: sheen 0.6s ease var(--d, 0s) backwards; }
+.sprue .transfer .w { fill: var(--rd-white); }
+.sprue .transfer .k { fill: var(--stripe-black); }
+.sprue .transfer .y { fill: var(--rd-yellow); }
+@keyframes sheen { from { filter: brightness(1.45); } }
+@media (prefers-reduced-motion: reduce) {
+  .sprue .transfer, .sprue .transfer.on { transition: none; animation: none; }
+}
 
 .sheet { padding-block: clamp(56px, 8vw, 104px) 0; }
 .note {
@@ -869,8 +881,8 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .disc li.no::before { content: "\2717"; color: var(--red-text); }
 .disc p { color: var(--ink-soft); font-size: 0.95rem; }
 .assembly { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 56px; align-items: start; }
-.kit-col { order: 1; position: sticky; top: var(--stick, 72px); }
-.kit-col .sprue { max-height: calc(100svh - var(--stick, 72px) - 72px); }
+.kit-col { order: 1; position: sticky; top: calc(var(--stick, 72px) + 7vh); }
+.kit-col .sprue { max-height: calc(100svh - var(--stick, 72px) - 7vh - 72px); }
 .istep { scroll-margin-top: 12px; }
 .install-steps {
   --rail: 64px;
