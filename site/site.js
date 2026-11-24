@@ -135,9 +135,7 @@
   }
 
   function activeCard() {
-    const mid = narrow.matches
-      ? window.innerHeight * 0.85
-      : (parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--stick")) || 72) + 100;
+    const mid = window.innerHeight * (narrow.matches ? 0.85 : 0.67);
     let found = -1;
     cards.forEach((card, i) => {
       if (card.getBoundingClientRect().top < mid) found = i;
