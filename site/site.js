@@ -190,9 +190,11 @@
       }
       if (started) animated.forEach((svg) => svg.pauseAnimations());
       reveals.forEach((el) => el.classList.add("in"));
+      icons.forEach((ico) => ico.classList.remove("turning"));
       return;
     }
     document.documentElement.classList.remove("static");
+    startSpin();
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     startAnimations();
@@ -216,60 +218,50 @@
   const TURN_FRAMES = 26;
   const TURN_COLS = 13;
   const TURN_ROWS = 2;
-  const TURN_MS = 4800;
-  const TURN_EVERY_MS = 3000;
-  const TURN_ORDER = [0, 3, 1, 5, 2, 4];
   const blend = window.CSS && CSS.supports && CSS.supports("mix-blend-mode", "plus-lighter");
   let turnsAsked = false;
   let gridSeen = false;
-  let nextTurn = 0;
-
-  function cubicBezier(x1, y1, x2, y2) {
-    const at = (a, b, t) => 3 * a * (1 - t) * (1 - t) * t + 3 * b * (1 - t) * t * t + t * t * t;
-    return (x) => {
-      let lo = 0, hi = 1, t = x;
-      for (let i = 0; i < 24; i++) {
-        if (at(x1, x2, t) < x) lo = t;
-        else hi = t;
-        t = (lo + hi) / 2;
-      }
-      return at(y1, y2, t);
-    };
-  }
-  const turnEase = cubicBezier(0.45, 0, 0.55, 1);
+  let spinning = false;
+  let last = 0;
   const cell = (f) => `translate(${(f % TURN_COLS) * -100 / TURN_COLS}%, ${Math.floor(f / TURN_COLS) * -100 / TURN_ROWS}%)`;
+  const spins = icons.map(() => ({ at: Math.random(), period: 6500 + Math.random() * 2500, wobble: 0.0004 + Math.random() * 0.0004, phase: Math.random() * 6.3 }));
+
+  function show(ico, pos) {
+    const [now, next] = ico.querySelectorAll(".usp-turn i");
+    const f = blend ? Math.floor(pos) : Math.round(pos);
+    now.style.transform = cell(f % TURN_FRAMES);
+    next.style.transform = cell((f + 1) % TURN_FRAMES);
+    const mix = blend ? pos - f : 0;
+    now.style.opacity = 1 - mix;
+    next.style.opacity = mix;
+  }
 
   /**
-   * One full turn, slow at the start and the end. The frame position follows the eased time; with plus-lighter the
-   * next frame fades in over the current one, so the 26 pictures read as one smooth turn. Frame 0 is the still, so
-   * the turn starts and ends on exactly the picture that shows between turns.
+   * Every pickup turns on its own, without pauses: each has its own turn time, start angle and a slow drift in speed,
+   * so the six never line up. With plus-lighter the next of the 26 frames fades in over the current one.
    */
-  function turn(ico) {
-    if (reduce.matches || !ico.dataset.ready || ico.classList.contains("turning")) return false;
-    const [now, next] = ico.querySelectorAll(".usp-turn i");
-    const start = performance.now();
-    const show = (pos) => {
-      const f = blend ? Math.floor(pos) : Math.round(pos);
-      now.style.transform = cell(f % TURN_FRAMES);
-      next.style.transform = cell((f + 1) % TURN_FRAMES);
-      const mix = blend ? pos - f : 0;
-      now.style.opacity = 1 - mix;
-      next.style.opacity = mix;
-    };
-    const step = (time) => {
-      const p = Math.min(1, (time - start) / TURN_MS);
-      if (p < 1 && !reduce.matches) {
-        show(turnEase(p) * TURN_FRAMES);
-        requestAnimationFrame(step);
-      } else {
-        show(0);
-        ico.classList.remove("turning");
-      }
-    };
-    show(0);
-    ico.classList.add("turning");
-    requestAnimationFrame(step);
-    return true;
+  function spin(time) {
+    if (!gridSeen || document.hidden || reduce.matches) {
+      spinning = false;
+      return;
+    }
+    const dt = last ? Math.min(100, time - last) : 0;
+    last = time;
+    icons.forEach((ico, k) => {
+      if (!ico.dataset.ready) return;
+      const s = spins[k];
+      s.at = (s.at + (dt / s.period) * (1 + 0.15 * Math.sin(time * s.wobble + s.phase))) % 1;
+      ico.classList.add("turning");
+      show(ico, s.at * TURN_FRAMES);
+    });
+    requestAnimationFrame(spin);
+  }
+
+  function startSpin() {
+    if (spinning || !gridSeen || document.hidden || reduce.matches) return;
+    spinning = true;
+    last = 0;
+    requestAnimationFrame(spin);
   }
 
   function loadTurns() {
@@ -284,19 +276,18 @@
           for (let k = 0; k < 2; k++) box.appendChild(document.createElement("i")).style.backgroundImage = `url("${sheet.src}")`;
           ico.appendChild(box);
           ico.dataset.ready = "1";
+          show(ico, spins[icons.indexOf(ico)].at * TURN_FRAMES);
         };
         if (sheet.decode) sheet.decode().then(done, done);
         else done();
       };
       sheet.src = `img/pickups/${ico.dataset.turn}-turn.webp`;
     });
-    new IntersectionObserver((entries) => { gridSeen = entries[0].isIntersecting; }, { threshold: 0.3 }).observe(uspGrid);
-    setInterval(() => {
-      if (!gridSeen || document.hidden || reduce.matches || !uspGrid.classList.contains("in")) return;
-      const ico = icons[TURN_ORDER[nextTurn % TURN_ORDER.length] % icons.length];
-      nextTurn++;
-      if (ico) turn(ico);
-    }, TURN_EVERY_MS);
+    new IntersectionObserver((entries) => {
+      gridSeen = entries[0].isIntersecting;
+      startSpin();
+    }, { threshold: 0.1 }).observe(uspGrid);
+    document.addEventListener("visibilitychange", startSpin);
   }
 
   if (uspGrid && "IntersectionObserver" in window) {
@@ -312,8 +303,6 @@
   document.querySelectorAll(".usp-tile").forEach((tile) => {
     tile.addEventListener("mouseenter", () => {
       if (reduce.matches) return;
-      const ico = tile.querySelector(".usp-ico");
-      if (ico && (ico.classList.contains("turning") || turn(ico))) return;
       tile.querySelectorAll(".mv").forEach((el) => {
         if (!el.getAnimations) return;
         el.getAnimations().forEach((move) => {
