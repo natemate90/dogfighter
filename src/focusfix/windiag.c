@@ -379,10 +379,13 @@ static void read_keys(const char *list)
 /* Codes from 80 up are the extended keys, as DirectInput numbers them: d0 is
    the Down arrow. Windows wants those as the low seven bits plus the extended
    flag. Sent as they are, Wine takes bit 7 for nothing and DirectInput in the
-   game never sees the key. */
+   game never sees the key.
+   The extra value tells the helper the key is a scripted one, which it lets
+   through while --diag-block-input keeps the player's keys from the game. */
 static void send_key(DWORD scan, BOOL down)
 {
-    INPUT key = { .type = INPUT_KEYBOARD, .ki.wScan = scan & 0x7f, .ki.dwFlags = KEYEVENTF_SCANCODE };
+    INPUT key = { .type = INPUT_KEYBOARD, .ki.wScan = scan & 0x7f, .ki.dwFlags = KEYEVENTF_SCANCODE,
+                  .ki.dwExtraInfo = 0x41664464 };
 
     if (scan & 0x80) key.ki.dwFlags |= KEYEVENTF_EXTENDEDKEY;
     if (!down) key.ki.dwFlags |= KEYEVENTF_KEYUP;
