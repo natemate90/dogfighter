@@ -498,6 +498,7 @@ button.button { font: inherit; font-weight: 700; cursor: pointer; }
 .sprue .paint.prop { fill: #2b2d2f; }
 .sprue .paint.tips { fill: var(--red); stroke: none; }
 .sprue .paint.spinner { fill: var(--red); }
+.sprue .part .paint, .sprue .part .decal { transition-duration: 0.25s; }
 .sprue .part.painted .paint, .sprue .part.painted .decal, .sprue.painted .paint, .sprue.painted .decal { opacity: 1; }
 .sprue.painted .line { stroke: #10203d; }
 
@@ -867,9 +868,9 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .disc li.ok::before { content: "\2713"; color: var(--green); }
 .disc li.no::before { content: "\2717"; color: var(--red-text); }
 .disc p { color: var(--ink-soft); font-size: 0.95rem; }
-.assembly { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 48px; align-items: start; }
-.kit-col { position: sticky; top: 80px; }
-.kit-col .sprue { max-height: calc(100svh - 160px); }
+.assembly { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 56px; align-items: start; }
+.kit-col { order: 1; position: sticky; top: var(--stick, 72px); }
+.kit-col .sprue { max-height: calc(100svh - var(--stick, 72px) - 72px); }
 .istep { scroll-margin-top: 12px; }
 .install-steps {
   --rail: 64px;
