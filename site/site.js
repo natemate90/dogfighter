@@ -176,7 +176,7 @@
     return t * t * (3 - 2 * t);
   };
 
-  const HOLD_FINISHED = 300, FAR = 0.5, MEET = 0.42, MID_X = 520, MID_Y = 320, LENGTH = 460;
+  const HOLD_FINISHED = 300, FAR = 0.4, MEET = 0.45, MID_X = 520, MID_Y = 320, LENGTH = 460, PACE = 4.5, BOOST = 1.6, DRAG = 4;
   const steps = document.querySelector(".install-steps");
   const story = document.getElementById("story-h");
   let flown = false, inFlight = false, retired = false, steered = false, trip = 0, waiting = 0, gliding = 0, layer = null;
@@ -190,109 +190,112 @@
     return box.bottom > 0 && box.top < window.innerHeight;
   }
 
-  function route(points, host) {
-    const line = host.appendChild(document.createElementNS("http://www.w3.org/2000/svg", "path"));
-    line.setAttribute("fill", "none");
-    let d = `M${points[0].x} ${points[0].y}`;
-    for (let i = 1; i < points.length; i++) {
-      const a = points[i - 1], b = points[i];
-      const chord = Math.hypot(b.x - a.x, b.y - a.y);
-      const turn = Math.acos(Math.max(-1, Math.min(1, a.dx * b.dx + a.dy * b.dy)));
-      const k = (chord * (turn > 0.01 ? (2 * Math.tan(turn / 4)) / Math.sin(turn / 2) : 1)) / 3;
-      d += ` C${a.x + a.dx * k} ${a.y + a.dy * k} ${b.x - b.dx * k} ${b.y - b.dy * k} ${b.x} ${b.y}`;
-      line.setAttribute("d", d);
-      b.s = line.getTotalLength();
+  function course(air, start, len, W, H) {
+    const k = (H * 0.06) / 45;
+    const roof = bar.getBoundingClientRect().bottom + len * 0.7 + air.rand(10, H * 0.05);
+    const words = document.createRange();
+    words.selectNodeContents(story);
+    const head = words.getBoundingClientRect();
+    const meet = { x: Math.min(Math.max(head.right - head.width * air.rand(0.1, 0.4), len), W - len), y: H * MEET - len * 0.2 };
+    const dir = start.x + 2 * k * 45 + len < W && Math.random() < 0.5 ? 1 : -1;
+    const cmd = air.rand(1.3, 2);
+    const wobble = [air.rand(0.08, 0.16), air.rand(0, 6.3), air.rand(0, 6.3)];
+    const p = { x: start.x / k, y: start.y / k, h: 0, v: 0, psi: -Math.PI / 2, th: 0, phi: 0, turn: 0, throttle: 1, leaving: true, drag: DRAG };
+    const frames = [];
+    let phase = "roll", sim = 0, turned = 0, heading = p.psi, turnAt = 0, meetAt = 0;
+    const wander = () => wobble[0] * (Math.sin(1.3 * sim + wobble[1]) + 0.6 * Math.sin(2.9 * sim + wobble[2]));
+    while (sim < 30) {
+      const x = p.x * k, y = p.y * k;
+      if (x > W + len || x < -len || y < -len || y > H + len) break;
+      if (phase === "roll") {
+        p.throttle = BOOST;
+        if (p.v >= air.STALL) phase = "climb";
+      } else if (phase === "climb") {
+        air.steer(p, -Math.PI / 2, 2);
+        p.turn += wander();
+        const rate = Math.min(cmd, (air.G * Math.tan(air.bankLimit(p.v))) / p.v);
+        if ((p.v > air.STALL * 1.4 && y - roof <= (p.v / rate) * k * 1.6) || y <= roof) {
+          phase = "turn";
+          turnAt = frames.length;
+        }
+      } else if (phase === "turn") {
+        p.turn = dir * cmd;
+        p.throttle = air.CRUISE;
+        turned += Math.abs(air.angle(p.psi - heading));
+        const aim = Math.abs(air.angle(Math.atan2(meet.y - y, meet.x - x) - p.psi));
+        if ((turned > Math.PI * 0.55 && aim < 0.25) || turned > Math.PI * 1.2) phase = "dive";
+      } else if (phase === "dive") {
+        air.steer(p, Math.atan2(meet.y - y, meet.x - x), 2.5);
+        p.throttle = air.CRUISE;
+        if (y >= meet.y - len * 0.1 || Math.hypot(meet.x - x, meet.y - y) < len / 2) {
+          phase = "exit";
+          meetAt = frames.length;
+        }
+      } else {
+        air.steer(p, 0, 1.6);
+        p.turn += wander();
+        p.throttle = 1;
+      }
+      heading = p.psi;
+      p.th = phase === "roll" ? 0 : -0.45 * Math.sin(p.psi);
+      air.fly(p, air.DT);
+      if (phase === "roll") p.h = 0;
+      sim += air.DT;
+      frames.push({ x: p.x * k, y: p.y * k, psi: p.psi, phi: p.phi, th: p.th, h: p.h, v: p.v });
     }
-    return line;
+    const ms = (i) => (i * air.DT * 1000) / PACE;
+    return { frames, k, turnAt: ms(turnAt), meetAt: ms(meetAt || frames.length) };
   }
 
-  const travel = (() => {
-    const table = [0];
-    for (let k = 1; k <= 200; k++) {
-      const x = k / 200;
-      table.push(table[k - 1] + smooth(0, 0.2, x) * (1 + 0.9 * x * x));
-    }
-    const total = table[200];
-    const at = (x) => {
-      const i = Math.min(199, Math.floor(clamp(x) * 200));
-      return (table[i] + (table[i + 1] - table[i]) * (clamp(x) * 200 - i)) / total;
-    };
-    at.inverse = (f) => {
-      let lo = 0, hi = 1;
-      for (let k = 0; k < 30; k++) at((lo + hi) / 2) < f ? (lo = (lo + hi) / 2) : (hi = (lo + hi) / 2);
-      return lo;
-    };
-    return at;
-  })();
-
   function takeOff() {
+    const air = window.spitfire;
     flown = inFlight = retired = true;
     steered = false;
     const id = ++trip;
-    const W = window.innerWidth, H = window.innerHeight;
     const m = plane.getScreenCTM();
     const start = new DOMPoint(MID_X, MID_Y).matrixTransform(m);
     const len = LENGTH * Math.hypot(m.a, m.b) * FAR;
-    const r = H * 0.11;
-    const top = Math.min(Math.max(bar.getBoundingClientRect().bottom + 16 + len / 2, H * 0.16), start.y - r);
-    const meet = H * MEET - len * 0.2;
-    const down = start.x - 2 * r;
-    const points = [{ x: start.x, y: start.y, dx: 0, dy: -1 }];
-    if (start.y - (top + r) > 20) points.push({ x: start.x, y: top + r, dx: 0, dy: -1 });
-    const apex = { x: start.x - r, y: top, dx: -1, dy: 0 };
-    const arrive = { x: down, y: Math.max(meet, top + r + 40), dx: 0, dy: 1 };
-    points.push(apex, { x: down, y: top + r, dx: 0, dy: 1 }, arrive, { x: down + r, y: arrive.y + r, dx: 1, dy: 0 }, { x: W + len, y: arrive.y + r, dx: 1, dy: 0 });
+    const { frames, k, turnAt, meetAt } = course(air, start, len, window.innerWidth, window.innerHeight);
+    const glideFrom = Math.max(0, Math.min(turnAt, meetAt - 700));
+
     layer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
     layer.setAttribute("class", `${sprue.getAttribute("class")} kit-flight`);
     layer.setAttribute("aria-hidden", "true");
-    document.body.append(layer);
-    const path = route(points, layer);
-    const total = path.getTotalLength();
-    const T = Math.min(3400, Math.max(2400, total / 0.56));
-    const glideFrom = travel.inverse(points[1].s / total) * T;
-    const glideTo = travel.inverse(arrive.s / total) * T;
-
     const ghost = shadow.cloneNode(true);
     const craft = plane.cloneNode(true);
     const blades = craft.querySelectorAll(".part")[6];
     const blade = blades.getAttribute("transform");
     layer.append(ghost, craft);
+    document.body.append(layer);
     plane.style.visibility = "hidden";
     sprue.querySelector(".frame").style.opacity = 0;
     caption.parentElement.classList.add("away");
 
     const base = `translate(${-start.x} ${-start.y}) matrix(${[m.a, m.b, m.c, m.d, m.e, m.f].join(" ")})`;
-    let t0 = 0, last = 0, turn = 0, bank = 0, heading = 0, glided = false;
+    const ground = air.perspective(0);
+    const draw = (f, x, y, size, along) => `translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${((f.psi * 180) / Math.PI + 90).toFixed(2)}) scale(${(size * Math.max(Math.cos(f.phi), 0.25)).toFixed(4)} ${(size * along).toFixed(4)}) ${base}`;
+    let t0 = 0, last = 0, spin = 0, glided = false;
     const tick = (now) => {
       if (id !== trip) return;
       if (!t0) t0 = last = now;
       const t = now - t0;
-      const dt = Math.max(0.001, (now - last) / 1000);
+      const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
-      const x = clamp(t / T);
-      const s = total * travel(x);
-      const p = path.getPointAtLength(s);
-      const ahead = path.getPointAtLength(Math.min(total, s + 1)), behind = path.getPointAtLength(Math.max(0, s - 1));
-      const next = Math.atan2(ahead.x - behind.x, behind.y - ahead.y);
-      let rate = next - heading;
-      rate -= Math.round(rate / (2 * Math.PI)) * 2 * Math.PI;
-      heading = next;
-      bank += (Math.max(-0.95, Math.min(0.95, (rate / dt) * 0.45)) - bank) * (1 - Math.exp(-dt / 0.15));
-      const size = 1 - (1 - FAR) * ease(clamp(s / apex.s));
-      const lift = smooth(0, 0.6, s / apex.s);
-      const place = (ox, oy) => `translate(${(p.x + ox).toFixed(2)} ${(p.y + oy).toFixed(2)}) rotate(${((heading * 180) / Math.PI).toFixed(2)}) scale(${(size * Math.cos(bank)).toFixed(4)} ${size.toFixed(4)}) ${base}`;
-      craft.setAttribute("transform", place(0, 0));
-      ghost.setAttribute("transform", place(26 * lift * size, 40 * lift * size));
-      ghost.style.opacity = (0.2 * lift).toFixed(3);
-      const blur = clamp((t - 100) / 700) ** 2;
-      turn += (5 + 34 * blur) * dt;
-      blades.setAttribute("transform", `${blade} translate(721 320) scale(1 ${(Math.cos(turn) * (1 - blur) + blur).toFixed(3)}) translate(-721 -320)`);
+      const i = Math.min(frames.length - 1, Math.floor((t * PACE) / (air.DT * 1000)));
+      const f = frames[i];
+      const size = 1 - (1 - FAR) * ease(clamp(t / 900));
+      craft.setAttribute("transform", draw(f, f.x, f.y, (size * air.perspective(f.h)) / ground, Math.cos(f.th)));
+      ghost.setAttribute("transform", draw(f, f.x + f.h * air.SHADOW_X * k, f.y + f.h * air.SHADOW_Y * k, size, 1));
+      ghost.style.opacity = (0.2 * clamp(f.h / 30)).toFixed(3);
+      const blur = clamp(f.v / 60) ** 2;
+      spin += (5 + 34 * blur) * dt;
+      blades.setAttribute("transform", `${blade} translate(721 320) scale(1 ${(Math.cos(spin) * (1 - blur) + blur).toFixed(3)}) translate(-721 -320)`);
       blades.style.opacity = (1 - 0.55 * blur).toFixed(3);
       if (!glided && t >= glideFrom) {
         glided = true;
-        if (!steered) glide(glideTo - t);
+        if (!steered) glide(meetAt - t);
       }
-      if (x < 1) return requestAnimationFrame(tick);
+      if (i < frames.length - 1) return requestAnimationFrame(tick);
       land();
       if (!onScreen()) restore();
     };
@@ -318,7 +321,7 @@
     if (seen && !reduce.matches && plane.animate) plane.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: "ease-out" });
   }
   function ready(late) {
-    if (flown || retired || inFlight || doneAt === null || reduce.matches || narrow.matches || playing || active !== cards.length - 1 || level !== cards.length) return false;
+    if (!window.spitfire || flown || retired || inFlight || doneAt === null || reduce.matches || narrow.matches || playing || active !== cards.length - 1 || level !== cards.length) return false;
     if (steps.getBoundingClientRect().bottom > window.innerHeight + 1) return false;
     const box = plane.getBoundingClientRect();
     return box.top + box.height / 2 > (late ? 0 : window.innerHeight * 0.3);

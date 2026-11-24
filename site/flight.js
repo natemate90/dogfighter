@@ -22,6 +22,7 @@
     return { x: p.v * n.x, y: p.v * n.y };
   };
   const perspective = (h) => (EYE - CRUISE_H) / (EYE - h);
+  const bankLimit = (v) => Math.acos(1 / clamp((v / STALL) ** 2, 1.01, MAX_G));
 
   function fly(p, dt) {
     if (p.falling) {
@@ -38,14 +39,14 @@
     }
     const n = 1 / Math.cos(p.phi);
     const throttle = p.v < STALL + 15 ? 1 : p.throttle;
-    p.v += (THRUST * (throttle - (p.v / TOP_SPEED) ** 2) - G * Math.sin(p.th) - TURN_DRAG * (n * n - 1)) * dt;
-    p.v = Math.max(p.v, 30);
+    p.v += (THRUST * (throttle - (p.v / TOP_SPEED) ** 2) - G * Math.sin(p.th) - (p.drag || TURN_DRAG) * (n * n - 1)) * dt;
+    p.v = Math.max(p.v, p.h > 5 ? 30 : 0);
     if (p.looping) {
       p.th += (p.v / LOOP_R) * dt;
       p.h += p.v * Math.sin(p.th) * dt;
       if (p.th >= TAU) Object.assign(p, { th: 0, h: CRUISE_H, looping: false });
     } else p.h += (CRUISE_H - p.h) * dt;
-    const bank = Math.acos(1 / clamp((p.v / STALL) ** 2, 1.01, MAX_G));
+    const bank = bankLimit(p.v);
     const want = p.looping ? 0 : clamp(Math.atan((p.turn * p.v) / G), -bank, bank);
     p.phi += clamp(want - p.phi, -ROLL_RATE * dt, ROLL_RATE * dt);
     if (!p.looping) p.psi = angle(p.psi + ((G * Math.tan(p.phi)) / p.v) * dt);
@@ -378,6 +379,8 @@
     if (s.exitTime > 12) s.fade -= dt / 0.6;
     if ((!p.falling && p.gone && h.gone) || s.fade <= 0) reset(s);
   }
+
+  window.spitfire = { fly, steer, angle, rand, bankLimit, perspective, G, STALL, CRUISE, SHADOW_X, SHADOW_Y, DT };
 
   const scene = document.getElementById("scene");
   if (!scene || !window.requestAnimationFrame) return;
