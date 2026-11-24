@@ -1260,7 +1260,7 @@ The "Get told when it's out" section collects emails for one message on release 
 1. Sign up. The email, a consent tick and a Turnstile token go to `POST /api/notify`. The Worker checks the origin, the hidden `website` field, the token and the email, like the contact form.
 2. Six optional questions, one at a time. Each answer goes to `POST /api/notify/answer` the moment it is given. The Worker checks it against fixed lists and refuses answers after 30 minutes.
 
-The Worker keeps everything in the KV namespace `dogfighter-release-list` (binding `RELEASE_LIST`).
+On dogfighter.net the Worker keeps everything in the KV namespace `dogfighter-release-list` (binding `RELEASE_LIST`).
 
 - `salt`: 32 random bytes, made once by the Worker.
 - `fp:<hash>`: the SHA-256 of the salt and the lowercased email. It holds no personal data. A known email gets the same answer as a new one, but is not stored or counted again.
@@ -1273,9 +1273,10 @@ A failed post leaves the record for the next run.
 The form's `formResponse` address is the Worker secret `NOTIFY_FORM_URL`.
 The Worker never logs the email, the ticket or the answers.
 
-Previews and localhost use the test Turnstile secret and put `preview:` in front of every key.
-They never touch `count` and never send anything to the Google Form.
-Preview keys expire after a day.
+Only dogfighter.net and www.dogfighter.net read or write KV.
+Previews and localhost use the test Turnstile secret and store nothing.
+Sign-up returns a random ticket, each answer returns success, and the browser closes the questions after 30 minutes.
+So a preview behaves the same and cannot use up the KV write quota.
 
 Read the count in the Cloudflare dashboard › Workers KV › dogfighter-release-list › key `count`.
 

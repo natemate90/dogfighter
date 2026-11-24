@@ -134,23 +134,22 @@ async function notify(request, env, url) {
   const production = PRODUCTION_HOSTS.includes(url.hostname);
   const secret = production ? env.TURNSTILE_SECRET : TEST_SECRET;
   const kv = env.RELEASE_LIST;
-  if (!secret || !kv) {
+  if (!secret || (production && !kv)) {
     console.log("notify: TURNSTILE_SECRET or RELEASE_LIST is not set");
     return reply(503, { ok: false, error: "not_configured" });
   }
 
   const failed = await challenge(request, secret, token, "notify");
   if (failed) return failed;
+  if (!production) return reply(200, { ok: true, ticket: hex(16), dryRun: true });
 
-  const prefix = production ? "" : "preview:";
-  const keep = production ? {} : { expirationTtl: 86400 };
   const ticket = hex(16);
   const now = new Date();
   const signedUpAt = now.toISOString();
   const sendAfter = new Date(now.getTime() + ANSWER_WINDOW).toISOString();
   try {
-    const fingerprint = await sha256((await salt(kv, prefix)) + email.toLowerCase());
-    const known = (await kv.get(`${prefix}fp:${fingerprint}`)) !== null;
+    const fingerprint = await sha256((await salt(kv)) + email.toLowerCase());
+    const known = (await kv.get(`fp:${fingerprint}`)) !== null;
     const record = known
       ? { discard: true, signedUpAt, sendAfter, answers: {} }
       : {
@@ -161,16 +160,16 @@ async function notify(request, env, url) {
           sendAfter,
           answers: Object.fromEntries(Object.keys(QUESTIONS).map((name) => [name, ""])),
         };
-    await kv.put(`${prefix}pending:${ticket}`, JSON.stringify(record), { ...keep, metadata: { sendAfter } });
+    await kv.put(`pending:${ticket}`, JSON.stringify(record), { metadata: { sendAfter } });
     if (!known) {
-      await kv.put(`${prefix}fp:${fingerprint}`, "1", keep).catch(() => console.log("notify: fingerprint not stored"));
-      if (production) await countOne(kv);
+      await kv.put(`fp:${fingerprint}`, "1").catch(() => console.log("notify: fingerprint not stored"));
+      await countOne(kv);
     }
   } catch {
     console.log("notify: storage failed");
     return reply(503, { ok: false, error: "storage" });
   }
-  return reply(200, production ? { ok: true, ticket } : { ok: true, ticket, dryRun: true });
+  return reply(200, { ok: true, ticket });
 }
 
 async function answer(request, env, url) {
@@ -190,17 +189,17 @@ async function answer(request, env, url) {
   const value = cleanAnswer(body.question, body.value);
   if (value === null) return reply(422, { ok: false, error: "invalid" });
 
+  if (!PRODUCTION_HOSTS.includes(url.hostname)) return reply(200, { ok: true, dryRun: true });
   const kv = env.RELEASE_LIST;
   if (!kv) return reply(503, { ok: false, error: "not_configured" });
-  const prefix = PRODUCTION_HOSTS.includes(url.hostname) ? "" : "preview:";
-  const key = `${prefix}pending:${body.ticket}`;
+  const key = `pending:${body.ticket}`;
   try {
     const stored = await kv.getWithMetadata(key);
     if (stored.value === null) return reply(404, { ok: false, error: "unknown" });
     const record = JSON.parse(stored.value);
     if (!(Date.now() - Date.parse(record.signedUpAt) < ANSWER_WINDOW)) return reply(410, { ok: false, error: "closed" });
     record.answers[body.question] = value;
-    await kv.put(key, JSON.stringify(record), prefix ? { expirationTtl: 86400, metadata: stored.metadata } : { metadata: stored.metadata });
+    await kv.put(key, JSON.stringify(record), { metadata: stored.metadata });
   } catch {
     console.log("notify: answer not stored");
     return reply(503, { ok: false, error: "storage" });
@@ -291,8 +290,8 @@ async function postEntry(formUrl, record) {
   return status === 200;
 }
 
-async function salt(kv, prefix) {
-  const key = `${prefix}salt`;
+async function salt(kv) {
+  const key = "salt";
   const stored = await kv.get(key);
   if (stored) return stored;
   const fresh = hex(32);

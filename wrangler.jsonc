@@ -12,8 +12,5 @@
   },
   "kv_namespaces": [{ "binding": "RELEASE_LIST", "id": "b2e8106fe502422c8a1deb45cff63e9e" }],
   "triggers": { "crons": ["*/15 * * * *"] },
-  // Previews do not inherit bindings. They share the namespace, and the Worker prefixes their keys with "preview:".
-  "previews": {
-    "kv_namespaces": [{ "binding": "RELEASE_LIST", "id": "b2e8106fe502422c8a1deb45cff63e9e" }]
-  }
+  "previews": {}
 }
