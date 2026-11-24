@@ -116,7 +116,8 @@
   function play() {
     if (level === wanted) {
       playing = false;
-      return maybeFly();
+      if (level === cards.length && doneAt === null) finished();
+      return;
     }
     playing = true;
     if (Math.abs(wanted - level) > 1) {
@@ -176,8 +177,12 @@
     return t * t * (3 - 2 * t);
   };
 
-  const PAUSE = 450, ZOOM = 900, CLIMB = 2100, FAR = 0.6, MID_X = 540, MID_Y = 320;
-  let flown = false, trip = 0, waiting = 0, goingDown = false, scrolledTo = window.scrollY;
+  const HOLD_FINISHED = 1200, RUNWAY = 0.25, ZOOM = 900, CLIMB = 2100, FAR = 0.6, MID_X = 540, MID_Y = 320;
+  let flown = false, trip = 0, waiting = 0, goingDown = false, scrolledTo = window.scrollY, doneAt = null, doneTime = 0;
+  function finished() {
+    doneAt = window.scrollY;
+    doneTime = performance.now();
+  }
   function takeOff() {
     flown = true;
     const id = ++trip;
@@ -236,16 +241,17 @@
     if (!reduce.matches && plane.animate) plane.animate([{ opacity: 0, transform: "translate(70px, 0) scale(1.1)", transformOrigin: `${MID_X}px ${MID_Y}px` }, { opacity: 1, transform: "none", transformOrigin: `${MID_X}px ${MID_Y}px` }], { duration: 550, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
   }
   function ready() {
-    if (flown || !goingDown || reduce.matches || narrow.matches || playing || active !== cards.length - 1 || level !== cards.length) return false;
+    if (flown || doneAt === null || reduce.matches || narrow.matches || playing || active !== cards.length - 1 || level !== cards.length) return false;
+    if (window.scrollY - doneAt < window.innerHeight * RUNWAY) return false;
     const box = sprue.getBoundingClientRect();
     return box.top + box.height * 0.46 > 0;
   }
   function maybeFly() {
-    if (waiting || !ready()) return;
+    if (waiting || !goingDown || !ready()) return;
     waiting = setTimeout(() => {
       waiting = 0;
       if (ready()) takeOff();
-    }, PAUSE);
+    }, Math.max(0, doneTime + HOLD_FINISHED - performance.now()));
   }
 
   function onScroll() {
@@ -256,7 +262,10 @@
     const i = activeCard();
     if (i !== active) {
       active = i;
-      if (i !== cards.length - 1) land();
+      if (i !== cards.length - 1) {
+        land();
+        doneAt = null;
+      }
       mark(i);
       setLevel(i + 1);
     }
@@ -315,6 +324,8 @@
       generation++;
       playing = false;
       level = wanted = active + 1;
+      doneAt = null;
+      if (level === cards.length) finished();
       drawBig(level);
     }
     if (observer) {

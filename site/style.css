@@ -902,7 +902,7 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
   gap: var(--gap);
 }
 @media (min-width: 901px) and (prefers-reduced-motion: no-preference) {
-  .install-steps { padding-bottom: 45vh; }
+  .js .install-steps { padding-bottom: 70vh; }
 }
 .istep { position: relative; padding: 20px 22px 22px; border: 2px solid var(--ink); border-radius: 8px; background: color-mix(in srgb, var(--paper-2) 60%, transparent); transition: border-color 0.3s, box-shadow 0.3s; }
 .istep.active { border-color: var(--red); box-shadow: 6px 6px 0 color-mix(in srgb, var(--red) 35%, transparent); }
