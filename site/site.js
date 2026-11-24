@@ -177,7 +177,7 @@
     return t * t * (3 - 2 * t);
   };
 
-  const HOLD_FINISHED = 2500, RUNWAY = 0.25, ZOOM = 1100, CLIMB = 2600, FAR = 0.6, MID_X = 540, MID_Y = 320;
+  const HOLD_FINISHED = 2500, PINNED_LEFT = 0.75, ZOOM = 1100, CLIMB = 2600, FAR = 0.6, MID_X = 540, MID_Y = 320;
   const steps = document.querySelector(".install-steps");
   const story = document.getElementById("story-h");
   let flown = false, inFlight = false, retired = false, steered = false, trip = 0, waiting = 0, gliding = 0;
@@ -255,7 +255,7 @@
   }
   function ready() {
     if (flown || retired || doneAt === null || reduce.matches || narrow.matches || playing || active !== cards.length - 1 || level !== cards.length) return false;
-    if (window.scrollY - doneAt < window.innerHeight * RUNWAY) return false;
+    if (steps.getBoundingClientRect().bottom - window.innerHeight > window.innerHeight * PINNED_LEFT) return false;
     const box = sprue.getBoundingClientRect();
     return box.top + box.height * 0.46 > 0;
   }
@@ -313,6 +313,12 @@
     if (!sprue || narrow.matches || gliding) return;
     if (flown && !inFlight && !onScreen()) restore();
     cutSpacer();
+    rearm();
+  }
+  function rearm() {
+    if (!retired || flown || active >= cards.length - 1 || steps.getBoundingClientRect().bottom < window.innerHeight) return;
+    retired = false;
+    steps.style.paddingBottom = "";
   }
   if ("onscrollend" in window) window.addEventListener("scrollend", afterScroll);
   else window.addEventListener("scroll", () => {
@@ -397,6 +403,7 @@
       if (i !== cards.length - 1) {
         restore();
         doneAt = badgeDoneAt = null;
+        badgeFlown = false;
       }
       restoreBadge();
       mark(i);
