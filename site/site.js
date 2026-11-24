@@ -29,7 +29,7 @@
         part.el.classList.toggle("painted", t === 1);
         const k = 1 - t;
         const lift = Math.sin(t * Math.PI) * -18;
-        part.el.setAttribute("transform", `translate(${(part.dx * k).toFixed(2)} ${(part.dy * k + lift).toFixed(2)}) rotate(${(part.r * k).toFixed(2)} ${part.cx} ${part.cy})`);
+        part.el.setAttribute("transform", `translate(${(part.dx * k - lift).toFixed(2)} ${(part.dy * k).toFixed(2)}) rotate(${(part.r * k).toFixed(2)} ${part.cx} ${part.cy})`);
       });
       frame.style.opacity = (1 - 0.82 * clamp(p / 0.75)).toFixed(3);
       svg.classList.toggle("painted", p > 0.9);
