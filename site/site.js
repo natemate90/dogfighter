@@ -135,13 +135,26 @@
     if (!playing) play();
   }
 
+  /**
+   * On desktop the scroll from "first card fully in view" to "last card's top at the activation line" is cut into
+   * equal parts, one per step, so tall and short cards get the same scroll distance and the kit builds evenly.
+   * Phones keep the plain rule (a card is active once its top passes the line), which their snap relies on.
+   */
   function activeCard() {
     const mid = window.innerHeight * (narrow.matches ? 0.85 : 0.67);
     let found = -1;
     cards.forEach((card, i) => {
-      if (card.getBoundingClientRect().top < mid) found = i;
+      const box = card.getBoundingClientRect();
+      if (box.top < mid || (i === 0 && box.top >= 0 && box.bottom <= window.innerHeight)) found = i;
     });
-    return found;
+    if (narrow.matches || cards.length < 2) return found;
+    const y = window.scrollY;
+    const start = cards[0].getBoundingClientRect().bottom + y - window.innerHeight;
+    const end = cards[cards.length - 1].getBoundingClientRect().top + y - mid;
+    if (end - start < cards.length * 40) return found;
+    if (y < start && cards[0].getBoundingClientRect().top >= mid) return -1;
+    const steps = cards.length - 1;
+    return Math.max(0, Math.min(steps, Math.floor(((y - start) / (end - start)) * steps)));
   }
 
   function onScroll() {
