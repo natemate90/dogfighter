@@ -545,8 +545,10 @@ h2 {
   font-size: clamp(1.9rem, 4.6vw, 3.3rem);
   font-weight: 700;
   text-transform: uppercase;
-  line-height: 1;
+  line-height: 1.12;
 }
+.sheet h2, .blueprint h2 { padding-left: 0.97em; text-indent: -0.97em; }
+.sheet h2 .note, .blueprint h2 .note { text-indent: 0; }
 h3 {
   margin: 0.7em 0 0.3em;
   font-size: 1.2rem;
@@ -976,7 +978,7 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 }
 @media (max-width: 760px) {
   .tail { white-space: normal; }
-  .note { display: block; width: fit-content; margin: 0.15em 0 0 auto; padding-right: 0.3em; }
+  .note { display: block; width: fit-content; margin: 0.05em 0 0 0.1em; font-size: 0.82em; }
   .topnav { display: none; }
   .topbar-in { gap: 6px; }
   .topbar .top-cta { display: inline-flex; margin-left: auto; padding: 0.3em 0.7em; font-size: 0.8rem; }
