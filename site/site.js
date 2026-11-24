@@ -177,7 +177,7 @@
     return t * t * (3 - 2 * t);
   };
 
-  const HOLD_FINISHED = 300, MEET = 0.45, MID_X = 520, MID_Y = 320, LENGTH = 460, CRUISE = 11.5, STEP = 1 / 240;
+  const HOLD_FINISHED = 300, MEET = 0.45, MID_X = 520, MID_Y = 320, LENGTH = 460, CRUISE = 5.2, MASS = 0.6, STEP = 1 / 240;
   const TURN_BANK = Math.PI / 3, EXIT_BANK = (70 * Math.PI) / 180, ROLL = 0.099;
   const steps = document.querySelector(".install-steps");
   const story = document.getElementById("story-h");
@@ -203,10 +203,10 @@
     const top = bar.getBoundingClientRect().bottom;
     const ceiling = top + body * 0.6;
     const meetY = H * MEET;
-    let radius = rand(3.3, 4.2) * body;
+    let radius = rand(3.6, 4.4) * body;
     const lowest = start.y - body * 1.5;
     if (!loose) radius = Math.min(radius, (lowest - ceiling) / 1.15);
-    if (radius < 3.3 * body) return false;
+    if (radius < 3.6 * body) return false;
     const turnY = loose ? lowest : rand(ceiling + radius * 1.15, Math.min(lowest, ceiling + radius * 1.15 + H * 0.08));
     const words = document.createRange();
     words.selectNodeContents(story);
@@ -224,34 +224,35 @@
     let x = start.x, y = start.y, psi = -Math.PI / 2, v = 0.3 * c, t = 0;
     let phase = "climb", turned = 0, turnAt = 0, meetAt = 0, exitFrom = 0, exitV = 0, diveFrom = 0;
     let rollAt = 0, outAt = 0, span = 1, goal = 0, sign = 0;
-    const startTurn = (delta, bank) => {
+    const startTurn = (delta, arc, pace) => {
       sign = Math.sign(delta);
       goal = Math.abs(delta);
       turned = 0;
       rollAt = t;
       outAt = 0;
-      span = (ROLL * goal * v) / (g * Math.tan(bank));
+      span = (ROLL * goal * arc) / pace;
     };
     const envelope = (bank) => {
       const rate = (g * Math.tan(bank)) / v;
       if (!outAt && goal - turned <= 0.5 * rate * span) outAt = t;
       return outAt ? 1 - smooth(0, 1, (t - outAt) / span) : smooth(0, 1, (t - rollAt) / span);
     };
-    while (t < 12) {
+    let want = v;
+    while (t < 24) {
       if (phase !== "climb" && (x > W + body || x < -body || y > H + body || (!loose && y < -body))) break;
       let bank = 0;
       if (phase === "climb") {
         const u = clamp((start.y - y) / Math.max(1, start.y - turnY));
-        v = c * (0.3 + 0.4 * (1 - (1 - u) ** 5));
+        want = c * (0.3 + 0.4 * (1 - (1 - u) ** 5));
         if (y <= turnY) {
           phase = "turn";
           turnAt = t;
-          startTurn(dir * Math.PI, TURN_BANK);
+          startTurn(dir * Math.PI, radius, 0.6 * c);
         }
       }
       if (phase === "turn") {
         const p = Math.min(1, turned / Math.PI);
-        v = c * (p < 0.5 ? 0.7 - 0.1 * ease(p * 2) : 0.6 + 0.15 * ease(p * 2 - 1));
+        want = c * (p < 0.5 ? 0.7 - 0.1 * ease(p * 2) : 0.6 + 0.15 * ease(p * 2 - 1));
         bank = Math.atan(v ** 2 / (g * radius));
         bank *= envelope(bank);
         if (outAt && t - outAt >= span) {
@@ -260,24 +261,26 @@
           bank = 0;
         }
       } else if (phase === "dive") {
-        v = c * (0.75 + 0.07 * ease(meetY > diveFrom ? clamp((y - diveFrom) / (meetY - diveFrom)) : 1));
+        want = c * (0.75 + 0.07 * ease(meetY > diveFrom ? clamp((y - diveFrom) / (meetY - diveFrom)) : 1));
         if (y >= meetY) {
           exitFrom = t;
           exitV = v;
           const delta = wrap(0 - psi);
           phase = Math.abs(delta) < 0.05 ? "away" : "exit";
-          if (phase === "exit") startTurn(delta, EXIT_BANK);
+          if (phase === "exit") startTurn(delta, 3.7 * body, v * 1.05);
         }
       } else if (phase === "exit" || phase === "away") {
-        v = exitV + (c - exitV) * ease(clamp((t - exitFrom) / 1.2));
+        want = exitV + (c - exitV) * ease(clamp((t - exitFrom) / 2.4));
         if (phase === "exit") {
-          bank = EXIT_BANK * envelope(EXIT_BANK);
+          bank = Math.min(EXIT_BANK, Math.atan(v ** 2 / (g * 3.7 * body)));
+          bank *= envelope(bank);
           if (outAt && t - outAt >= span) {
             phase = "away";
             bank = 0;
           }
         }
       }
+      v += (want - v) * (1 - Math.exp(-STEP / MASS));
       if (!meetAt && phase !== "climb" && y >= meetY && Math.sin(psi) > 0.3) meetAt = t;
       const rate = (g * Math.tan(bank)) / v;
       psi = wrap(psi + sign * rate * STEP);
