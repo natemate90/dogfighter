@@ -177,7 +177,8 @@
     return t * t * (3 - 2 * t);
   };
 
-  const HOLD_FINISHED = 300, FAR = 0.4, MEET = 0.45, MID_X = 520, MID_Y = 320, LENGTH = 460, PACE = 4.5, BOOST = 1.6, DRAG = 4;
+  const HOLD_FINISHED = 300, MEET = 0.45, MID_X = 520, MID_Y = 320, LENGTH = 460, CRUISE = 11.5, STEP = 1 / 240;
+  const TURN_BANK = Math.PI / 3, EXIT_BANK = (70 * Math.PI) / 180, ROLL = 0.099;
   const steps = document.querySelector(".install-steps");
   const story = document.getElementById("story-h");
   let flown = false, inFlight = false, retired = false, steered = false, trip = 0, waiting = 0, gliding = 0, layer = null;
@@ -192,80 +193,111 @@
     return box.bottom > 0 && box.top < window.innerHeight;
   }
 
-  function course(air, start, len, W, H, scale, loose) {
-    const k = ((H * 0.06) / 45) * scale;
+  const rand = (lo, hi) => lo + Math.random() * (hi - lo);
+  const wrap = (a) => Math.atan2(Math.sin(a), Math.cos(a));
+
+  function course(start, kit, W, H, room, loose) {
+    const full = Math.min(H * 0.09, 100);
+    const body = full * room;
+    const c = CRUISE * full;
     const top = bar.getBoundingClientRect().bottom;
-    const roof = top + len * 0.7 + air.rand(10, H * 0.05) * scale;
-    const words = document.createRange();
-    words.selectNodeContents(story);
-    const head = words.getBoundingClientRect();
-    const meet = { x: Math.min(Math.max(head.right - head.width * air.rand(0.1, 0.4), len), W - len), y: H * MEET - len * 0.2 };
-    const dir = start.x + 2 * k * 45 + len < W && Math.random() < 0.5 ? 1 : -1;
-    const cmd = air.rand(1.3, 2);
-    const wobble = [air.rand(0.08, 0.16), air.rand(0, 6.3), air.rand(0, 6.3)];
-    const p = { x: start.x / k, y: start.y / k, h: 0, v: 0, psi: -Math.PI / 2, th: 0, phi: 0, turn: 0, throttle: 1, leaving: true, drag: DRAG };
+    const ceiling = top + body * 0.6;
+    const meetY = H * MEET;
+    let radius = rand(3.3, 4.2) * body;
+    const lowest = start.y - body * 0.5;
+    if (!loose) radius = Math.min(radius, (lowest - ceiling) / 1.15);
+    if (radius < 3.3 * body) return false;
+    const turnY = loose ? lowest : rand(ceiling + radius * 1.15, Math.min(lowest, ceiling + radius * 1.15 + H * 0.08));
+    const left = start.x - 2.3 * radius > body, right = start.x + 2.3 * radius < W - body;
+    if (!left && !right) return false;
+    const dir = left && right ? (Math.random() < 0.5 ? -1 : 1) : left ? -1 : 1;
+    const g = (0.65 * c) ** 2 / (3.7 * body * Math.tan(TURN_BANK));
+
     const frames = [];
-    let phase = "roll", sim = 0, turned = 0, heading = p.psi, turnAt = 0, meetAt = 0;
-    const wander = () => wobble[0] * (Math.sin(1.3 * sim + wobble[1]) + 0.6 * Math.sin(2.9 * sim + wobble[2]));
-    while (sim < 60) {
-      const x = p.x * k, y = p.y * k;
-      if ((phase === "exit" || !loose) && (x > W + len || x < -len || y < -len || y > H + len)) break;
-      if (phase === "roll") {
-        p.throttle = BOOST;
-        if (p.v >= air.STALL) phase = "climb";
-      } else if (phase === "climb") {
-        air.steer(p, -Math.PI / 2, 2);
-        p.turn += wander();
-        p.throttle = p.v > air.STALL * 1.7 ? air.CRUISE : BOOST;
-        const rate = Math.min(cmd, (air.G * Math.tan(air.bankLimit(p.v))) / p.v);
-        if ((p.v > air.STALL * 1.4 && y - roof <= (p.v / rate) * k * 2) || y <= roof) {
+    let x = start.x, y = start.y, psi = -Math.PI / 2, v = 0.3 * c, t = 0;
+    let phase = "climb", turned = 0, turnAt = 0, meetAt = 0, exitFrom = 0, exitV = 0, diveFrom = 0;
+    let rollAt = 0, outAt = 0, span = 1, goal = 0, sign = 0;
+    const startTurn = (delta, bank) => {
+      sign = Math.sign(delta);
+      goal = Math.abs(delta);
+      turned = 0;
+      rollAt = t;
+      outAt = 0;
+      span = (ROLL * goal * v) / (g * Math.tan(bank));
+    };
+    const envelope = (bank) => {
+      const rate = (g * Math.tan(bank)) / v;
+      if (!outAt && goal - turned <= 0.5 * rate * span) outAt = t;
+      return outAt ? 1 - smooth(0, 1, (t - outAt) / span) : smooth(0, 1, (t - rollAt) / span);
+    };
+    while (t < 12) {
+      if (phase !== "climb" && (x > W + body || x < -body || y > H + body || (!loose && y < -body))) break;
+      let bank = 0;
+      if (phase === "climb") {
+        const u = clamp((start.y - y) / Math.max(1, start.y - turnY));
+        v = c * (0.3 + 0.4 * (1 - (1 - u) ** 5));
+        if (y <= turnY) {
           phase = "turn";
-          turnAt = frames.length;
+          turnAt = t;
+          startTurn(dir * Math.PI, TURN_BANK);
         }
-      } else if (phase === "turn") {
-        p.turn = dir * cmd;
-        p.throttle = air.CRUISE;
-        turned += Math.abs(air.angle(p.psi - heading));
-        const aim = Math.abs(air.angle(Math.atan2(meet.y - y, meet.x - x) - p.psi));
-        if ((turned > Math.PI * 0.55 && aim < 0.25) || turned > Math.PI * 1.2) phase = "dive";
-      } else if (phase === "dive") {
-        air.steer(p, Math.atan2(meet.y - y, meet.x - x), 2.5);
-        p.throttle = air.CRUISE;
-        if (y >= meet.y - len * 0.1 || Math.hypot(meet.x - x, meet.y - y) < len / 2) {
-          phase = "exit";
-          meetAt = frames.length;
-        }
-      } else {
-        air.steer(p, 0, 1.6);
-        p.turn += wander();
-        p.throttle = 1;
       }
-      heading = p.psi;
-      p.th = phase === "roll" ? 0 : -0.45 * Math.sin(p.psi);
-      air.fly(p, air.DT);
-      if (phase === "roll") p.h = 0;
-      sim += air.DT;
-      frames.push({ x: p.x * k, y: p.y * k, psi: p.psi, phi: p.phi, th: p.th, h: p.h, v: p.v });
+      if (phase === "turn") {
+        const p = Math.min(1, turned / Math.PI);
+        v = c * (p < 0.5 ? 0.7 - 0.1 * ease(p * 2) : 0.6 + 0.15 * ease(p * 2 - 1));
+        bank = Math.atan(v ** 2 / (g * radius));
+        bank *= envelope(bank);
+        if (outAt && t - outAt >= span) {
+          phase = "dive";
+          diveFrom = y;
+          bank = 0;
+        }
+      } else if (phase === "dive") {
+        v = c * (0.75 + 0.07 * ease(meetY > diveFrom ? (y - diveFrom) / (meetY - diveFrom) : 1));
+        if (y >= meetY) {
+          exitFrom = t;
+          exitV = v;
+          const delta = wrap(0 - psi);
+          phase = Math.abs(delta) < 0.05 ? "away" : "exit";
+          if (phase === "exit") startTurn(delta, EXIT_BANK);
+        }
+      } else if (phase === "exit" || phase === "away") {
+        v = exitV + (c - exitV) * ease(clamp((t - exitFrom) / 1.2));
+        if (phase === "exit") {
+          bank = EXIT_BANK * envelope(EXIT_BANK);
+          if (outAt && t - outAt >= span) {
+            phase = "away";
+            bank = 0;
+          }
+        }
+      }
+      if (!meetAt && phase !== "climb" && y >= meetY && Math.sin(psi) > 0.3) meetAt = t;
+      const rate = (g * Math.tan(bank)) / v;
+      psi = wrap(psi + sign * rate * STEP);
+      turned += rate * STEP;
+      x += Math.cos(psi) * v * STEP;
+      y += Math.sin(psi) * v * STEP;
+      t += STEP;
+      const lift = phase === "climb" ? ease(clamp((start.y - y) / Math.max(1, start.y - turnY))) : 1;
+      const zoom = phase === "turn" ? 1 + 0.25 * Math.sin(Math.PI * Math.min(1, turned / Math.PI)) : 1;
+      frames.push({ x, y, psi, phi: sign * bank, v: v / c, h: lift * zoom });
     }
-    const pace = PACE / scale;
-    const ms = (i) => (i * air.DT * 1000) / pace;
     const end = frames[frames.length - 1];
-    const gone = end && (end.x > W + len || end.x < -len || end.y < -len || end.y > H + len);
-    const clear = meetAt > 0 && gone && (loose || frames.every((f) => f.y > top + len * 0.35));
-    return clear && { frames, k, pace, turnAt: ms(turnAt), meetAt: ms(meetAt) };
+    const gone = end && (end.x > W + body || end.x < -body || end.y > H + body);
+    const clear = meetAt > 0 && gone && (loose || frames.every((f) => f.y > top + body * 0.5));
+    return clear && { frames, body, size: body / kit, turnAt: turnAt * 1000, meetAt: meetAt * 1000 };
   }
 
   function takeOff() {
-    const air = window.spitfire;
     const m = plane.getScreenCTM();
     const start = new DOMPoint(MID_X, MID_Y).matrixTransform(m);
-    const len = LENGTH * Math.hypot(m.a, m.b) * FAR;
+    const kit = LENGTH * Math.hypot(m.a, m.b);
     let plan = false;
-    for (const scale of [1, 1, 1, 0.8, 0.65, 0.5, 0.4, 0.3]) plan = plan || course(air, start, len, window.innerWidth, window.innerHeight, scale);
-    plan = plan || course(air, start, len, window.innerWidth, window.innerHeight, 0.5, true);
+    for (const room of [1, 1, 1, 0.85, 0.7, 0.55, 0.4]) plan = plan || course(start, kit, window.innerWidth, window.innerHeight, room);
+    plan = plan || course(start, kit, window.innerWidth, window.innerHeight, 0.55, true);
     if (!plan) return;
     retired = true;
-    const { frames, k, pace, turnAt, meetAt } = plan;
+    const { frames, body, size, turnAt, meetAt } = plan;
     flown = inFlight = true;
     steered = false;
     const id = ++trip;
@@ -285,8 +317,7 @@
     caption.parentElement.classList.add("away");
 
     const base = `translate(${-start.x} ${-start.y}) matrix(${[m.a, m.b, m.c, m.d, m.e, m.f].join(" ")})`;
-    const ground = air.perspective(0);
-    const draw = (f, x, y, size, along) => `translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${((f.psi * 180) / Math.PI + 90).toFixed(2)}) scale(${(size * Math.max(Math.cos(f.phi), 0.25)).toFixed(4)} ${(size * along).toFixed(4)}) ${base}`;
+    const draw = (f, x, y, scale) => `translate(${x.toFixed(2)} ${y.toFixed(2)}) rotate(${((f.psi * 180) / Math.PI + 90).toFixed(2)}) scale(${(scale * Math.max(Math.cos(f.phi), 0.25)).toFixed(4)} ${scale.toFixed(4)}) ${base}`;
     let t0 = 0, last = 0, spin = 0, glided = false;
     const tick = (now) => {
       if (id !== trip) return;
@@ -294,13 +325,13 @@
       const t = now - t0;
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
-      const i = Math.min(frames.length - 1, Math.floor((t * pace) / (air.DT * 1000)));
+      const i = Math.min(frames.length - 1, Math.floor(t / (STEP * 1000)));
       const f = frames[i];
-      const size = 1 - (1 - FAR) * ease(clamp(t / 900));
-      craft.setAttribute("transform", draw(f, f.x, f.y, (size * air.perspective(f.h)) / ground, Math.cos(f.th)));
-      ghost.setAttribute("transform", draw(f, f.x + f.h * air.SHADOW_X * k, f.y + f.h * air.SHADOW_Y * k, size, 1));
-      ghost.style.opacity = (0.2 * clamp(f.h / 30)).toFixed(3);
-      const blur = clamp(f.v / 60) ** 2;
+      const scale = 1 - (1 - size) * ease(clamp(t / 800));
+      craft.setAttribute("transform", draw(f, f.x, f.y, scale));
+      ghost.setAttribute("transform", draw(f, f.x + f.h * body * 0.2, f.y + f.h * body * 0.3, scale));
+      ghost.style.opacity = (0.2 * clamp(f.h * 4)).toFixed(3);
+      const blur = clamp(f.v / 0.6) ** 2;
       spin += (5 + 34 * blur) * dt;
       blades.setAttribute("transform", `${blade} translate(721 320) scale(1 ${(Math.cos(spin) * (1 - blur) + blur).toFixed(3)}) translate(-721 -320)`);
       blades.style.opacity = (1 - 0.55 * blur).toFixed(3);
@@ -334,7 +365,7 @@
     if (seen && !reduce.matches && plane.animate) plane.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: "ease-out" });
   }
   function ready(late) {
-    if (!window.spitfire || flown || retired || inFlight || doneAt === null || reduce.matches || narrow.matches || playing || active !== cards.length - 1 || level !== cards.length) return false;
+    if (flown || retired || inFlight || doneAt === null || reduce.matches || narrow.matches || playing || active !== cards.length - 1 || level !== cards.length) return false;
     if (steps.getBoundingClientRect().bottom > window.innerHeight + 1) return false;
     const box = plane.getBoundingClientRect();
     return late ? box.bottom > bar.getBoundingClientRect().bottom + 20 : box.top + box.height / 2 > window.innerHeight * 0.3;
