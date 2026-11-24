@@ -498,6 +498,7 @@ button.button { font: inherit; font-weight: 700; cursor: pointer; }
 .sprue .paint.prop { fill: #2b2d2f; }
 .sprue .paint.tips { fill: var(--red); stroke: none; }
 .sprue .paint.spinner { fill: var(--red); }
+.sprue .part .paint, .sprue .part .decal { transition-duration: 0.25s; }
 .sprue .part.painted .paint, .sprue .part.painted .decal, .sprue.painted .paint, .sprue.painted .decal { opacity: 1; }
 .sprue.painted .line { stroke: #10203d; }
 

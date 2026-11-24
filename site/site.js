@@ -6,10 +6,9 @@
   const cards = [...document.querySelectorAll(".istep")];
   const install = document.getElementById("install");
   const bar = document.getElementById("topbar");
-  const STAGES = [0.16, 0.3, 0.46, 0.62, 0.82, 1];
-  const NAMES = ["", "one", "two", "three", "four", "five", "six", "seven", "eight"];
-  const PART_STEP = [0, 0, 1, 1, 2, 3, 4, 4];
-  const NOTES = ["wings going on", "tailplanes going on", "fuselage going on", "canopy going on", "propeller going on", "ready to fly"];
+  const PART_STEP = [0, 0, 1, 1, 2, 3, 4, 5];
+  const GROUPS = ["wings", "tailplanes", "fuselage", "canopy", "propeller", "spinner"];
+  const NOTES = ["wings going on", "tailplanes going on", "fuselage going on", "canopy going on", "propeller going on", "spinner on, ready to fly"];
 
   const clamp = (v) => Math.min(1, Math.max(0, v));
   const ease = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
@@ -21,19 +20,17 @@
       const [sx, sy, r] = el.dataset.s.split(",").map(Number);
       return { el, cx, cy, dx: sx - cx, dy: sy - cy, r };
     });
-    return function draw(p) {
-      let fitted = 0;
+    return function draw(n) {
       parts.forEach((part, i) => {
-        const t = ease(clamp((p - 0.04 - i * 0.075) / 0.28));
-        if (t === 1) fitted++;
+        const t = ease(clamp(n - PART_STEP[i]));
         part.el.classList.toggle("painted", t === 1);
         const k = 1 - t;
         const lift = Math.sin(t * Math.PI) * -18;
         part.el.setAttribute("transform", `translate(${(part.dx * k - lift).toFixed(2)} ${(part.dy * k).toFixed(2)}) rotate(${(part.r * k).toFixed(2)} ${part.cx} ${part.cy})`);
       });
-      frame.style.opacity = (1 - 0.82 * clamp(p / 0.75)).toFixed(3);
-      svg.classList.toggle("painted", p > 0.9);
-      return p > 0.9 ? 9 : fitted;
+      frame.style.opacity = (1 - 0.82 * clamp(n / (GROUPS.length - 1.5))).toFixed(3);
+      svg.classList.toggle("painted", n >= GROUPS.length);
+      return Math.floor(n);
     };
   }
 
@@ -101,29 +98,29 @@
     return { duration, easing: `linear(${stops.join(", ")})` };
   }
   let lastState = -1;
-  function drawBig(p) {
-    const state = drawMain(p);
+  function drawBig(n) {
+    const state = drawMain(n);
     if (state === lastState) return;
     lastState = state;
-    if (state === 9) caption.textContent = "Ready to fly.";
+    if (state === GROUPS.length) caption.textContent = "Spinner on. Ready to fly.";
     else if (state === 0) caption.textContent = "Frame A has eight parts.";
-    else caption.textContent = `${NAMES[state][0].toUpperCase() + NAMES[state].slice(1)} of eight parts fitted.`;
+    else caption.textContent = `Step ${state}: ${GROUPS[state - 1]} on.`;
   }
 
-  const LEVELS = [0, ...STAGES];
+  /** Each step's group flies for FLIGHT ms, then waits HOLD ms so its paint shows before the next group leaves the frame. */
+  const FLIGHT = 450, HOLD = 250;
   let level = 0, wanted = 0, playing = false, active = -1, generation = 0;
   function play() {
     if (level === wanted) return (playing = false);
     playing = true;
-    const dir = Math.sign(wanted - level), from = LEVELS[level], to = LEVELS[level + dir];
-    const duration = Math.abs(wanted - level) > 1 ? 300 : 700;
+    const dir = Math.sign(wanted - level), from = level, to = level + dir;
     const t0 = performance.now(), gen = generation;
     const tick = (now) => {
       if (gen !== generation) return;
       if (reduce.matches) return (playing = false);
-      const t = Math.min(1, (now - t0) / duration);
+      const t = clamp((now - t0) / FLIGHT);
       drawBig(from + (to - from) * t);
-      if (t < 1) return requestAnimationFrame(tick);
+      if (now - t0 < FLIGHT + HOLD) return requestAnimationFrame(tick);
       level += dir;
       play();
     };
@@ -183,8 +180,8 @@
         lastState = -1;
         generation++;
         playing = false;
-        level = wanted = LEVELS.length - 1;
-        drawBig(1);
+        level = wanted = GROUPS.length;
+        drawBig(level);
       }
       if (started) animated.forEach((svg) => svg.pauseAnimations());
       reveals.forEach((el) => el.classList.add("in"));
@@ -203,7 +200,7 @@
       generation++;
       playing = false;
       level = wanted = active + 1;
-      drawBig(LEVELS[level]);
+      drawBig(level);
     }
     if (observer) {
       document.documentElement.classList.add("js");
