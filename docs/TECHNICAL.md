@@ -1252,6 +1252,33 @@ So the test keys on previews cannot be used to fill the real form.
 Run `npx wrangler dev` and open http://localhost:8787/#contact to try it.
 Previews and localhost always use the test site key and the test secret, so they never need the real ones.
 
+### The release list
+
+The "Get told when it's out" section collects emails for one message on release day.
+`site/release.js` runs it in two steps.
+
+1. Sign up. The email, a consent tick and a Turnstile token go to `POST /api/notify`. The Worker checks the origin, the hidden `website` field, the token and the email, like the contact form.
+2. Six optional questions, one at a time. Each answer goes to `POST /api/notify/answer` the moment it is given. The Worker checks it against fixed lists and refuses answers after 30 minutes.
+
+The Worker keeps everything in the KV namespace `dogfighter-release-list` (binding `RELEASE_LIST`).
+
+- `salt`: 32 random bytes, made once by the Worker.
+- `fp:<hash>`: the SHA-256 of the salt and the lowercased email. It holds no personal data. A known email gets the same answer as a new one, but is not stored or counted again.
+- `pending:<ticket>`: the email, the country from the connection, the sign-up time, the consent and the answers. The ticket is 128 random bits.
+- `count`: the number of sign-ups.
+
+A cron trigger runs every 15 minutes.
+It posts each pending record that is older than 30 minutes as one entry to the Google Form, then deletes it.
+A failed post leaves the record for the next run.
+The form's `formResponse` address is the Worker secret `NOTIFY_FORM_URL`.
+The Worker never logs the email, the ticket or the answers.
+
+Previews and localhost use the test Turnstile secret and put `preview:` in front of every key.
+They never touch `count` and never send anything to the Google Form.
+Preview keys expire after a day.
+
+Read the count in the Cloudflare dashboard › Workers KV › dogfighter-release-list › key `count`.
+
 ## Legal
 
 For personal use with a disc you own.

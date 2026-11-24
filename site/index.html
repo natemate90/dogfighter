@@ -180,7 +180,7 @@
     <p class="kicker">Mission briefing</p>
     <h1 id="title"><span class="t1">Dogfighter</span><span class="t2">flies again, on <span class="tail">your Mac. <span class="note">yes, the vase too</span></span></span></h1>
     <p class="lede">Airfix Dogfighter, the Windows game from 2000, runs on your Mac. You bring your own original CD. This project brings the rest, for free.</p>
-    <p class="cta"><a class="button" href="#install" data-cta="hero">Get it running</a></p>
+    <p class="cta"><a class="button" href="#install" data-cta="hero">Get it running</a><a class="button ghost" href="#release">Tell me when it's out</a></p>
     <p class="cta-note"><span class="nowrap">5 steps in Terminal</span> · <span class="nowrap">free</span></p>
   </div>
   <div class="hero-video">
@@ -703,6 +703,32 @@
   </script>
 </section>
 
+<section class="sheet wrap" id="release" aria-labelledby="release-h">
+  <div class="sec-head">
+  <h2 id="release-h">Get told <span class="tail">when it's out <span class="note">one email, that's all</span></span></h2>
+  <p class="intro">Rather skip the CD drive and the Terminal? Leave your email. You hear from us once, on the day Dogfighter is released.</p>
+  </div>
+  <form class="release-form" id="release-form" novalidate>
+    <label class="field-label" for="release-email">Your email <span class="req">Required</span></label>
+    <input id="release-email" name="email" type="email" autocomplete="email" maxlength="254" required aria-describedby="release-email-error">
+    <p class="field-error" id="release-email-error" hidden></p>
+    <label class="choice tickbox"><input type="checkbox" name="consent" value="yes" required aria-describedby="release-note release-consent-error"><span class="roundel" aria-hidden="true"></span>Email me once when Dogfighter is released. Nothing else.</label>
+    <p class="field-error" id="release-consent-error" hidden></p>
+    <p class="field-hint" id="release-note">We also store your country, taken from your connection. To be removed, use the <a href="#contact">contact form</a>.</p>
+    <div class="trap" aria-hidden="true"><label for="release-website">Leave this empty</label><input id="release-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
+    <div class="turnstile" id="release-turnstile"></div>
+    <p class="field-error" id="release-turnstile-error" tabindex="-1" hidden></p>
+    <p class="send"><button class="button" type="submit">Put me on the list</button></p>
+  </form>
+  <div class="survey" id="release-survey" hidden>
+    <div class="survey-bar" role="progressbar" aria-label="Questions" aria-valuemin="0" aria-valuemax="6" aria-valuenow="0"><span></span></div>
+    <div class="survey-stage"></div>
+    <p class="visually-hidden" id="release-live" aria-live="polite"></p>
+  </div>
+  <div class="contact-result" id="release-result" tabindex="-1" hidden></div>
+  <noscript><p class="contact-noscript">This form needs JavaScript.</p></noscript>
+</section>
+
 <section class="sheet wrap" id="contact" aria-labelledby="contact-h">
   <div class="sec-head">
   <h2 id="contact-h">Contact</h2>
@@ -764,7 +790,7 @@
         <li>Lille-Seclin airfield, Royal Air Force, France, 1939–1940. H. Hensser, Royal Air Force official photographer. <a href="https://commons.wikimedia.org/wiki/File:Lille-Seclin_airfield_-_Royal_Air_Force_-_France,_1939-1940_C1519.jpg">Wikimedia Commons</a>. Public domain (UK Crown Copyright expired).</li>
       </ul>
     </details>
-    <p class="made">Made by <a href="https://github.com/natemate90">natemate90</a>. Uses Google Analytics only if you accept. No other cookies. The contact form is checked by Cloudflare Turnstile, which sets no tracking cookies. It passes your message and email to the maintainer through a Google Form. Your email is used only to reply and is not stored on this site. <button class="linklike" type="button" id="cookie-settings">Cookie settings</button>. The video loads from youtube-nocookie.com only when you click it.</p>
+    <p class="made">Made by <a href="https://github.com/natemate90">natemate90</a>. Uses Google Analytics only if you accept. No other cookies. The contact form is checked by Cloudflare Turnstile, which sets no tracking cookies. It passes your message and email to the maintainer through a Google Form. Your email is used only to reply and is not stored on this site. The release list passes your email, country and answers to the maintainer through a Google Form. <button class="linklike" type="button" id="cookie-settings">Cookie settings</button>. The video loads from youtube-nocookie.com only when you click it.</p>
   </div>
 </footer>
 
@@ -849,5 +875,6 @@
 </div>
 <script src="site.js" defer></script>
 <script src="flight.js" defer></script>
+<script src="release.js" defer></script>
 </body>
 </html>
