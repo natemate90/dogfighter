@@ -42,7 +42,7 @@
         ["TV and consoles", ["Apple TV", "Nintendo Switch", "PlayStation", "Xbox"]],
       ],
     },
-    { id: "store", text: "Where would you buy it?", options: ["Steam", "GOG", "dogfighter.net", "App Store", "Google Play", "No preference"] },
+    { id: "store", text: "Where would you buy it?", multi: true, alone: "No preference", options: ["Steam", "GOG", "dogfighter.net", "App Store", "Google Play", "No preference"] },
     { id: "online", text: "Would you play online with friends?", options: ["Yes", "Maybe", "No"] },
     { id: "played", text: "Did you play the original?", options: ["Yes, back then", "Yes, recently", "No"] },
     { id: "cd", text: "Do you still have the original CD?", options: ["Yes", "No", "Not sure"] },
@@ -373,7 +373,7 @@
     const heading = element("h3", "pc-q", question.text);
     heading.id = `release-q-${question.id}`;
     heading.tabIndex = -1;
-    const hint = element("p", "pc-hint", question.multi ? "Pick all that apply." : "Tap an answer to go on.");
+    const hint = element("p", "pc-hint", question.alone ? `Pick all that apply, or ${question.alone}.` : question.multi ? "Pick all that apply." : "Tap an answer to go on.");
     let list;
     if (question.groups) {
       list = element("div", "pc-groups");
@@ -444,6 +444,11 @@
     if (question.multi) {
       if (set.has(label)) set.delete(label);
       else set.add(label);
+      if (question.alone && set.has(label)) {
+        if (label === question.alone) [...set].forEach((other) => other !== label && set.delete(other));
+        else set.delete(question.alone);
+        list.querySelectorAll("button").forEach((other) => other.setAttribute("aria-pressed", String(set.has(other.dataset.value))));
+      }
       button.setAttribute("aria-pressed", String(set.has(label)));
       if (otherBox && label === question.other) {
         otherBox.hidden = !set.has(label);

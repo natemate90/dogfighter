@@ -1391,8 +1391,10 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
   .pc-send .button { margin-left: var(--ring-edge); }
   .pc-row { flex-wrap: wrap; }
   .postcard.asking .pc-more { display: none; }
-  .pc-foot.wide { flex-direction: column-reverse; align-items: stretch; }
-  .pc-foot.wide .button { width: calc(100% - 2 * var(--ring-edge)); }
+  .pc-foot.wide { flex-wrap: wrap; }
+  .pc-foot.wide .pc-acts { display: contents; }
+  .pc-foot.wide .pc-acts > .linklike { margin-left: auto; }
+  .pc-foot.wide .button { order: -1; width: calc(100% - 2 * var(--ring-edge)); }
 }
 @media (max-width: 1119px) and (min-width: 761px) {
   .postcard { max-width: 560px; }

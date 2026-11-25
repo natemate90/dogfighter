@@ -23,7 +23,7 @@ const NOTIFY_ENTRY = {
 };
 const QUESTIONS = {
   devices: { multi: true, options: ["Windows PC", "Mac", "Linux", "Steam Deck", "iPhone", "iPad", "Android phone", "Android tablet", "Apple TV", "Nintendo Switch", "PlayStation", "Xbox"] },
-  store: { options: ["Steam", "GOG", "dogfighter.net", "App Store", "Google Play", "No preference"] },
+  store: { multi: true, wasSingle: true, alone: "No preference", options: ["Steam", "GOG", "dogfighter.net", "App Store", "Google Play", "No preference"] },
   online: { options: ["Yes", "Maybe", "No"] },
   played: { options: ["Yes, back then", "Yes, recently", "No"] },
   cd: { options: ["Yes", "No", "Not sure"] },
@@ -209,9 +209,10 @@ async function answer(request, env, url) {
 
 function cleanAnswer(question, value) {
   if (typeof question !== "string" || !Object.hasOwn(QUESTIONS, question)) return null;
-  const { multi, other, options } = QUESTIONS[question];
+  const { multi, other, alone, wasSingle, options } = QUESTIONS[question];
   if (!multi) return typeof value === "string" && options.includes(value) ? value : null;
-  if (!Array.isArray(value) || value.length > options.length + 1) return null;
+  if (wasSingle && typeof value === "string" && options.includes(value)) value = [value];
+  if (!Array.isArray(value) || value.length > options.length + 1 || new Set(value).size !== value.length) return null;
   const picked = [];
   let extra = "";
   for (const item of value) {
@@ -221,6 +222,7 @@ function cleanAnswer(question, value) {
     else return null;
   }
   if (extra.length > MAX_OTHER) return null;
+  if (alone && picked.includes(alone) && picked.length > 1) return null;
   const chosen = options.filter((option) => picked.includes(option));
   if (extra) chosen.push(`Other: ${extra}`);
   return chosen.join(", ");
