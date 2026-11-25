@@ -116,7 +116,6 @@
   function play() {
     if (level === wanted) {
       playing = false;
-      if (level === cards.length && doneAt === null) finished();
       return;
     }
     playing = true;
@@ -157,7 +156,8 @@
     if (narrow.matches || cards.length < 2) return found;
     const y = window.scrollY;
     const start = cards[0].getBoundingClientRect().bottom + y - window.innerHeight;
-    const end = cards[cards.length - 1].getBoundingClientRect().top + y - mid;
+    const lastBox = cards[cards.length - 1].getBoundingClientRect();
+    const end = Math.min(lastBox.top - mid, lastBox.bottom - window.innerHeight) + y;
     if (end - start < cards.length * 40) return found;
     if (y < start && cards[0].getBoundingClientRect().top >= mid) return -1;
     const steps = cards.length - 1;
@@ -165,7 +165,6 @@
   }
 
   const plane = sprue && sprue.querySelector(".parts");
-  const prop = sprue && sprue.querySelectorAll(".part")[6];
   const shadow = plane && document.createElementNS("http://www.w3.org/2000/svg", "g");
   if (shadow) {
     shadow.setAttribute("class", "shadow");
@@ -177,110 +176,162 @@
     return t * t * (3 - 2 * t);
   };
 
-  const HOLD_FINISHED = 300, ZOOM = 1100, CLIMB = 2600, FAR = 0.6, MID_X = 540, MID_Y = 320;
+  const MEET = 0.45, MID_X = 520, MID_Y = 320, LENGTH = 460, EASE_TURN = 0.5, STEP = 1 / 120;
   const steps = document.querySelector(".install-steps");
   const story = document.getElementById("story-h");
-  let flown = false, inFlight = false, retired = false, steered = false, trip = 0, waiting = 0, gliding = 0;
-  let goingDown = false, scrolledTo = window.scrollY, doneAt = null, doneTime = 0;
-  function finished() {
-    doneAt = window.scrollY;
-    doneTime = performance.now();
-  }
+  let flown = false, inFlight = false, retired = false, steered = false, steeredAt = -Infinity, trip = 0, gliding = 0, layer = null;
+  let goingDown = false, scrolledTo = window.scrollY, stepsWere = Infinity, pose = null;
   function onScreen() {
     const box = sprue.getBoundingClientRect();
     return box.bottom > 0 && box.top < window.innerHeight;
   }
-  function takeOff() {
-    flown = inFlight = retired = true;
-    steered = false;
+  function inView() {
+    const box = plane.getBoundingClientRect();
+    return box.top >= 0 && box.bottom <= window.innerHeight && plane.style.visibility !== "hidden";
+  }
+
+  function course(start, body, W, H) {
+    const cruise = H * 0.48;
+    const top = Math.max(0, bar.getBoundingClientRect().bottom) + body * 0.7 + 0.3 * cruise * EASE_TURN;
+    const words = document.createRange();
+    words.selectNodeContents(story);
+    const head = words.getBoundingClientRect();
+    const low = body * 0.4, high = Math.max(low, (start.y - body * 0.4 - top) / 1.1);
+    const span = [head.left + head.width * 0.1, Math.min(head.right - head.width * 0.1, W - body * 0.7)];
+    const sides = [-1, 1].map((side) => {
+      const near = start.x + side * 2 * low, far = start.x + side * 2 * high;
+      return [side, Math.max(Math.min(near, far), span[0]), Math.min(Math.max(near, far), span[1])];
+    }).filter(([, a, b]) => a <= b);
+    const [first, a, b] = sides.length ? sides[Math.floor(Math.random() * sides.length)] : [-1, start.x - 2 * low, start.x - 2 * low];
+    const r = Math.abs(a + (b - a) * Math.random() - start.x) / 2;
+    const turnY = Math.min(top + r * 1.1, start.y - body * 0.4);
+    const meetY = Math.max(H * MEET, turnY + body * 0.5);
+    const frames = [];
+    let x = start.x, y = start.y, heading = -Math.PI / 2, v = 0.55 * cruise, size = 1, t = 0;
+    let phase = "climb", turned = 0, from = 0, easing = 0, peak = 0, last = 0, turnAt = 0, meetAt = 0, v0 = 0, s0 = 0, y0 = 0;
+    while (t < 20 && y < H + body) {
+      if (phase === "climb" && y <= turnY) [phase, from, turnAt] = ["turn", t, t];
+      let rate = 0;
+      if (phase === "turn") {
+        if (!easing && Math.PI - turned <= (last * EASE_TURN) / 2) [easing, peak] = [t, last];
+        rate = easing ? peak * (1 - smooth(0, 1, (t - easing) / EASE_TURN)) : (v / r) * smooth(0, 1, (t - from) / EASE_TURN);
+        if (easing && t - easing >= EASE_TURN) [phase, rate, from, v0, s0, y0] = ["dive", 0, t, v, size, y];
+      }
+      last = rate;
+      if (phase === "dive") {
+        v = v0 + (1.6 * cruise - v0) * smooth(0, 1, (t - from) / 1.4);
+        size = s0 + (0.4 - s0) * smooth(y0, H + body, y);
+        if (!meetAt && y >= meetY) meetAt = t;
+      } else {
+        v += ((phase === "climb" ? 0.7 : turned < Math.PI / 2 ? 0.6 : 0.65) * cruise - v) * (1 - Math.exp(-STEP / 1.2));
+        size += ((phase === "climb" ? 0.85 : 0.82) - size) * (1 - Math.exp(-STEP / 1.5));
+      }
+      heading += first * rate * STEP;
+      turned += rate * STEP;
+      x += Math.cos(heading) * v * STEP;
+      y += Math.sin(heading) * v * STEP;
+      t += STEP;
+      frames.push({ x, y, heading, size, rate, v: v / cruise });
+    }
+    return { frames, meetY, turnAt: turnAt * 1000, meetAt: (meetAt || t) * 1000 };
+  }
+
+
+  function takeOff(m) {
+    const start = new DOMPoint(MID_X, MID_Y).matrixTransform(m);
+    const body = LENGTH * Math.hypot(m.a, m.b) * 0.8;
+    const { frames, meetY, turnAt, meetAt } = course(start, body, window.innerWidth, window.innerHeight);
+    retired = flown = inFlight = true;
+    steered = performance.now() - steeredAt < 1500;
     const id = ++trip;
-    const box = sprue.getBoundingClientRect();
-    const unit = Math.min(box.width / 640, box.height / 1000);
-    const oy = box.height / 2 + (500 - MID_X) * unit;
-    const reach = (box.top + oy + 60) / (unit * FAR) + 360;
-    const blade = prop.getAttribute("transform");
-    sprue.style.transformOrigin = `${box.width / 2}px ${oy}px`;
+
+    layer = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    layer.setAttribute("class", `${sprue.getAttribute("class")} kit-flight`);
+    layer.setAttribute("aria-hidden", "true");
+    const ghost = shadow.cloneNode(true);
+    const craft = plane.cloneNode(true);
+    const blades = craft.querySelectorAll(".part")[6];
+    const blade = blades.getAttribute("transform");
+    layer.append(ghost, craft);
+    document.body.append(layer);
+    plane.style.visibility = "hidden";
     sprue.querySelector(".frame").style.opacity = 0;
     caption.parentElement.classList.add("away");
-    let t0 = 0, last = 0, right = 0, down = 0, travelled = 0, turn = 0;
+
+    const base = `translate(${-start.x} ${-start.y}) matrix(${[m.a, m.b, m.c, m.d, m.e, m.f].join(" ")})`;
+    const draw = (f, dx, dy) => `translate(${(f.x + dx).toFixed(2)} ${(f.y + dy).toFixed(2)}) rotate(${((f.heading * 180) / Math.PI + 90).toFixed(2)}) scale(${f.size.toFixed(4)}) ${base}`;
+    let t0 = 0, last = 0, spin = 0, glided = false;
     const tick = (now) => {
       if (id !== trip) return;
       if (!t0) t0 = last = now;
       const t = now - t0;
-      const dt = (now - last) / 1000;
+      const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
-      sprue.style.transform = `scale(${(1 - (1 - FAR) * ease(clamp(t / ZOOM))).toFixed(4)})`;
-      const blur = clamp((t - 150) / 1000) ** 2;
-      turn += (5 + 34 * blur) * dt;
-      prop.setAttribute("transform", `${blade} translate(721 320) scale(1 ${(Math.cos(turn) * (1 - blur) + blur).toFixed(3)}) translate(-721 -320)`);
-      prop.style.opacity = (1 - 0.55 * blur).toFixed(3);
-      const u = clamp((t - ZOOM) / CLIMB);
-      const s = reach * u ** 2.4;
-      const heading = -15 * smooth(0.1, 0.8, u);
-      const rad = (heading * Math.PI) / 180;
-      right += Math.sin(rad) * (s - travelled);
-      down -= Math.cos(rad) * (s - travelled);
-      travelled = s;
-      const wings = 1 - 0.16 * Math.sin(Math.PI * smooth(0.05, 0.85, u));
-      const place = (x, y, g) => `translate(${(-y).toFixed(2)} ${x.toFixed(2)}) rotate(${heading.toFixed(2)} ${MID_X} ${MID_Y}) translate(${MID_X} ${MID_Y}) scale(${g.toFixed(3)} ${(g * wings).toFixed(3)}) translate(${-MID_X} ${-MID_Y})`;
-      plane.setAttribute("transform", place(right, down, 1 + 0.14 * smooth(0, 1, u)));
-      const lift = smooth(0, 0.55, u);
-      shadow.setAttribute("transform", place(right + 40 * lift, down + 60 * lift, 1));
-      shadow.style.opacity = u > 0 ? (0.2 * (1 - lift)).toFixed(3) : 0;
-      if (u < 1) return requestAnimationFrame(tick);
-      inFlight = false;
-      plane.style.visibility = "hidden";
-      if (!onScreen()) return restore();
-      if (!steered) glide();
+      const i = Math.min(frames.length - 1, Math.floor(t / (STEP * 1000)));
+      const f = frames[i];
+      const lift = clamp((1 - f.size) / 0.15);
+      craft.setAttribute("transform", draw(f, 0, 0));
+      ghost.setAttribute("transform", draw(f, lift * body * 0.15, lift * body * 0.22));
+      ghost.style.opacity = (0.2 * lift).toFixed(3);
+      spin += 39 * dt;
+      blades.setAttribute("transform", `${blade} translate(721 320) scale(1 ${(0.3 + 0.7 * Math.abs(Math.cos(spin))).toFixed(3)}) translate(-721 -320)`);
+      blades.style.opacity = "0.45";
+      if (!glided && t >= turnAt) {
+        glided = true;
+        if (!steered) glide(meetAt - t, meetY);
+      }
+      if (i < frames.length - 1) return requestAnimationFrame(tick);
+      land();
+      if (!onScreen()) restore();
     };
     requestAnimationFrame(tick);
   }
+  function launch() {
+    const bottom = steps.getBoundingClientRect().bottom, edge = window.innerHeight + 1;
+    const crossed = stepsWere > edge && bottom <= edge;
+    stepsWere = bottom;
+    if (!flown && bottom > edge && inView()) pose = plane.getScreenCTM();
+    if (!crossed || !goingDown || flown || retired || inFlight || reduce.matches || narrow.matches) return;
+    if (!pose) return (retired = true);
+    generation++;
+    playing = false;
+    level = wanted = cards.length;
+    lastState = -1;
+    drawBig(level);
+    takeOff(pose);
+  }
+  function land() {
+    trip++;
+    inFlight = false;
+    stopGlide();
+    if (layer) layer.remove();
+    layer = null;
+  }
   function restore() {
-    clearTimeout(waiting);
-    waiting = 0;
     if (!flown) return;
     const seen = onScreen();
-    flown = inFlight = false;
-    trip++;
-    sprue.style.transform = "";
-    plane.removeAttribute("transform");
+    flown = false;
     plane.style.visibility = "";
-    shadow.removeAttribute("transform");
-    shadow.style.opacity = "";
-    prop.style.opacity = "";
     caption.parentElement.classList.remove("away");
     lastState = -1;
     drawBig(level);
     if (seen && !reduce.matches && plane.animate) plane.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 300, easing: "ease-out" });
   }
-  function ready() {
-    if (flown || retired || doneAt === null || reduce.matches || narrow.matches || playing || active !== cards.length - 1 || level !== cards.length) return false;
-    if (cards[cards.length - 1].getBoundingClientRect().bottom > 0) return false;
-    const box = sprue.getBoundingClientRect();
-    return box.top + box.height * 0.46 > 0;
-  }
-  function maybeFly() {
-    if (waiting || !goingDown || !ready()) return;
-    waiting = setTimeout(() => {
-      waiting = 0;
-      if (ready()) takeOff();
-    }, Math.max(0, doneTime + HOLD_FINISHED - performance.now()));
-  }
 
-  function glide() {
-    if (!story) return;
-    const from = window.scrollY;
-    const to = from + story.getBoundingClientRect().top - bar.offsetHeight - window.innerHeight * 0.1;
-    if (to <= from + 1) return;
-    let t0 = 0;
+  function glide(ms, y) {
+    if (!story || ms < 50) return;
+    const distance = story.getBoundingClientRect().top + story.offsetHeight / 2 - y;
+    if (distance <= 1) return;
+    let t0 = 0, done = 0;
     const tick = (now) => {
       if (!gliding) return;
       if (!t0) t0 = now;
-      const t = clamp((now - t0) / 1100);
-      window.scrollTo({ top: from + (to - from) * ease(t), behavior: "instant" });
+      const t = clamp((now - t0) / ms);
+      const step = Math.round(distance * ease(t)) - done;
+      done += step;
+      if (step) window.scrollBy({ top: step, behavior: "instant" });
       if (t < 1) return (gliding = requestAnimationFrame(tick));
       gliding = 0;
-      afterScroll();
     };
     gliding = requestAnimationFrame(tick);
   }
@@ -288,54 +339,40 @@
     cancelAnimationFrame(gliding);
     gliding = 0;
   }
-  ["wheel", "touchstart"].forEach((type) => window.addEventListener(type, stopGlide, { passive: true }));
+  window.addEventListener("wheel", (event) => {
+    if (!gliding) return;
+    if (event.deltaY < 0) stopGlide();
+    else event.preventDefault();
+  }, { passive: false });
+  window.addEventListener("touchstart", stopGlide, { passive: true });
   ["keydown", "pointerdown", "hashchange"].forEach((type) => window.addEventListener(type, () => {
     steered = true;
+    steeredAt = performance.now();
     stopGlide();
   }, { passive: true }));
+  window.addEventListener("resize", () => {
+    if (!steps) return;
+    stepsWere = steps.getBoundingClientRect().bottom;
+    pose = null;
+  });
 
-  function cutSpacer() {
-    if (!retired || inFlight || gliding || steps.style.paddingBottom === "0px") return;
-    const pad = parseFloat(getComputedStyle(steps).paddingBottom);
-    if (!pad) return;
-    const gapTop = steps.getBoundingClientRect().bottom - pad;
-    if (gapTop >= window.innerHeight) return (steps.style.paddingBottom = "0px");
-    const hidden = Math.min(pad, -gapTop);
-    if (hidden < 1) return;
-    const y = window.scrollY;
-    steps.style.paddingBottom = `${pad - hidden}px`;
-    window.scrollTo({ top: y - hidden, behavior: "instant" });
-    scrolledTo = window.scrollY;
-  }
   let idleTimer = 0;
   function afterScroll() {
     clearTimeout(idleTimer);
     if (!sprue || narrow.matches || gliding) return;
     if (flown && !inFlight && !onScreen()) restore();
-    cutSpacer();
     rearm();
   }
   function rearm() {
-    if (!retired || flown || steps.getBoundingClientRect().bottom < window.innerHeight) return;
-    retired = false;
-    steps.style.paddingBottom = "";
+    if (!retired || flown || inFlight) return;
+    if (active < cards.length - 1 || steps.getBoundingClientRect().bottom > window.innerHeight + 40) retired = false;
   }
   if ("onscrollend" in window) window.addEventListener("scrollend", afterScroll);
   else window.addEventListener("scroll", () => {
     clearTimeout(idleTimer);
     idleTimer = setTimeout(afterScroll, 150);
   }, { passive: true });
-  function passedBy() {
-    if (retired || narrow.matches || sprue.getBoundingClientRect().bottom >= 0) return;
-    retired = true;
-    clearTimeout(waiting);
-    waiting = 0;
-  }
-  const arrival = location.hash && document.getElementById(location.hash.slice(1));
-  if (arrival && steps && install && !install.contains(arrival) && install.compareDocumentPosition(arrival) & Node.DOCUMENT_POSITION_FOLLOWING) {
-    retired = true;
-    steps.style.paddingBottom = "0px";
-  }
+
 
   let badgeFlown = false, flyer = null, badgeDoneAt = null, badgeDoneTime = 0;
   function badgeTakeOff() {
@@ -402,7 +439,7 @@
       active = i;
       if (i !== cards.length - 1) {
         restore();
-        doneAt = badgeDoneAt = null;
+        badgeDoneAt = null;
         badgeFlown = false;
       }
       restoreBadge();
@@ -410,9 +447,13 @@
       setLevel(i + 1);
     }
     if (narrow.matches) return badgeCheck();
-    passedBy();
-    if (flown && !gliding && (!onScreen() || (!inFlight && !goingDown))) restore();
-    maybeFly();
+    if (inFlight && !gliding && !goingDown) {
+      land();
+      restore();
+    }
+    if (flown && (!onScreen() || (!inFlight && !goingDown))) restore();
+    rearm();
+    launch();
   }
 
   const animated = [...document.querySelectorAll("svg")].filter((svg) => svg.querySelector("animate, animateMotion, animateTransform"));
@@ -436,6 +477,7 @@
     : null;
 
   function setMode() {
+    land();
     restore();
     restoreBadge();
     badgeDoneAt = null;
@@ -469,17 +511,12 @@
       generation++;
       playing = false;
       level = wanted = active + 1;
-      doneAt = null;
-      if (level === cards.length) finished();
       drawBig(level);
+      stepsWere = steps.getBoundingClientRect().bottom;
     }
     if (observer) {
       document.documentElement.classList.add("js");
       reveals.forEach((el) => el.classList.contains("in") || observer.observe(el));
-    }
-    if (drawMain) {
-      passedBy();
-      cutSpacer();
     }
   }
 
