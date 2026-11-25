@@ -1385,6 +1385,7 @@ static BOOL keep_picture_shape(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 static LRESULT CALLBACK hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
     static DWORD asked_at;
+    static RECT known_client;
 
     if (msg == WIDEN_VIEW)
     {
@@ -1410,11 +1411,14 @@ static LRESULT CALLBACK hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     if (msg == WM_WINDOWPOSCHANGED)
     {
         DWORD asked = asked_at;
+        RECT client = { 0 };
 
         asked_at = 0;
-        if ((((WINDOWPOS *)lp)->flags & (SWP_NOSIZE | SWP_NOMOVE)) != (SWP_NOSIZE | SWP_NOMOVE) && !centring
-            && (!asked || GetTickCount() - asked > 250))
+        GetClientRect(hwnd, &client);
+        MapWindowPoints(hwnd, NULL, (POINT *)&client, 2);
+        if (!EqualRect(&client, &known_client) && !centring && (!asked || GetTickCount() - asked > 250))
             InterlockedExchange(&size_not_asked, 1);
+        known_client = client;
     }
     if ((msg == WM_WINDOWPOSCHANGING || msg == WM_SIZING) && keep_picture_shape(hwnd, msg, wp, lp)) return TRUE;
     if (msg >= WM_KEYFIRST && msg <= WM_KEYLAST && commands_before_input > 0 && GetMessageExtraInfo() == SCRIPTED_KEY)

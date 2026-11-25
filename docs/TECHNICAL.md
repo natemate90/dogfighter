@@ -317,7 +317,8 @@ The rule is the same for both: the picture is as large as the screen allows and 
 A 4:3 picture on a wider screen has equal bars left and right. A wider picture on a taller screen has equal bars above and below.
 
 - In full screen, Wine's Mac driver gives the window its new size with `SWP_NOSENDCHANGING`. The game's window is not asked first, so `WM_WINDOWPOSCHANGING` never comes.
-- The helper sees it afterwards: a `WM_WINDOWPOSCHANGED` with a new size or place and no `WM_WINDOWPOSCHANGING` in the 0.25 seconds before it.
+- The helper sees it afterwards: a `WM_WINDOWPOSCHANGED` after which the picture's place or size is another one, with no `WM_WINDOWPOSCHANGING` in the 0.25 seconds before it.
+- A zoom sends such a message too, but the picture has not moved by then, so it does not count.
 - That also works when the screen has the picture's own shape, such as a 16:10 flight on a 16:10 screen.
 - A size that is not the picture's shape counts as given too, in case the message was missed.
 - The helper looks at the window 20 times a second and waits until the size has stayed for 0.2 seconds.
@@ -333,21 +334,23 @@ A 4:3 picture on a wider screen has equal bars left and right. A wider picture o
 Before this, the picture in full screen was stretched over the whole screen in the menus.
 When a flight started, the window went back to its largest size as a plain window and kept its top left corner.
 
-What the test runs showed on a 3024x1964 screen. Each number is where the window settled.
+What the test runs showed on a 3024x1964 screen. Each number is where the picture settled.
+The runs before the change had `--diag-display=right`, which makes the window a few pixels larger.
 
 | Test | Before | After |
 | --- | --- | --- |
-| `--diag-full-screen` in the menus | Picture 3024x1964, stretched | Picture 2618x1964 at 203,0 for a moment, then 2307x1730 at 358,130 |
-| The same, then a flight starts | Picture 2768x1730 at 0,130: 256 pixels free at the right, 104 at the bottom | Picture 2768x1730 at 358,130, past the right edge. Fixed after that run, not run again |
-| `--diag-zoom` in the menus | Picture 2309x1732 at 0,130 | Picture 2307x1730 at 358,130: 358 pixels free at the left, 359 at the right |
-| `--diag-zoom`, then a flight starts | Not run | Picture 2768x1730 at 127,130: 127 pixels free at the left, 129 at the right |
+| `--diag-full-screen` in the menus | 3024x1964, stretched | 2618x1964 at 203,0 for a moment, then 2304x1728 at 360,130 |
+| The same, then a flight starts | 2768x1730 at 0,130: 256 pixels free at the right, 104 at the bottom | 2765x1728 at 129,130: 129 pixels free at the left, 130 at the right |
+| A flight first, then `--diag-full-screen` | Not run | 3024x1890 at 0,37 for a moment, then 2765x1728 at 129,130 |
+| `--diag-zoom` in the menus | 2309x1732 at 0,130 | 2304x1728 at 360,130: 360 pixels free on each side |
+
+In each full-screen test the log says `the window got a size it was not asked about`. In the zoom test it does not.
 
 What is not tested:
 - `--diag-full-screen` gives the window the whole screen the way the Mac driver does. It does not put the Mac in full screen. Nothing but a click by hand does that.
 - The test cannot hold the full-screen state. The centred window no longer covers the screen, so macOS moves it below the menu bar. The driver then asks for 2626x1764 with the mark off, and the window ends as a zoomed one does.
 - So a change of mode in full screen, and a full screen on a maximized window, are written from the driver's source and not run.
 - The same goes for full screen on a screen of the picture's own shape and for a second size given in full screen. The test gives the whole 3024x1964 screen, which has no game mode's shape.
-- The check for a size nobody asked about was written after the last test run. It has not run at all.
 - Whether macOS lets a window smaller than the screen sit in the middle of its full-screen Space is not known. If it puts the size back, the helper tries three times and then leaves the picture stretched.
 - A screen larger than the main one is not tested.
 
