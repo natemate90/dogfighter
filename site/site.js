@@ -204,40 +204,29 @@
     }).filter(([, a, b]) => a <= b);
     const [first, a, b] = sides.length ? sides[Math.floor(Math.random() * sides.length)] : [-1, start.x - 2 * low, start.x - 2 * low];
     const r = Math.abs(a + (b - a) * Math.random() - start.x) / 2;
-    const leave = Math.random() < 0.5 ? 1 : -1;
     const turnY = Math.min(top + r * 1.1, start.y - body * 0.4);
     const meetY = Math.max(H * MEET, turnY + body * 0.5);
-    const deepest = (H - meetY - body * 0.6 - 0.45 * cruise * EASE_TURN - 0.25 * cruise) / 1.1;
-    const out = Math.max(body * 0.6, Math.min(deepest, W * 0.25) * (0.7 + 0.3 * Math.random()));
-    const bend = Math.random() < 0.5 && meetY + out - body * 1.4 - cruise * 0.2 > top ? 0.2 + 0.15 * Math.random() : 0;
     const frames = [];
     let x = start.x, y = start.y, heading = -Math.PI / 2, v = 0.55 * cruise, size = 1, t = 0;
-    let phase = "climb", turned = 0, goal = Math.PI, sign = first, radius = r, from = 0, easing = 0, peak = 0, last = 0, turnAt = 0, meetAt = 0;
-    const pace = { climb: 0.7, turn: 0.65, dive: 0.8, exit: 0.85, out: 0.85, bend: 0.85, away: 0.85, level: 0.85, home: 0.85 };
-    const scale = { climb: 0.85, turn: 0.82, dive: 0.74, exit: 0.74, out: 0.74, bend: 0.74, away: 0.74, level: 0.74, home: 0.74 };
-    const turn = (next, angle, side, arc) => [phase, turned, goal, sign, radius, from] = [next, 0, angle, side, arc, t];
-    while (t < 20 && x < W + body && x > -body && y < H + body) {
-      if (phase === "climb" && y <= turnY) {
-        turnAt = t;
-        turn("turn", goal, first, r);
-      }
-      if (phase === "dive" && y >= meetY && t - from > 0.3) {
-        meetAt = t;
-        turn("exit", Math.abs(Math.atan2(Math.sin((leave > 0 ? 0 : Math.PI) - heading), Math.cos((leave > 0 ? 0 : Math.PI) - heading))), leave > 0 ? -1 : 1, out);
-      }
-      if (phase === "out" && bend && t - from > 0.6) turn("bend", bend, leave > 0 ? -1 : 1, body * 5);
-      if (phase === "away" && bend && t - from > 0.6) turn("level", bend, leave > 0 ? 1 : -1, body * 5);
+    let phase = "climb", turned = 0, from = 0, easing = 0, peak = 0, last = 0, turnAt = 0, meetAt = 0, v0 = 0, s0 = 0, y0 = 0;
+    while (t < 20 && y < H + body) {
+      if (phase === "climb" && y <= turnY) [phase, from, turnAt] = ["turn", t, t];
       let rate = 0;
-      if (phase === "turn" || phase === "exit" || phase === "bend" || phase === "level") {
-        if (!easing && goal - turned <= (last * EASE_TURN) / 2) [easing, peak] = [t, last];
-        rate = easing ? peak * (1 - smooth(0, 1, (t - easing) / EASE_TURN)) : (v / radius) * smooth(0, 1, (t - from) / EASE_TURN);
-        if (easing && t - easing >= EASE_TURN) [phase, easing, rate, from] = [{ turn: "dive", exit: "out", bend: "away", level: "home" }[phase], 0, 0, t];
+      if (phase === "turn") {
+        if (!easing && Math.PI - turned <= (last * EASE_TURN) / 2) [easing, peak] = [t, last];
+        rate = easing ? peak * (1 - smooth(0, 1, (t - easing) / EASE_TURN)) : (v / r) * smooth(0, 1, (t - from) / EASE_TURN);
+        if (easing && t - easing >= EASE_TURN) [phase, rate, from, v0, s0, y0] = ["dive", 0, t, v, size, y];
       }
       last = rate;
-      const want = phase === "turn" && turned < Math.PI / 2 ? 0.6 : pace[phase];
-      v += (want * cruise - v) * (1 - Math.exp(-STEP / 1.2));
-      size += (scale[phase] - size) * (1 - Math.exp(-STEP / 1.5));
-      heading += sign * rate * STEP;
+      if (phase === "dive") {
+        v = v0 + (1.6 * cruise - v0) * smooth(0, 1, (t - from) / 1.4);
+        size = s0 + (0.4 - s0) * smooth(y0, H + body, y);
+        if (!meetAt && y >= meetY) meetAt = t;
+      } else {
+        v += ((phase === "climb" ? 0.7 : turned < Math.PI / 2 ? 0.6 : 0.65) * cruise - v) * (1 - Math.exp(-STEP / 1.2));
+        size += ((phase === "climb" ? 0.85 : 0.82) - size) * (1 - Math.exp(-STEP / 1.5));
+      }
+      heading += first * rate * STEP;
       turned += rate * STEP;
       x += Math.cos(heading) * v * STEP;
       y += Math.sin(heading) * v * STEP;
