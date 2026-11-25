@@ -15,3 +15,4 @@ for name in scramble airfield; do
   shrink "$name.webp" 320 "$name-320.webp"
   shrink "$name.webp" 640 "$name-640.webp"
 done
+shrink video-poster-1280.webp 960 video-poster-960.webp

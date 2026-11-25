@@ -1329,8 +1329,9 @@ No event carries an email address, a country, free text or an answer.
 
 ### Image sizes
 
-The gallery and the two framed photos list smaller copies in `srcset`, so a phone loads a picture close to the size it shows.
-`sh tools/site-images.sh` makes them again from the large files in `site/img`, with ImageMagick: 400 and 720 px wide for the gallery, 320 and 640 px for the photos.
+The gallery, the two framed photos and the video poster list smaller copies in `srcset`, so a phone loads a picture close to the size it shows.
+`sh tools/site-images.sh` makes them again from the large files in `site/img`, with ImageMagick: 400 and 720 px wide for the gallery, 320 and 640 px for the photos, and 960 px for the poster.
+The poster fills a 4:3 frame and is cropped at the sides, so its `sizes` is the drawn width, about a third wider than the frame.
 Run it after replacing one of those pictures.
 
 ## Legal
