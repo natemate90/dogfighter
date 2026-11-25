@@ -220,6 +220,15 @@
     setTimeout(() => (live.textContent = text), 50);
   };
 
+  let savedNote = null;
+  const send = (question, value) =>
+    fetch("/api/notify/answer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ticket, question, value }),
+      keepalive: true,
+    });
+
   const post = async (question, value) => {
     for (let attempt = 0; attempt < 2; attempt++) {
       const pause = lastSent + GAP - Date.now();
@@ -228,12 +237,7 @@
       lastSent = Date.now();
       let status = 0;
       try {
-        const response = await fetch("/api/notify/answer", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ticket, question, value }),
-        });
-        status = response.status;
+        status = (await send(question, value)).status;
       } catch {
         status = 0;
       }
@@ -247,6 +251,7 @@
       if (status === 422 || status === 400) return;
     }
     if (!closed) say("Not saved");
+    else if (savedNote) savedNote.textContent = "Some answers did not save. You are still on the list, and you hear from us once, on the day Dogfighter is released.";
   };
   const save = (question, value) => {
     if (closed) return;
@@ -301,17 +306,19 @@
   };
 
   const linkButton = (label, onClick) => {
-    const button = element("button", "pc-link", label);
+    const button = element("button", "linklike", label);
     button.type = "button";
     button.addEventListener("click", onClick);
     return button;
   };
 
-  const place = (view) => {
+  const place = (view, quiet = false) => {
     if (!reduce.matches) view.classList.add("q-in");
+    const here = survey.contains(document.activeElement) || document.activeElement === document.body;
     stage.replaceChildren(view);
+    if (quiet && !here) return;
     view.querySelector(".q-title").focus({ preventScroll: true });
-    if (card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: "start", behavior: reduce.matches ? "auto" : "smooth" });
+    if (!quiet && card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: "start", behavior: reduce.matches ? "auto" : "smooth" });
   };
 
   const show = () => {
@@ -340,7 +347,7 @@
     if (question.other) {
       otherBox = element("div", "pc-other");
       otherBox.hidden = !set.has(question.other);
-      const label = element("label", "pc-label-text", "What else?");
+      const label = element("label", "field-label", "What else?");
       label.htmlFor = "release-other";
       const input = element("input");
       input.id = "release-other";
@@ -424,7 +431,7 @@
     clearInterval(timer);
     const view = element("div", "q q-done");
     const foot = element("div", "q-foot");
-    const play = element("a", "pc-link", "Play it today from your own CD");
+    const play = element("a", "linklike", "Play it today from your own CD");
     play.href = "#install";
     foot.append(play);
     if (late) {
@@ -436,7 +443,8 @@
       );
     } else {
       setProgress("done");
-      view.append(element("h3", "q-title", "Thanks. That is everything."), element("p", "", "Your answers are saved. You hear from us once, on the day Dogfighter is released. Nothing else."));
+      savedNote = element("p", "", "Your answers are saved. You hear from us once, on the day Dogfighter is released. Nothing else.");
+      view.append(element("h3", "q-title", "Thanks. That is everything."), savedNote);
     }
     const remove = element("p", "pc-soft", "Changed your mind? Use the ");
     const contact = element("a", "", "contact form");
@@ -445,7 +453,7 @@
     view.append(remove, foot);
     view.querySelector(".q-title").tabIndex = -1;
     live.textContent = "";
-    place(view);
+    place(view, late);
   };
 
   const strike = () => {
@@ -487,6 +495,10 @@
     if (!button) return;
     event.preventDefault();
     button.click();
+  });
+  window.addEventListener("pagehide", () => {
+    if (expired) return;
+    queued.forEach((question) => send(question, latest.get(question)).catch(() => {}));
   });
   document.addEventListener("visibilitychange", () => {
     if (!survey.hidden && !closed && Date.now() >= deadline) finish(true);

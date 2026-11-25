@@ -1233,7 +1233,7 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pc-stamp-wrap { filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.35)); transform: rotate(2deg); }
 .pc-stamp img { display: block; width: 100%; height: 100%; object-fit: cover; outline: 1.5px solid #2a2a2a; outline-offset: 2px; }
 .pc-label { position: absolute; right: 0; bottom: 8px; left: 0; color: #1f2123; font-family: var(--stencil); font-weight: 700; font-size: 0.62rem; letter-spacing: 0.08em; text-align: center; text-transform: uppercase; }
-.pc-postmark { position: absolute; top: 46px; left: -24px; width: 160px; height: 87px; overflow: visible; fill: none; stroke: var(--red-text); color: var(--red-text); opacity: 0.86; mix-blend-mode: multiply; transform: rotate(-12deg); pointer-events: none; }
+.pc-postmark { position: absolute; top: 46px; left: -24px; width: 160px; height: 87px; overflow: visible; fill: none; stroke: var(--red-text); color: var(--red-text); opacity: 0.86; mix-blend-mode: multiply; --stamp-tilt: -12deg; transform: rotate(var(--stamp-tilt)); pointer-events: none; }
 .pc-postmark[hidden] { display: none; }
 .pc-postmark circle { stroke-width: 2.2; }
 .pc-postmark circle + circle { stroke-width: 1.2; }
@@ -1246,7 +1246,7 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .release-form, .survey { display: flex; flex: 1; flex-direction: column; gap: 18px; padding-top: 24px; }
 .release-form[hidden], .survey[hidden] { display: none; }
 .pc-field { display: flex; flex-direction: column; gap: 6px; }
-.pc-label-text { font-family: var(--stencil); font-weight: 700; font-size: 1rem; letter-spacing: 0.06em; text-transform: uppercase; }
+.postcard .field-label { margin: 0; }
 .release-form input[type="email"], .pc-other input { width: 100%; height: 54px; padding: 0 14px; border: 2px solid var(--ink); border-radius: 6px; background: var(--field); color: var(--ink); font: inherit; font-size: 1rem; }
 .release-form input[aria-invalid="true"] { border-width: 3px; border-color: var(--red); }
 .release-form[aria-busy="true"] input { opacity: 0.6; }
@@ -1290,20 +1290,19 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
   .opt-key { display: none; }
 }
 .pc-other { display: flex; align-items: center; gap: 14px; }
-.pc-other .pc-label-text { flex: none; }
+.pc-other .field-label { flex: none; }
 .pc-other[hidden] { display: none; }
 .q-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; padding-top: 6px; }
 .q-acts { display: flex; align-items: center; gap: 10px; margin-left: auto; }
-.pc-link { min-height: 44px; padding: 10px 6px; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; cursor: pointer; }
-.pc-link:hover { text-decoration-color: var(--red); }
+.postcard .linklike { min-height: 44px; padding: 10px 6px; text-underline-offset: 3px; }
+.postcard .linklike:hover { text-decoration-color: var(--red); }
 .q-done p { max-width: 34em; }
 @media (prefers-reduced-motion: no-preference) {
   .q-in { animation: q-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
   .opt[aria-pressed="true"] .roundel::after { animation: stamp 0.32s cubic-bezier(0.3, 1.6, 0.5, 1); }
-  .pc-postmark.struck { animation: pc-strike 0.45s cubic-bezier(0.3, 1.4, 0.5, 1) both; }
+  .pc-postmark.struck { animation: stamp-down 0.4s cubic-bezier(0.3, 1.4, 0.5, 1) both; }
 }
 @keyframes q-in { from { opacity: 0; transform: translateX(36px); } }
-@keyframes pc-strike { from { opacity: 0; transform: rotate(-24deg) scale(1.7); } }
 @media (prefers-reduced-motion: reduce) {
   .pc-spin { animation: none; }
 }
