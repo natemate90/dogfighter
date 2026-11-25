@@ -19,6 +19,7 @@
   const sendButton = form.querySelector('button[type="submit"]');
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
   const PRODUCTION = ["dogfighter.net", "www.dogfighter.net"].includes(location.hostname);
+  document.getElementById("release-test").hidden = PRODUCTION;
   const WINDOW = 30 * 60 * 1000;
   const BEAT = 450;
   const GAP = 1100;
@@ -229,7 +230,7 @@
       form.querySelectorAll("input").forEach((input) => (input.readOnly = true));
       strike();
       write(LETTERS.sent);
-      status.textContent = answer.dryRun ? "Posted on a test copy: nothing is kept." : "Posted. The first question comes up in a moment.";
+      status.textContent = "Posted. The first question comes up in a moment.";
       setTimeout(() => startSurvey(answer.ticket), SETTLE);
       return;
     }

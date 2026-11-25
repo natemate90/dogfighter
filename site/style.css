@@ -1237,10 +1237,12 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pc-air { flex: none; padding: 7px 13px 4px; background: var(--air); color: #f6eed6; font-family: var(--stencil); font-weight: 700; font-size: 15px; line-height: 1.15; letter-spacing: 0.12em; text-align: center; text-transform: uppercase; transform: rotate(-2deg); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.3); }
 .pc-oas { flex: 1; font-family: var(--stencil); font-weight: 700; font-size: 15px; letter-spacing: 0.42em; text-align: center; text-transform: uppercase; }
 
-.pc-msg { position: relative; display: flex; flex-direction: column; gap: 12px; margin: 10px 0 24px; padding: 12px 30px 81px 34px; }
+.pc-msg { position: relative; display: flex; flex-direction: column; gap: 12px; margin: 10px 0 24px; padding: 12px 30px 76px 34px; }
 .pc-msg::after { content: ""; position: absolute; top: 0; right: -0.75px; bottom: 0; width: 1.5px; background: var(--line); }
 .pc-imprint { position: absolute; left: 100%; top: 50%; z-index: 1; padding: 14px 0; background: var(--card); color: var(--ink-soft); font-family: var(--stencil); font-size: 10px; line-height: 1; letter-spacing: 0.2em; text-transform: uppercase; white-space: nowrap; writing-mode: vertical-rl; transform: translate(-50%, -50%) rotate(180deg); }
 .pc-note { font-family: var(--hand); font-size: 29px; line-height: 36px; color: var(--red-text); background: repeating-linear-gradient(transparent 0 28px, var(--rule) 28px 29px, transparent 29px 36px); }
+.pc-test { padding: 4px 8px; border: 1.5px dashed var(--ink-soft); border-radius: 3px; align-self: flex-start; }
+.pc-test[hidden] { display: none; }
 .pc-kit { position: absolute; bottom: 4px; left: 50%; width: 150px; height: 53px; transform: translateX(-50%); fill: none; stroke: var(--ink); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; opacity: 0.85; }
 
 .pc-adr { position: relative; display: flex; flex-direction: column; min-width: 0; padding: 124px 36px 24px 34px; }
