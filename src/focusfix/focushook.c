@@ -118,7 +118,9 @@ static unsigned int mode_count;
 static struct wined3d_display_mode_copy game_mode;
 static BOOL mode_set, dinput_wants_mouse, mouse_free, widen_view, test_on_right_display, test_leaves_mouse, pointer_hidden, deep_z, keep_shape, test_saves_full_size;
 static RECT test_display, given_area;
-static volatile LONG size_not_asked, centring;
+static RECT plain_frame;
+static SIZE plain_frame_mode;
+static volatile LONG size_not_asked, centring, left_given_area;
 static DWORD centred_at;
 static void *front_swapchain, *front_texture;
 static DWORD front_thread;
@@ -1350,8 +1352,6 @@ static BOOL keep_picture_shape(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         WINDOWPOS *pos = (WINDOWPOS *)lp;
 
         if (pos->flags & SWP_NOSIZE) return FALSE;
-        SetRectEmpty(&given_area);
-        InterlockedExchange(&size_not_asked, 0);
         size = picture_shaped(hwnd, pos->cx, pos->cy, FIT_INSIDE);
         if (!(pos->flags & SWP_NOMOVE))
         {
@@ -1407,7 +1407,18 @@ static LRESULT CALLBACK hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         mouse_free = FALSE;
         say("a click in the picture: the mouse belongs to the game again");
     }
-    if (msg == WM_WINDOWPOSCHANGING) asked_at = GetTickCount() | 1;
+    if (msg == WM_WINDOWPOSCHANGING)
+    {
+        UINT flags = ((WINDOWPOS *)lp)->flags;
+
+        asked_at = GetTickCount() | 1;
+        if ((flags & (SWP_NOSIZE | SWP_NOMOVE)) != (SWP_NOSIZE | SWP_NOMOVE) && !IsRectEmpty(&given_area))
+        {
+            SetRectEmpty(&given_area);
+            InterlockedExchange(&size_not_asked, 0);
+            if (!(flags & SWP_NOSIZE)) InterlockedExchange(&left_given_area, 1);
+        }
+    }
     if (msg == WM_WINDOWPOSCHANGED)
     {
         DWORD asked = asked_at;
@@ -1418,6 +1429,12 @@ static LRESULT CALLBACK hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         MapWindowPoints(hwnd, NULL, (POINT *)&client, 2);
         if (!EqualRect(&client, &known_client) && !centring && (!asked || GetTickCount() - asked > 250))
             InterlockedExchange(&size_not_asked, 1);
+        else if (!centring && !size_not_asked && !left_given_area && IsRectEmpty(&given_area) && !IsIconic(hwnd))
+        {
+            GetWindowRect(hwnd, &plain_frame);
+            plain_frame_mode.cx = game_mode.width;
+            plain_frame_mode.cy = game_mode.height;
+        }
         known_client = client;
     }
     if ((msg == WM_WINDOWPOSCHANGING || msg == WM_SIZING) && keep_picture_shape(hwnd, msg, wp, lp)) return TRUE;
@@ -1836,15 +1853,15 @@ static void centre_picture_in(HWND w, const RECT *area)
     centred_at = GetTickCount();
 }
 
-static void keep_middle_on_display(HWND w, RECT *frame)
+static void keep_middle_on_display(const RECT *was, RECT *frame)
 {
     MONITORINFO display = { sizeof(display) };
-    RECT now, *room = &display.rcWork;
+    RECT *room = &display.rcWork;
     LONG wide = frame->right - frame->left, high = frame->bottom - frame->top, x, y;
 
-    if (!GetWindowRect(w, &now) || !GetMonitorInfoA(MonitorFromWindow(w, MONITOR_DEFAULTTONEAREST), &display)) return;
-    x = now.left + (now.right - now.left - wide) / 2;
-    y = now.top;
+    if (!GetMonitorInfoA(MonitorFromRect(was, MONITOR_DEFAULTTONEAREST), &display)) return;
+    x = was->left + (was->right - was->left - wide) / 2;
+    y = was->top;
     if (x + wide > room->right) x = room->right - wide;
     if (x < room->left) x = room->left;
     if (y + high > room->bottom) y = room->bottom - high;
@@ -1898,6 +1915,32 @@ static BOOL fill_given_area(HWND w, BOOL same_shape)
     return TRUE;
 }
 
+/* Wine's Mac driver takes every frame Wine sets later than a second after
+   full screen began as the frame to go back to. So after a centring at a
+   change of mode, leaving full screen keeps the centred, screen-sized frame.
+   The frame the plain window had is put back here, in the picture's shape of
+   now. */
+static void back_to_plain_frame(HWND w)
+{
+    RECT frame = plain_frame;
+
+    if (IsRectEmpty(&plain_frame)) return;
+    if (plain_frame_mode.cx * (LONG)game_mode.height != plain_frame_mode.cy * (LONG)game_mode.width)
+    {
+        SIZE size = fitted_client();
+
+        SetRect(&frame, 0, 0, size.cx, size.cy);
+        AdjustWindowRectEx(&frame, GetWindowLongA(w, GWL_STYLE), FALSE, GetWindowLongA(w, GWL_EXSTYLE));
+    }
+    keep_middle_on_display(&plain_frame, &frame);
+    fitted_for.cx = game_mode.width;
+    fitted_for.cy = game_mode.height;
+    say("the window left the area it was given; it goes back to %ld,%ld %ldx%ld", frame.left, frame.top,
+        frame.right - frame.left, frame.bottom - frame.top);
+    SetWindowPos(w, NULL, frame.left, frame.top, frame.right - frame.left, frame.bottom - frame.top,
+                 SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
 static void make_normal_window(HWND w)
 {
     static BOOL placed;
@@ -1908,6 +1951,11 @@ static void make_normal_window(HWND w)
     SIZE size;
 
     if (!game_mode.width || !game_mode.height || IsIconic(w)) return;
+    if (keep_shape && normal && fitted_for.cx && InterlockedExchange(&left_given_area, 0))
+    {
+        back_to_plain_frame(w);
+        return;
+    }
     if (keep_shape && normal && fitted_for.cx && fill_given_area(w, same_shape)) return;
     if (normal && same_shape) return;
     if (IsZoomed(w))
@@ -1944,7 +1992,7 @@ static void make_normal_window(HWND w)
     SetWindowLongA(w, GWL_STYLE, style);
     SetWindowLongA(w, GWL_EXSTYLE, ex);
     OffsetRect(&frame, test_display.left - frame.left, test_display.top - frame.top);
-    if (placed) keep_middle_on_display(w, &frame);
+    if (placed && GetWindowRect(w, &client)) keep_middle_on_display(&client, &frame);
     SetWindowPos(w, HWND_NOTOPMOST, frame.left, frame.top, frame.right - frame.left,
                  frame.bottom - frame.top, SWP_FRAMECHANGED | SWP_NOACTIVATE);
     placed = TRUE;

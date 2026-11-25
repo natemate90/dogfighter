@@ -325,10 +325,13 @@ A 4:3 picture on a wider screen has equal bars left and right. A wider picture o
 - It remembers that area and puts the window in its middle, in the picture's shape. It does so again when the game changes its mode, for example from the menus to a flight.
 - A later size nobody asked about replaces the remembered area, for example after a change of resolution.
 - One exception: a size inside the area that comes within a second of the centring is macOS's answer to it, and the area stays.
-- The next size the window is asked about ends this. That is how leaving full screen arrives.
+- The next size or place the window is asked about ends this. That is how leaving full screen arrives.
+- The helper then puts the window back in the frame it had as a plain window. If the game changed its mode in between, the window takes the plain size for the new shape and keeps the old middle, on a screen that is still there.
+- It has to, because the driver goes back to the last frame Wine set later than a second after full screen began. After a centring at a change of mode that is the centred frame, as large as the screen.
 - In a plain window, a change of mode keeps the middle of the window where it was and keeps the window on its screen.
 - With `--no-keep-shape` none of this happens and the picture is stretched over the whole screen.
 - The driver posts the size of leaving full screen with its full-screen mark off, so that one is asked about and ends it. Sizes it posts while in full screen carry the mark and do not.
+- From the Windows side only frames can be seen, not the full-screen state itself. When the frame after leaving is exactly the centred one, no message comes and the helper does not notice. That needs a picture that also fits under the menu bar with its title bar, such as a 16:9 flight on a 16:10 screen. The next move, resize or change of mode then ends it.
 - A window that was maximized first is treated the same way.
 
 Before this, the picture in full screen was stretched over the whole screen in the menus.
@@ -336,6 +339,7 @@ When a flight started, the window went back to its largest size as a plain windo
 
 What the test runs showed on a 3024x1964 screen. Each number is where the picture settled.
 The runs before the change had `--diag-display=right`, which makes the window a few pixels larger.
+The runs after it were made before the helper put the plain frame back.
 
 | Test | Before | After |
 | --- | --- | --- |
@@ -345,6 +349,7 @@ The runs before the change had `--diag-display=right`, which makes the window a 
 | `--diag-zoom` in the menus | 2309x1732 at 0,130 | 2304x1728 at 360,130: 360 pixels free on each side |
 
 In each full-screen test the log says `the window got a size it was not asked about`. In the zoom test it does not.
+With the plain frame put back, the three full-screen tests should end where the window was before, 8,130 in the menus. That is not run yet.
 
 What is not tested:
 - `--diag-full-screen` gives the window the whole screen the way the Mac driver does. It does not put the Mac in full screen. Nothing but a click by hand does that.
@@ -352,6 +357,7 @@ What is not tested:
 - So a change of mode in full screen, and a full screen on a maximized window, are written from the driver's source and not run.
 - The same goes for full screen on a screen of the picture's own shape and for a second size given in full screen. The test gives the whole 3024x1964 screen, which has no game mode's shape.
 - Whether macOS lets a window smaller than the screen sit in the middle of its full-screen Space is not known. If it puts the size back, the helper tries three times and then leaves the picture stretched.
+- Leaving the real full screen is not tested: the window should come back to about its old size and place.
 - A screen larger than the main one is not tested.
 
 ### `--fps=N`
