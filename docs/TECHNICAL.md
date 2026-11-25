@@ -1322,7 +1322,7 @@ No event carries an email address, a country, free text or an answer.
 | `contact_submit` | `topic`: the chosen topic | The contact form is sent. |
 | `scroll_depth` | `percent`: 25, 50, 75, 90 or 100 | The page is scrolled that far, once each. |
 | `section_view` | `section`: `why`, `screens`, `needs`, `release`, `install`, `story` (the toy scene), `questions`, `contact` or `final` | Half of the section, or half the screen, has shown it for one second. Once per section per page view. Sections seen before consent are not sent later, unless they are still on screen. |
-| `release_cta_click` | `location`: `hero`, `needs`, `nav` or `menu` | A link to the new-edition sign-up is clicked. |
+| `release_cta_click` | `location`: `hero`, `needs`, `nav`, `menu` or `final` | A link to the new-edition sign-up is clicked. |
 | `release_signup` | none | The sign-up is accepted. |
 | `release_question` | `question_id`: `devices`, `store`, `online`, `played`, `cd` or `wishes`; `answered`: `yes` or `no` | The visitor leaves a question with Continue, Skip, Back or a pick. |
 | `release_finish` | none | The visitor reaches the end of the questions. |

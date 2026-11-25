@@ -934,6 +934,7 @@ pre code { font-size: 0.95em; white-space: pre-wrap; overflow-wrap: anywhere; }
 .faq-item summary::after { content: "+"; position: absolute; right: 6px; top: 10px; font-size: 1.5rem; line-height: 1; color: var(--red); }
 .faq-item[open] summary::after { content: "\2212"; }
 .faq-item p { margin: 0 0 16px; color: var(--ink-soft); }
+.faq-item + .kicker { margin-top: 2.4em; }
 .final { margin-top: clamp(64px, 9vw, 112px); padding-block: clamp(48px, 7vw, 88px); background: var(--bp); color: var(--bp-line); text-align: center; }
 .final h2 { margin: 0; font-family: var(--display); font-size: clamp(2.2rem, 6vw, 4rem); color: #fff; }
 .final .cta { justify-content: center; }

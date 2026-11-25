@@ -152,7 +152,6 @@
       <a href="#release" data-release-cta="nav">New edition</a>
       <a href="#install">Install</a>
       <a href="#questions">Questions</a>
-      <a href="#contact">Contact</a>
       <a href="https://github.com/natemate90/dogfighter">Source on GitHub</a>
     </nav>
     <a class="button small top-cta" href="#install"><span class="label-long">Get it running</span><span class="label-short">Install</span></a>
@@ -180,7 +179,7 @@
   <div class="hero-text">
     <p class="kicker">Mission briefing</p>
     <h1 id="title"><span class="t1">Dogfighter</span><span class="t2">flies again, on <span class="tail">your Mac. <span class="note">yes, the vase too</span></span></span></h1>
-    <p class="lede">Airfix Dogfighter, the Windows game from 2000, runs on your Mac. You bring your own original CD. This project brings the rest, for free.</p>
+    <p class="lede">Airfix Dogfighter, the Windows game from 2000, runs on your Mac. You bring your own original CD. This project brings the rest, for free. No CD any more? A new edition is on the&nbsp;workbench.</p>
     <p class="cta"><a class="button" href="#install" data-cta="hero">Get it running</a><a class="button ghost" href="#release" data-release-cta="hero">New edition</a></p>
     <p class="cta-note"><span class="nowrap">5 steps in Terminal</span> · <span class="nowrap">free</span></p>
   </div>
@@ -302,14 +301,14 @@
     </ul>
     <p>No disc? This project can't give you the game.</p>
   </div>
-  <p class="cta"><a class="button" href="#install" data-cta="checklist">Got all four? Start installing</a> <a href="#release" data-release-cta="needs">Missing one? Get told about the new edition</a></p>
+  <p class="cta"><a class="button" href="#install" data-cta="checklist">Got all four? Start installing</a> <a href="#release" data-release-cta="needs">Missing one? Hear when the new edition is&nbsp;out</a></p>
   </div>
   </div>
 </section>
 
 <section class="sheet wrap" id="release" aria-labelledby="release-h">
   <div class="sec-head">
-  <h2 id="release-h">Get told about the new edition</h2>
+  <h2 id="release-h">The new edition, no CD needed</h2>
   </div>
   <div class="pc-scene">
   <div class="postcard" id="release-card">
@@ -678,6 +677,7 @@
     <figcaption>Armourers fill ammunition belts, Lille-Seclin, France, 1940.</figcaption>
   </figure>
     <div class="faq">
+      <h3 class="kicker">Flying today</h3>
       <details class="faq-item"><summary>Do I need the original CD?</summary><p>Yes. Setup copies the game and its music from your own disc, so you don't need it while you play. A BIN/CUE copy of the whole disc also works, but an <code>.iso</code> does not, because it has no music.</p></details>
       <details class="faq-item"><summary>Does it run on Intel Macs?</summary><p>No. It needs M1 or later.</p></details>
       <details class="faq-item"><summary>Is the game included, and is this official?</summary><p>No, this project holds only the tools that set the game up. It is for personal use with a disc you own. It is unofficial and not affiliated with Unique Development Studios, Paradox Entertainment or Hornby.</p></details>
@@ -687,13 +687,14 @@
       <details class="faq-item"><summary>Does a controller work?</summary><p>Xbox, PlayStation and Nintendo Switch Pro controllers, and USB or Bluetooth joysticks, should work. Nobody has tried a real controller yet. Connect it before you start, and the launcher turns on Joystick in the game's Options.</p></details>
       <details class="faq-item"><summary>Can I play with friends?</summary><p>Yes, over the network. Tailscale, a free app, is the easiest way and needs no router settings. Without it, the host forwards UDP port 19400 to their Mac in the router's settings.</p></details>
       <details class="faq-item"><summary>Is it safe?</summary><p>Setup checks every download before it uses it. The sharper textures are made on your Mac from your own game files, and nothing is uploaded. Your game files are never changed.</p></details>
+      <details class="faq-item"><summary>Something broke. What now?</summary><p>Run <code>./dogfighter <span class="nowrap">--doctor</span></code>. It checks the installation and prints a fix for each problem. When you ask for help, include the log file from the <code>logs</code> folder. Still stuck? <a href="#contact">Send a message</a>.</p></details>
+      <h3 class="kicker">The new edition</h3>
       <details class="faq-item"><summary>What is the new edition?</summary><p>The same game, made to run on today's computers without the original CD. I am working on it. It is not out yet, and there is no date.</p></details>
       <details class="faq-item"><summary>When does it come out?</summary><p>I don't know yet, and I won't guess. Leave your email in the <a href="#release">section above</a> and you get one note the day it is out.</p></details>
       <details class="faq-item"><summary>Do I need the original CD for the new edition?</summary><p>No. That is the point of it. The version on this site today still needs your own CD.</p></details>
       <details class="faq-item"><summary>Which devices will it run on?</summary><p>I'm aiming for Mac, Windows and Linux. After you sign up you can tell me which devices you play on. That helps me decide what comes first.</p></details>
       <details class="faq-item"><summary>What happens with my email address?</summary><p>When you sign up, your address, the time, your country read from your connection and any answers you give are kept on the Cloudflare server that runs this site until they are passed on, usually within an hour, and longer only if passing them on fails. They go as one entry into a Google Form that only I can see, and are then deleted from Cloudflare. To stop double sign-ups, the site also keeps a scrambled code made from your address, which can't be turned back into it, for as long as the list runs. I use your address for one email on the day the new edition is out and for nothing else, and I don't share or sell it. Cloudflare Turnstile checks that you are not a bot.</p></details>
       <details class="faq-item"><summary>Can I take myself off the list?</summary><p>Yes. Write to me through the <a href="#contact">contact form</a> on this page and I take your address off the list. To sign up again after that, send me a note through the contact form first.</p></details>
-      <details class="faq-item"><summary>Something broke. What now?</summary><p>Run <code>./dogfighter <span class="nowrap">--doctor</span></code>. It checks the installation and prints a fix for each problem. When you ask for help, include the log file from the <code>logs</code> folder. Still stuck? <a href="#contact">Send a message</a>.</p></details>
     </div>
   </div>
   <script type="application/ld+json">
@@ -869,7 +870,7 @@
   <div class="wrap">
     <h2 id="final-h">Chocks away.</h2>
     <p>Five steps. One CD. The living room is waiting.</p>
-    <p class="cta"><a class="button" href="#install" data-cta="final">Get it running</a></p>
+    <p class="cta"><a class="button" href="#install" data-cta="final">Get it running</a> <a href="#release" data-release-cta="final">Hear when the new edition is&nbsp;out</a></p>
   </div>
 </section>
 
