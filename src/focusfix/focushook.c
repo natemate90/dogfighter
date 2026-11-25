@@ -118,6 +118,8 @@ static unsigned int mode_count;
 static struct wined3d_display_mode_copy game_mode;
 static BOOL mode_set, dinput_wants_mouse, mouse_free, widen_view, test_on_right_display, test_leaves_mouse, pointer_hidden, deep_z, keep_shape, test_saves_full_size;
 static RECT test_display, given_area;
+static volatile LONG size_not_asked, centring;
+static DWORD centred_at;
 static void *front_swapchain, *front_texture;
 static DWORD front_thread;
 static unsigned int anisotropy, texture_limit, edge_samples, frames_a_second;
@@ -1349,6 +1351,7 @@ static BOOL keep_picture_shape(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
         if (pos->flags & SWP_NOSIZE) return FALSE;
         SetRectEmpty(&given_area);
+        InterlockedExchange(&size_not_asked, 0);
         size = picture_shaped(hwnd, pos->cx, pos->cy, FIT_INSIDE);
         if (!(pos->flags & SWP_NOMOVE))
         {
@@ -1381,6 +1384,8 @@ static BOOL keep_picture_shape(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
 static LRESULT CALLBACK hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 {
+    static DWORD asked_at;
+
     if (msg == WIDEN_VIEW)
     {
         widen_view_for(wp, lp);
@@ -1400,6 +1405,16 @@ static LRESULT CALLBACK hook_proc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     {
         mouse_free = FALSE;
         say("a click in the picture: the mouse belongs to the game again");
+    }
+    if (msg == WM_WINDOWPOSCHANGING) asked_at = GetTickCount() | 1;
+    if (msg == WM_WINDOWPOSCHANGED)
+    {
+        DWORD asked = asked_at;
+
+        asked_at = 0;
+        if ((((WINDOWPOS *)lp)->flags & (SWP_NOSIZE | SWP_NOMOVE)) != (SWP_NOSIZE | SWP_NOMOVE) && !centring
+            && (!asked || GetTickCount() - asked > 250))
+            InterlockedExchange(&size_not_asked, 1);
     }
     if ((msg == WM_WINDOWPOSCHANGING || msg == WM_SIZING) && keep_picture_shape(hwnd, msg, wp, lp)) return TRUE;
     if (msg >= WM_KEYFIRST && msg <= WM_KEYLAST && commands_before_input > 0 && GetMessageExtraInfo() == SCRIPTED_KEY)
@@ -1810,8 +1825,11 @@ static void centre_picture_in(HWND w, const RECT *area)
     AdjustWindowRectEx(&frame, GetWindowLongA(w, GWL_STYLE), FALSE, GetWindowLongA(w, GWL_EXSTYLE));
     fitted_for.cx = game_mode.width;
     fitted_for.cy = game_mode.height;
+    InterlockedExchange(&centring, 1);
     SetWindowPos(w, NULL, frame.left, frame.top, frame.right - frame.left, frame.bottom - frame.top,
                  SWP_NOSENDCHANGING | SWP_NOZORDER | SWP_NOACTIVATE);
+    InterlockedExchange(&centring, 0);
+    centred_at = GetTickCount();
 }
 
 static void keep_middle_on_display(HWND w, RECT *frame)
@@ -1831,38 +1849,48 @@ static void keep_middle_on_display(HWND w, RECT *frame)
 }
 
 /* macOS full screen. Wine's Mac driver hands the window its new size with
-   SWP_NOSENDCHANGING, so WM_WINDOWPOSCHANGING never comes and the size is only
-   seen afterwards. The picture is then centred in the area that was given, and
-   again when the game changes its mode. A size the window is asked about ends
-   this: that is how leaving full screen arrives. */
+   SWP_NOSENDCHANGING, so WM_WINDOWPOSCHANGING never comes: hook_proc sees a
+   WM_WINDOWPOSCHANGED nobody asked about. The picture is then centred in the
+   area that was given, and again when the game changes its mode. A size the
+   window is asked about ends this: that is how leaving full screen arrives.
+   An area that is not the picture's shape counts as given too, in case the
+   message was missed. macOS may answer the centring with a size of its own
+   inside the area; that one does not replace the area. */
 static BOOL fill_given_area(HWND w, BOOL same_shape)
 {
     static RECT seen;
     static int steady, tries;
     LONG width = game_mode.width, height = game_mode.height, off;
-    RECT client = { 0 };
+    RECT client = { 0 }, both;
+    BOOL known = !IsRectEmpty(&given_area);
 
     GetClientRect(w, &client);
     MapWindowPoints(w, NULL, (POINT *)&client, 2);
-    if (!IsRectEmpty(&given_area))
+    off = (client.right - client.left) * height - (client.bottom - client.top) * width;
+    if (!known) tries = 0;
+    if (size_not_asked || (!known && same_shape && labs(off) > 2 * max(width, height)))
     {
-        if (same_shape && (!EqualRect(&client, &given_area) || ++tries > 3)) return TRUE;
+        if (!EqualRect(&client, &seen)) steady = 0;
+        seen = client;
+        if (++steady < 4) return TRUE;
+        steady = 0;
+        say(InterlockedExchange(&size_not_asked, 0) ? "the window got a size it was not asked about"
+                                                    : "the window has a size that is not the picture's shape");
+        if (known && EqualRect(&client, &given_area))
+        {
+            if (++tries > 3) return TRUE;
+        }
+        else if (known && GetTickCount() - centred_at < 1000 && IntersectRect(&both, &client, &given_area)
+                 && EqualRect(&both, &client))
+            return TRUE;
+        else tries = 0;
+        given_area = client;
         centre_picture_in(w, &given_area);
         return TRUE;
     }
-    tries = 0;
-    if (!same_shape) return FALSE;
-    off = (client.right - client.left) * height - (client.bottom - client.top) * width;
-    if (labs(off) <= 2 * max(width, height))
-    {
-        steady = 0;
-        return FALSE;
-    }
-    if (!EqualRect(&client, &seen)) steady = 0;
-    seen = client;
-    if (++steady < 4) return TRUE;
-    given_area = client;
-    centre_picture_in(w, &given_area);
+    steady = 0;
+    if (!known) return FALSE;
+    if (!same_shape) centre_picture_in(w, &given_area);
     return TRUE;
 }
 
@@ -1916,6 +1944,7 @@ static void make_normal_window(HWND w)
     SetWindowPos(w, HWND_NOTOPMOST, frame.left, frame.top, frame.right - frame.left,
                  frame.bottom - frame.top, SWP_FRAMECHANGED | SWP_NOACTIVATE);
     placed = TRUE;
+    InterlockedExchange(&size_not_asked, 0);
     if (test_on_right_display && GetWindowRect(w, &frame))
         say("test run: window at %ld,%ld %ldx%ld, on the display with room at %ld,%ld %ldx%ld", frame.left, frame.top,
             frame.right - frame.left, frame.bottom - frame.top, test_display.left, test_display.top,

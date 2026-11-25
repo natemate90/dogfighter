@@ -317,8 +317,13 @@ The rule is the same for both: the picture is as large as the screen allows and 
 A 4:3 picture on a wider screen has equal bars left and right. A wider picture on a taller screen has equal bars above and below.
 
 - In full screen, Wine's Mac driver gives the window its new size with `SWP_NOSENDCHANGING`. The game's window is not asked first, so `WM_WINDOWPOSCHANGING` never comes.
-- The helper looks at the window 20 times a second. A size that is not the picture's shape and stays for 0.2 seconds was given that way.
-- The helper remembers that area and puts the window in its middle, in the picture's shape. It does so again when the game changes its mode, for example from the menus to a flight.
+- The helper sees it afterwards: a `WM_WINDOWPOSCHANGED` with a new size or place and no `WM_WINDOWPOSCHANGING` in the 0.25 seconds before it.
+- That also works when the screen has the picture's own shape, such as a 16:10 flight on a 16:10 screen.
+- A size that is not the picture's shape counts as given too, in case the message was missed.
+- The helper looks at the window 20 times a second and waits until the size has stayed for 0.2 seconds.
+- It remembers that area and puts the window in its middle, in the picture's shape. It does so again when the game changes its mode, for example from the menus to a flight.
+- A later size nobody asked about replaces the remembered area, for example after a change of resolution.
+- One exception: a size inside the area that comes within a second of the centring is macOS's answer to it, and the area stays.
 - The next size the window is asked about ends this. That is how leaving full screen arrives.
 - In a plain window, a change of mode keeps the middle of the window where it was and keeps the window on its screen.
 - With `--no-keep-shape` none of this happens and the picture is stretched over the whole screen.
@@ -341,6 +346,8 @@ What is not tested:
 - `--diag-full-screen` gives the window the whole screen the way the Mac driver does. It does not put the Mac in full screen. Nothing but a click by hand does that.
 - The test cannot hold the full-screen state. The centred window no longer covers the screen, so macOS moves it below the menu bar. The driver then asks for 2626x1764 with the mark off, and the window ends as a zoomed one does.
 - So a change of mode in full screen, and a full screen on a maximized window, are written from the driver's source and not run.
+- The same goes for full screen on a screen of the picture's own shape and for a second size given in full screen. The test gives the whole 3024x1964 screen, which has no game mode's shape.
+- The check for a size nobody asked about was written after the last test run. It has not run at all.
 - Whether macOS lets a window smaller than the screen sit in the middle of its full-screen Space is not known. If it puts the size back, the helper tries three times and then leaves the picture stretched.
 - A screen larger than the main one is not tested.
 
