@@ -264,7 +264,7 @@ The sharper letters below change that for the letters.
 - On an M4 Max a flight ran at 62 to 89 frames a second at 2774x1734, with 4 samples per pixel.
 - It works together with the larger textures.
 - F12 screenshots keep the game's own size.
-- The picture follows the window when it is resized or zoomed, up to the screen's size.
+- The picture follows the window when it is resized, zoomed or put in full screen, up to the size of the main screen. On a larger screen it is enlarged from that size.
 - In a test, clicks on Info, Login and Campaign each landed on the button under the game's cursor.
 - Nobody has looked at it on a screen yet.
 
@@ -301,14 +301,64 @@ In the first mission the picture was the same with and without it.
 The window keeps the shape of the game's picture when it is resized or zoomed.
 That is 4:3 in the menus and the shape of the flight resolution in a flight, for example 16:10.
 - The helper answers `WM_SIZING`, which Wine's Mac driver asks during a drag. The side that moved further leads and the other follows.
-- It also shapes every other change of size in `WM_WINDOWPOSCHANGING`, such as the green button.
-- The picture always fills the window, so there are no bars. Bars would need a second draw each frame, and the mouse would have to be kept inside the picture and not the window.
+- It also shapes every other change of size in `WM_WINDOWPOSCHANGING`. The window becomes the largest one of the picture's shape that fits in the place it was asked to take, and sits in the middle of that place.
+- The picture always fills the window, so there are no bars inside it. Bars would need a second draw each frame, and the mouse would have to be kept inside the picture and not the window.
 - `--wide` does not change this. It widens the view angle for the flight resolution's shape, and the window has that shape.
 - `--no-keep-shape` lets the window take any shape. The picture is then stretched to fill it.
 - `--keep-shape` is still accepted. It is the default.
 
 In a test run the test tool asked for seven sizes as a drag does. The picture kept 4:3 each time, for example 2461x1846 and 2715x2036.
-A zoomed window kept the 4:3 shape of the menus in an earlier test. A drag by hand is not tried yet.
+A drag by hand is not tried yet.
+
+#### The green button
+
+A click on the green button puts the window in macOS full screen. A click with Option held zooms it.
+The rule is the same for both: the picture is as large as the screen allows and sits in the middle.
+A 4:3 picture on a wider screen has equal bars left and right. A wider picture on a taller screen has equal bars above and below.
+
+- In full screen, Wine's Mac driver gives the window its new size with `SWP_NOSENDCHANGING`. The game's window is not asked first, so `WM_WINDOWPOSCHANGING` never comes.
+- The helper sees it afterwards: a `WM_WINDOWPOSCHANGED` after which the picture's place or size is another one, with no `WM_WINDOWPOSCHANGING` in the 0.25 seconds before it.
+- A zoom sends such a message too, but the picture has not moved by then, so it does not count.
+- That also works when the screen has the picture's own shape, such as a 16:10 flight on a 16:10 screen.
+- A size that is not the picture's shape counts as given too, in case the message was missed.
+- The helper looks at the window 20 times a second and waits until the size has stayed for 0.2 seconds.
+- It remembers that area and puts the window in its middle, in the picture's shape. It does so again when the game changes its mode, for example from the menus to a flight.
+- A later size nobody asked about replaces the remembered area, for example after a change of resolution.
+- One exception: a size inside the area that comes within a second of the centring is macOS's answer to it, and the area stays.
+- The next size or place the window is asked about ends this. That is how leaving full screen arrives.
+- The helper then puts the window back in the frame it had as a plain window. If the game changed its mode in between, the window takes the plain size for the new shape and keeps the old middle, on a screen that is still there.
+- It has to, because the driver goes back to the last frame Wine set later than a second after full screen began. After a centring at a change of mode that is the centred frame, as large as the screen.
+- In a plain window, a change of mode keeps the middle of the window where it was and keeps the window on its screen.
+- With `--no-keep-shape` none of this happens and the picture is stretched over the whole screen.
+- The driver posts the size of leaving full screen with its full-screen mark off, so that one is asked about and ends it. Sizes it posts while in full screen carry the mark and do not.
+- From the Windows side only frames can be seen, not the full-screen state itself. When the frame after leaving is exactly the centred one, no message comes and the helper does not notice. That needs a picture that also fits under the menu bar with its title bar, such as a 16:9 flight on a 16:10 screen. The next move, resize or change of mode then ends it.
+- A window that was maximized first is treated the same way.
+
+Before this, the picture in full screen was stretched over the whole screen in the menus.
+When a flight started, the window went back to its largest size as a plain window and kept its top left corner.
+
+What the test runs showed on a 3024x1964 screen. Each number is where the picture settled.
+The runs before the change had `--diag-display=right`, which makes the window a few pixels larger.
+The runs after it were made before the helper put the plain frame back.
+
+| Test | Before | After |
+| --- | --- | --- |
+| `--diag-full-screen` in the menus | 3024x1964, stretched | 2618x1964 at 203,0 for a moment, then 2304x1728 at 360,130 |
+| The same, then a flight starts | 2768x1730 at 0,130: 256 pixels free at the right, 104 at the bottom | 2765x1728 at 129,130: 129 pixels free at the left, 130 at the right |
+| A flight first, then `--diag-full-screen` | Not run | 3024x1890 at 0,37 for a moment, then 2765x1728 at 129,130 |
+| `--diag-zoom` in the menus | 2309x1732 at 0,130 | 2304x1728 at 360,130: 360 pixels free on each side |
+
+In each full-screen test the log says `the window got a size it was not asked about`. In the zoom test it does not.
+With the plain frame put back, the three full-screen tests should end where the window was before, 8,130 in the menus. That is not run yet.
+
+What is not tested:
+- `--diag-full-screen` gives the window the whole screen the way the Mac driver does. It does not put the Mac in full screen. Nothing but a click by hand does that.
+- The test cannot hold the full-screen state. The centred window no longer covers the screen, so macOS moves it below the menu bar. The driver then asks for 2626x1764 with the mark off, and the window ends as a zoomed one does.
+- So a change of mode in full screen, and a full screen on a maximized window, are written from the driver's source and not run.
+- The same goes for full screen on a screen of the picture's own shape and for a second size given in full screen. The test gives the whole 3024x1964 screen, which has no game mode's shape.
+- Whether macOS lets a window smaller than the screen sit in the middle of its full-screen Space is not known. If it puts the size back, the helper tries three times and then leaves the picture stretched.
+- Leaving the real full screen is not tested: the window should come back to about its old size and place.
+- A screen larger than the main one is not tested.
 
 ### `--fps=N`
 
@@ -1114,7 +1164,7 @@ Not done for controllers:
 | `--no-hd-videos` | Let the game play its own intro videos. |
 | `--smooth=N` | Smooth jagged edges with N samples per pixel: 0, 2 or 4. Without it the launcher uses 4. |
 | `--deep-z` | Give the game a 24-bit depth buffer where it asks for 16 bits. |
-| `--keep-shape` | On by default. Keep the window in the shape of the game's picture when you resize or zoom it. |
+| `--keep-shape` | On by default. Keep the window in the shape of the game's picture when you resize or zoom it. In full screen the picture sits in the middle of the screen. |
 | `--no-keep-shape` | Let the window take any shape. The picture is then stretched to fill it. |
 | `--fps=N` | Show at most N pictures a second, from 15 to 1000, e.g. `--fps=60`. |
 | `--no-pointer-match` | Leave the speed of the pointer in the menus to the game. |
@@ -1161,6 +1211,7 @@ Test runs follow the same picture defaults as a normal start.
 | `--diag-sound` | Keeps the sound, as a normal start does. |
 | `--diag-end=SECONDS` | Ends the game this long after its first picture, without the game's own quit. |
 | `--diag-zoom=SECONDS` | Zooms the window this long after the first picture. |
+| `--diag-full-screen=SECONDS` | Gives the window the whole screen this long after the first picture, without asking the game first, as Wine's Mac driver does for full screen. The Mac itself does not go to full screen. |
 | `--diag-drag=SECONDS` | Asks for seven window sizes as a drag does, and logs what the window became. |
 | `--diag-draws` | Writes to the log where the game first draws each flat picture: its place on the game's screen and its size. |
 | `--diag-intros-shown=COUNT` | Starts the game as if the launcher had played the first COUNT sharper intro videos, 1 or 2, so the game leaves its own out. |
