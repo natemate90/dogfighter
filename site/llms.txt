@@ -1,6 +1,6 @@
 # Dogfighter for Apple Silicon
 
-> Free setup tools that run Airfix Dogfighter, the Windows game from 2000, on a Mac with Apple Silicon (M1 or later), from your own original CD. The project contains no game files. It is an unofficial fan project, not affiliated with Unique Development Studios, Paradox Entertainment or Hornby.
+> Free setup tools that run Airfix Dogfighter, the Windows game from 2000, on a Mac with Apple Silicon (M1 or later), from your own original CD. The project contains no game files. It is an unofficial fan project, not affiliated with Unique Development Studios, Paradox Entertainment or Hornby. The site also has a sign-up to hear when a new edition of the game is out.
 
 Key facts:
 
@@ -18,12 +18,22 @@ Install, in Terminal:
 5. Run setup: `./setup.sh` (add `--language=French`, `--language=German` or `--language=Italian` for another language)
 6. Play: `./dogfighter`, or double-click `Dogfighter.app`. If something goes wrong, run `./dogfighter --doctor`.
 
+New edition:
+
+- A new edition is in the works: the same game, made to run on today's computers without the original CD. It is not out yet, and there is no date.
+- The version on this site today still needs your own CD.
+- Leave your email on the site and you get one note on the day the new edition is out. A few optional questions follow the sign-up.
+
+## New edition
+
+- [Sign up for the new edition](https://dogfighter.net/#release): one email on the day it is out, nothing else
+
 ## Docs
 
 - [README: install guide](https://github.com/natemate90/dogfighter#readme): requirements, install steps, options, problems and fixes
 - [Player's guide](https://github.com/natemate90/dogfighter/blob/main/docs/GUIDE.md): menus, pickups, console, multiplayer levels
 - [How it works](https://github.com/natemate90/dogfighter/blob/main/docs/TECHNICAL.md): Wine versions, setup, the sharper textures
-- [Questions and answers](https://dogfighter.net/#questions): CD, Intel Macs, legality, setup time, saves, controllers, multiplayer, safety
+- [Questions and answers](https://dogfighter.net/#questions): CD, Intel Macs, official status, setup time, saves, controllers, multiplayer, safety, the new edition, your email address
 
 ## Optional
 
