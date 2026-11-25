@@ -494,3 +494,8 @@ How it all works, for developers: [docs/TECHNICAL.md](docs/TECHNICAL.md).
 The website, dogfighter.net, is built from `site/` and `worker/`.
 Its Turnstile site key (`TURNSTILE_SITEKEY`) is the `data-sitekey` on the contact form in `site/index.html`.
 The setup steps are in [docs/TECHNICAL.md](docs/TECHNICAL.md#the-website).
+The Worker's form secrets have a local copy in `.env`, which git ignores. If it is lost, rebuild it from the Google Forms: [the form secrets and the local .env](docs/TECHNICAL.md#the-form-secrets-and-the-local-env).
+
+## Licence
+
+The code is free to read, run and change for non-commercial use, under the PolyForm Noncommercial License 1.0.0 in [LICENSE.md](LICENSE.md). Commercial use needs written permission. [NOTICE.md](NOTICE.md) lists the files the licence does not cover.

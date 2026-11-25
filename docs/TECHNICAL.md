@@ -1242,6 +1242,24 @@ It sets no tracking cookies, so it needs no consent.
 5. Copy the secret key. Open Workers & Pages › dogfighter › Settings › Variables and secrets.
 6. Add a variable of type Secret named `TURNSTILE_SECRET` with that key, and deploy.
 
+#### The form secrets and the local .env
+
+The Worker sends entries to Google Forms through two secrets.
+- `FORM_URL`: the contact form.
+- `NOTIFY_FORM_URL`: the release list (the "Dogfighter release list" form).
+
+A local copy of them lives in `.env` in the repo root.
+`.gitignore` keeps `.env` out of git, and the site never serves it.
+
+Cloudflare never shows a stored secret again, so a lost `.env` is rebuilt from the forms:
+1. Open the form in Google Forms, in the maintainer's Google account.
+2. Click the link button and copy the responder link. It ends in `/viewform`.
+3. Replace `/viewform` with `/formResponse`. That is the secret's value.
+4. Put it in `.env` as `NOTIFY_FORM_URL=…` or `FORM_URL=…`.
+5. To change it in Cloudflare, open Workers & Pages › dogfighter › Settings › Variables and secrets, edit the secret, and deploy.
+
+Never paste these values into an issue, a PR or a commit: with the address, anyone could fill the form without the Turnstile check.
+
 #### Previews and local runs
 
 Only dogfighter.net and www.dogfighter.net pass messages on to the Google Form.
