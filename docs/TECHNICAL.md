@@ -322,20 +322,27 @@ A 4:3 picture on a wider screen has equal bars left and right. A wider picture o
 - The next size the window is asked about ends this. That is how leaving full screen arrives.
 - In a plain window, a change of mode keeps the middle of the window where it was and keeps the window on its screen.
 - With `--no-keep-shape` none of this happens and the picture is stretched over the whole screen.
+- The driver posts the size of leaving full screen with its full-screen mark off, so that one is asked about and ends it. Sizes it posts while in full screen carry the mark and do not.
+- A window that was maximized first is treated the same way.
 
 Before this, the picture in full screen was stretched over the whole screen in the menus.
 When a flight started, the window went back to its largest size as a plain window and kept its top left corner.
-On a 3024x1964 screen that was a picture of 2777x1736 with 247 pixels free at the right and 228 at the bottom.
 
-What the test runs showed on a 3024x1964 screen, in the menus:
+What the test runs showed on a 3024x1964 screen. Each number is where the window settled.
 
 | Test | Before | After |
 | --- | --- | --- |
-| `--diag-full-screen` | Picture 3024x1964, stretched | Picture 2618x1964 at 203,0 |
-| `--diag-zoom` | Window at the left edge | 358 pixels free at the left, 359 at the right |
+| `--diag-full-screen` in the menus | Picture 3024x1964, stretched | Picture 2618x1964 at 203,0 for a moment, then 2307x1730 at 358,130 |
+| The same, then a flight starts | Picture 2768x1730 at 0,130: 256 pixels free at the right, 104 at the bottom | Picture 2768x1730 at 358,130, past the right edge. Fixed after that run, not run again |
+| `--diag-zoom` in the menus | Picture 2309x1732 at 0,130 | Picture 2307x1730 at 358,130: 358 pixels free at the left, 359 at the right |
+| `--diag-zoom`, then a flight starts | Not run | Picture 2768x1730 at 127,130: 127 pixels free at the left, 129 at the right |
 
-`--diag-full-screen` gives the window the whole screen the way the Mac driver does. It does not put the Mac in full screen.
-Nothing but a click by hand does that, so the real full screen is not tested yet. Neither is a screen larger than the main one.
+What is not tested:
+- `--diag-full-screen` gives the window the whole screen the way the Mac driver does. It does not put the Mac in full screen. Nothing but a click by hand does that.
+- The test cannot hold the full-screen state. The centred window no longer covers the screen, so macOS moves it below the menu bar. The driver then asks for 2626x1764 with the mark off, and the window ends as a zoomed one does.
+- So a change of mode in full screen, and a full screen on a maximized window, are written from the driver's source and not run.
+- Whether macOS lets a window smaller than the screen sit in the middle of its full-screen Space is not known. If it puts the size back, the helper tries three times and then leaves the picture stretched.
+- A screen larger than the main one is not tested.
 
 ### `--fps=N`
 

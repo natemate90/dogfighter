@@ -1876,7 +1876,7 @@ static void make_normal_window(HWND w)
     SIZE size;
 
     if (!game_mode.width || !game_mode.height || IsIconic(w)) return;
-    if (keep_shape && normal && fitted_for.cx && !IsZoomed(w) && fill_given_area(w, same_shape)) return;
+    if (keep_shape && normal && fitted_for.cx && fill_given_area(w, same_shape)) return;
     if (normal && same_shape) return;
     if (IsZoomed(w))
     {
