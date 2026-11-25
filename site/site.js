@@ -504,13 +504,13 @@
     startAnimations();
     if (drawMain) {
       active = activeCard();
+      stepsWere = steps.getBoundingClientRect().bottom;
       mark(active);
       lastState = -1;
       generation++;
       playing = false;
       level = wanted = active + 1;
       drawBig(level);
-      stepsWere = steps.getBoundingClientRect().bottom;
     }
     if (observer) {
       document.documentElement.classList.add("js");
@@ -641,8 +641,11 @@
   });
 
   const updateStick = () => document.documentElement.style.setProperty("--stick", `${Math.round(bar.offsetHeight + 12)}px`);
-  updateStick();
-  window.addEventListener("resize", updateStick);
+  if ("ResizeObserver" in window) new ResizeObserver(updateStick).observe(bar);
+  else {
+    updateStick();
+    window.addEventListener("resize", updateStick);
+  }
   let touching = false, skipSettle = false, settling = 0, settleQuiet = 0, settleTimer = 0;
   const cancelSettle = () => {
     if (settling) cancelAnimationFrame(settling);
@@ -775,6 +778,10 @@
   function track(name, params) {
     if (analyticsLoaded && typeof window.gtag === "function") window.gtag("event", name, params);
   }
+  window.dogfighterTrack = track;
+  document.querySelectorAll("[data-release-cta]").forEach((link) => {
+    link.addEventListener("click", () => track("release_cta_click", { location: link.dataset.releaseCta }));
+  });
   document.querySelectorAll(".code").forEach((box) => {
     box.addEventListener("copy", () => track("copy_command_manual", { step: Number(box.dataset.step), command_id: box.dataset.command }));
   });
@@ -952,6 +959,34 @@
       }
     });
   }, { passive: true });
+
+  const DWELL = 1000;
+  const inSight = new Set(), sentSections = new Set(), dwellTimers = new Map();
+  const armSection = (section) => {
+    if (!analyticsLoaded || sentSections.has(section) || dwellTimers.has(section)) return;
+    dwellTimers.set(section, setTimeout(() => {
+      dwellTimers.delete(section);
+      if (!inSight.has(section) || sentSections.has(section)) return;
+      sentSections.add(section);
+      track("section_view", { section: section.dataset.section || section.id });
+    }, DWELL));
+  };
+  if ("IntersectionObserver" in window) {
+    const sectionWatch = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const section = entry.target;
+        if (entry.isIntersecting && (entry.intersectionRatio >= 0.5 || entry.intersectionRect.height >= window.innerHeight * 0.5)) {
+          inSight.add(section);
+          armSection(section);
+        } else {
+          inSight.delete(section);
+          clearTimeout(dwellTimers.get(section));
+          dwellTimers.delete(section);
+        }
+      });
+    }, { threshold: Array.from({ length: 21 }, (_, i) => i / 20) });
+    document.querySelectorAll("main > section[id], main > section[data-section]").forEach((section) => sectionWatch.observe(section));
+  }
   const consent = document.getElementById("consent");
   const readChoice = () => {
     try {
@@ -979,6 +1014,7 @@
     tag.async = true;
     tag.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
     document.head.appendChild(tag);
+    inSight.forEach(armSection);
   }
   function dropAnalyticsCookies() {
     window[`ga-disable-${GA_ID}`] = true;
