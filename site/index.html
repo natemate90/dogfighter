@@ -180,7 +180,7 @@
     <p class="kicker">Mission briefing</p>
     <h1 id="title"><span class="t1">Dogfighter</span><span class="t2">flies again, on <span class="tail">your Mac. <span class="note">yes, the vase too</span></span></span></h1>
     <p class="lede">Airfix Dogfighter, the Windows game from 2000, runs on your Mac. You bring your own original CD. This project brings the rest, for free.</p>
-    <p class="cta"><a class="button" href="#install" data-cta="hero">Get it running</a></p>
+    <p class="cta"><a class="button" href="#install" data-cta="hero">Get it running</a><a class="button ghost" href="#release">Tell me when it's out</a></p>
     <p class="cta-note"><span class="nowrap">5 steps in Terminal</span> · <span class="nowrap">free</span></p>
   </div>
   <div class="hero-video">
@@ -703,6 +703,72 @@
   </script>
 </section>
 
+<section class="sheet wrap" id="release" aria-labelledby="release-h">
+  <div class="postcard" id="release-card">
+    <p class="pc-head" aria-hidden="true">Post card</p>
+    <div class="pc-stub">
+      <div class="pc-intro">
+        <h2 id="release-h">Get told when it's out</h2>
+        <p class="pc-note">one email, that's all</p>
+        <p class="pc-soft">Rather skip the CD drive and the Terminal? Leave your email. You hear from us once, on the day Dogfighter is released.</p>
+      </div>
+      <div class="pc-listed" hidden>
+        <p class="pc-listed-title">You are on the list.</p>
+        <p>One email goes to your address on the day Dogfighter is released.</p>
+        <p class="pc-soft pc-more">Six optional questions help us choose what to build first. Each answer saves as you tap it.</p>
+        <p class="pc-soft pc-preview" hidden>Preview: this test copy of the site keeps nothing.</p>
+      </div>
+    </div>
+    <div class="pc-main">
+      <div class="pc-corner">
+        <div class="pc-stamp-wrap"><div class="pc-stamp">
+          <img src="img/balloon-stamp.webp" width="240" height="300" alt="A stamp with a photo of a barrage balloon on its tether.">
+          <span class="pc-label" aria-hidden="true">Dogfighter.net</span>
+        </div></div>
+        <svg class="pc-postmark" viewBox="0 0 220 120" role="img" aria-labelledby="release-postmark-t" hidden>
+          <title id="release-postmark-t">Postmark: on the list</title>
+          <defs><path id="pm-ring" d="M60,60 m-44,0 a44,44 0 1,1 88,0 a44,44 0 1,1 -88,0"/></defs>
+          <circle cx="60" cy="60" r="55"/>
+          <circle cx="60" cy="60" r="34"/>
+          <text class="pm-ring"><textPath href="#pm-ring" textLength="268" lengthAdjust="spacing">DOGFIGHTER.NET ★ RELEASE LIST ★</textPath></text>
+          <text class="pm-big" x="60" y="55">ON THE</text>
+          <text class="pm-big" x="60" y="72">LIST</text>
+          <text class="pm-date" x="60" y="86"></text>
+          <path class="pm-wave" d="M122,38 q12,-7 24,0 t24,0 t24,0 t24,0 M122,52 q12,-7 24,0 t24,0 t24,0 t24,0 M122,66 q12,-7 24,0 t24,0 t24,0 t24,0 M122,80 q12,-7 24,0 t24,0 t24,0 t24,0"/>
+        </svg>
+      </div>
+      <form class="release-form" id="release-form" novalidate>
+        <div class="pc-field pc-top">
+          <label class="field-label" for="release-email">Your email</label>
+          <input id="release-email" name="email" type="email" autocomplete="email" maxlength="254" required aria-describedby="release-email-error">
+          <p class="pc-error" id="release-email-error" hidden></p>
+        </div>
+        <div class="pc-field">
+          <label class="pc-tick"><input type="checkbox" name="consent" value="yes" required aria-describedby="release-consent-error release-note"><span>Yes, email me once when Dogfighter is released.</span></label>
+          <p class="pc-error" id="release-consent-error" hidden></p>
+          <p class="pc-soft pc-small" id="release-note">Nothing else gets sent. We also store your country, taken from your connection. To be removed, use the <a href="#contact">contact form</a>.</p>
+        </div>
+        <div class="trap" aria-hidden="true"><label for="release-website">Leave this empty</label><input id="release-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
+        <div class="pc-send">
+          <div class="pc-turnstile" id="release-turnstile"></div>
+          <button class="button" type="submit">Put me on the list</button>
+        </div>
+        <p class="pc-error" id="release-turnstile-error" tabindex="-1" hidden></p>
+        <p class="pc-soft pc-small">Next come six optional questions about how you would play. Skip any of them.</p>
+      </form>
+      <div class="survey" id="release-survey" hidden>
+        <div class="pc-top">
+          <p class="pc-count"><span id="release-count">Question 1 of 6</span><span class="pc-saved" id="release-live" aria-live="polite"></span></p>
+          <div class="pc-progress" role="progressbar" aria-labelledby="release-count" aria-valuemin="0" aria-valuemax="6" aria-valuenow="0"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        </div>
+        <div class="survey-stage"></div>
+      </div>
+    </div>
+  </div>
+  <div class="contact-result" id="release-result" tabindex="-1" hidden></div>
+  <noscript><p class="contact-noscript">This form needs JavaScript.</p></noscript>
+</section>
+
 <section class="sheet wrap" id="contact" aria-labelledby="contact-h">
   <div class="sec-head">
   <h2 id="contact-h">Contact</h2>
@@ -762,9 +828,10 @@
         <li>Pilots of No. 19 Squadron RAF stage a mock scramble at Fowlmere, September 1940. F/O S. Devon, Royal Air Force official photographer. <a href="https://commons.wikimedia.org/wiki/File:Pilots_of_No._19_Squadron_RAF_stage_a_mock_%27scramble%27_from_the_back_of_a_truck_at_Fowlmere_near_Duxford,_September_1940._CH1398.jpg">Wikimedia Commons</a>. Public domain (UK Crown Copyright expired).</li>
         <li>Members of the 332nd Fighter Group at a briefing in Ramitelli, Italy, March 1945. Toni Frissell, Library of Congress. <a href="https://commons.wikimedia.org/wiki/File:332ndFighterBriefing1945-high-res.jpg">Wikimedia Commons</a>. Public domain (given to the public by the photographer).</li>
         <li>Lille-Seclin airfield, Royal Air Force, France, 1939–1940. H. Hensser, Royal Air Force official photographer. <a href="https://commons.wikimedia.org/wiki/File:Lille-Seclin_airfield_-_Royal_Air_Force_-_France,_1939-1940_C1519.jpg">Wikimedia Commons</a>. Public domain (UK Crown Copyright expired).</li>
+        <li>Kite balloons and winches of No. 1 Balloon Training Unit are prepared for handling practice at Cardington (the stamp on the release list). Mr B. J. Daventry, Royal Air Force official photographer. <a href="https://commons.wikimedia.org/wiki/File:Royal_Air_Force_Balloon_Command,_1939-1945._CH1521.jpg">Wikimedia Commons</a>. Public domain (UK Crown Copyright expired).</li>
       </ul>
     </details>
-    <p class="made">Made by <a href="https://github.com/natemate90">natemate90</a>. Uses Google Analytics only if you accept. No other cookies. The contact form is checked by Cloudflare Turnstile, which sets no tracking cookies. It passes your message and email to the maintainer through a Google Form. Your email is used only to reply and is not stored on this site. <button class="linklike" type="button" id="cookie-settings">Cookie settings</button>. The video loads from youtube-nocookie.com only when you click it.</p>
+    <p class="made">Made by <a href="https://github.com/natemate90">natemate90</a>. Uses Google Analytics only if you accept. No other cookies. The contact form is checked by Cloudflare Turnstile, which sets no tracking cookies. It passes your message and email to the maintainer through a Google Form. Your email is used only to reply and is not stored on this site. The release list passes your email, country and answers to the maintainer through a Google Form. <button class="linklike" type="button" id="cookie-settings">Cookie settings</button>. The video loads from youtube-nocookie.com only when you click it.</p>
   </div>
 </footer>
 
@@ -849,5 +916,6 @@
 </div>
 <script src="site.js" defer></script>
 <script src="flight.js" defer></script>
+<script src="release.js" defer></script>
 </body>
 </html>
