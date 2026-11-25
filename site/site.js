@@ -197,29 +197,42 @@
     words.selectNodeContents(story);
     const head = words.getBoundingClientRect();
     const lane = Math.min(Math.max(head.left + head.width * 0.4, body), start.x - body);
-    const r = Math.max(body * 0.4, Math.min((start.x - lane) / 2, (start.y - body * 0.4 - top) / 1.1));
+    const room = Math.min((start.x - lane) / 2, (start.y - body * 0.4 - top) / 1.1);
+    const r = Math.max(body * 0.4, room * (0.75 + 0.25 * Math.random()));
+    const first = start.x + 2 * r + body * 0.7 < W && Math.random() < 0.5 ? 1 : -1;
+    const leave = Math.random() < 0.5 ? 1 : -1;
+    const bend = Math.random() < 0.5 ? 0.2 + 0.15 * Math.random() : 0;
     const turnY = Math.min(top + r * 1.1, start.y - body * 0.4);
     const meetY = Math.max(H * MEET, turnY + body * 0.5);
-    const out = Math.max(body * 0.6, Math.min((H - meetY - body * 0.6 - 0.45 * cruise * EASE_TURN) / 1.1, (W - lane) * 0.4));
+    const deepest = (H - meetY - body * 0.6 - 0.45 * cruise * EASE_TURN - 0.25 * cruise) / 1.1;
+    const out = Math.max(body * 0.6, Math.min(deepest, W * 0.25) * (0.7 + 0.3 * Math.random()));
     const frames = [];
     let x = start.x, y = start.y, heading = -Math.PI / 2, v = 0.55 * cruise, size = 1, t = 0;
-    let phase = "climb", turned = 0, goal = Math.PI, from = 0, easing = 0, turnAt = 0, meetAt = 0;
-    const pace = { climb: 0.7, turn: 0.65, dive: 0.8, exit: 0.85, out: 0.85 };
-    const scale = { climb: 0.85, turn: 0.82, dive: 0.74, exit: 0.74, out: 0.74 };
-    while (t < 20 && x < W + body && y < H + body) {
-      if (phase === "climb" && y <= turnY) [phase, turned, from, turnAt] = ["turn", 0, t, t];
-      if (phase === "dive" && y >= meetY) [phase, turned, goal, from, meetAt] = ["exit", 0, Math.abs(Math.atan2(Math.sin(heading), Math.cos(heading))), t, t];
+    let phase = "climb", turned = 0, goal = Math.PI + first * (Math.random() - 0.5) * 0.5, sign = first, radius = r, from = 0, easing = 0, turnAt = 0, meetAt = 0;
+    const pace = { climb: 0.7, turn: 0.65, dive: 0.8, exit: 0.85, out: 0.85, bend: 0.85, away: 0.85 };
+    const scale = { climb: 0.85, turn: 0.82, dive: 0.74, exit: 0.74, out: 0.74, bend: 0.74, away: 0.74 };
+    const turn = (next, angle, side, arc) => [phase, turned, goal, sign, radius, from] = [next, 0, angle, side, arc, t];
+    while (t < 20 && x < W + body && x > -body && y < H + body) {
+      if (phase === "climb" && y <= turnY) {
+        turnAt = t;
+        turn("turn", goal, first, r);
+      }
+      if (phase === "dive" && y >= meetY && t - from > 0.3) {
+        meetAt = t;
+        turn("exit", Math.abs(Math.atan2(Math.sin((leave > 0 ? 0 : Math.PI) - heading), Math.cos((leave > 0 ? 0 : Math.PI) - heading))), leave > 0 ? -1 : 1, out);
+      }
+      if (phase === "out" && bend && t - from > 0.6) turn("bend", bend, leave > 0 ? -1 : 1, body * 5);
       let rate = 0;
-      if (phase === "turn" || phase === "exit") {
-        const full = v / (phase === "turn" ? r : out);
+      if (phase === "turn" || phase === "exit" || phase === "bend") {
+        const full = v / radius;
         if (!easing && goal - turned <= (full * EASE_TURN) / 2) easing = t;
         rate = full * (easing ? 1 - smooth(0, 1, (t - easing) / EASE_TURN) : smooth(0, 1, (t - from) / EASE_TURN));
-        if (easing && t - easing >= EASE_TURN) [phase, easing, rate] = [phase === "turn" ? "dive" : "out", 0, 0];
+        if (easing && t - easing >= EASE_TURN) [phase, easing, rate, from] = [{ turn: "dive", exit: "out", bend: "away" }[phase], 0, 0, t];
       }
       const want = phase === "turn" && turned < Math.PI / 2 ? 0.6 : pace[phase];
       v += (want * cruise - v) * (1 - Math.exp(-STEP / 1.2));
       size += (scale[phase] - size) * (1 - Math.exp(-STEP / 1.5));
-      heading -= rate * STEP;
+      heading += sign * rate * STEP;
       turned += rate * STEP;
       x += Math.cos(heading) * v * STEP;
       y += Math.sin(heading) * v * STEP;
@@ -228,6 +241,7 @@
     }
     return { frames, meetY, turnAt: turnAt * 1000, meetAt: (meetAt || t) * 1000 };
   }
+
 
   function takeOff(m) {
     const start = new DOMPoint(MID_X, MID_Y).matrixTransform(m);
