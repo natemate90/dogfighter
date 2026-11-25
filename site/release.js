@@ -263,6 +263,8 @@
   let lastSent = 0;
   let flushTimer = 0;
   let retries = 0;
+  let kept = "";
+  let inFlight = 0;
 
   const say = (text) => {
     live.textContent = "";
@@ -271,31 +273,43 @@
 
   const fullSet = () => Object.fromEntries(QUESTIONS.map((question) => [question.id, valueOf(question) ?? ""]));
 
-  const flush = async (now = false) => {
+  const flush = async (now = false, final = false) => {
     clearTimeout(flushTimer);
     if (!ticket || expired || !dirty) return;
     const pause = lastSent + GAP - Date.now();
     if (!now && pause > 0) {
-      flushTimer = setTimeout(() => flush(), pause);
+      flushTimer = setTimeout(() => flush(false, final), pause);
       return;
     }
     dirty = false;
-    lastSent = Date.now();
     const answers = fullSet();
+    const text = JSON.stringify(answers);
+    if (text === kept && !inFlight) return;
+    lastSent = Date.now();
     let code = 0;
+    let result = null;
+    inFlight++;
     try {
       const response = await fetch("/api/notify/answer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticket, seq: ++seq, answers }),
+        body: JSON.stringify({ ticket, seq: ++seq, answers, final }),
         keepalive: true,
       });
       code = response.status;
+      result = await response.json().catch(() => null);
     } catch {
       code = 0;
     }
+    inFlight--;
+    if (code === 200 && result?.kept === "limit") {
+      if (!final) dirty = true;
+      else if (savedNote) savedNote.textContent = "You are on the list, and you get one email, on the day the new edition is out. Nothing else.";
+      return;
+    }
     if (code === 200) {
       retries = 0;
+      if (result?.kept !== "newer") kept = text;
       answered.clear();
       Object.entries(answers).forEach(([name, value]) => (Array.isArray(value) ? value.length : value) && answered.add(name));
       if (!closed) say("Saved");
@@ -418,7 +432,17 @@
     }
 
     let arrowed = false;
-    list.addEventListener("pointerdown", () => (arrowed = false));
+    let tapped = null;
+    list.addEventListener("pointerdown", (event) => {
+      arrowed = false;
+      const input = event.target.closest("label")?.querySelector("input");
+      tapped = input?.type === "radio" && input.checked ? input : null;
+    });
+    list.addEventListener("click", (event) => {
+      if (!tapped || event.target !== tapped || closed) return;
+      tapped = null;
+      moveOn();
+    });
     list.addEventListener("keydown", (event) => {
       if (event.key.startsWith("Arrow")) arrowed = true;
       const input = event.target;
@@ -494,7 +518,7 @@
     if (closed) return;
     index++;
     show("fwd", index - 1);
-    flush();
+    flush(false, index >= QUESTIONS.length);
   };
 
   const back = () => {
@@ -586,10 +610,10 @@
     if (input.type === "radio" && input.checked) moveOn();
     else input.click();
   });
-  window.addEventListener("pagehide", () => flush(true));
+  window.addEventListener("pagehide", () => flush(true, true));
   document.addEventListener("visibilitychange", () => {
     if (survey.hidden) return;
     if (!closed && Date.now() >= deadline) finish(true);
-    else if (document.visibilityState === "hidden") flush(true);
+    else if (document.visibilityState === "hidden") flush();
   });
 })();

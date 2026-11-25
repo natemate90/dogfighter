@@ -49,8 +49,8 @@ const signUp = async (host, email, extra = {}, target = env) => {
   const res = await call(host, "/api/notify", { email, consent: "yes", website: "", "cf-turnstile-response": "tok", ...extra }, target);
   return { status: res.status, body: await res.json() };
 };
-const save = async (ticket, seq, answers, host = "dogfighter.net") => {
-  const res = await call(host, "/api/notify/answer", { ticket, seq, answers });
+const save = async (ticket, seq, answers, final = false, host = "dogfighter.net") => {
+  const res = await call(host, "/api/notify/answer", { ticket, seq, answers, final });
   return { status: res.status, body: await res.json() };
 };
 const stored = async (ticket) => JSON.parse(await kv.get(`pending:${ticket}`));
@@ -136,14 +136,16 @@ await test("an older set arriving late is ignored", async () => {
   assert.equal(kv.writes, before);
 });
 
-await test("an unchanged set writes nothing", async () => {
-  const before = kv.writes;
-  const r = await save(first, 3, { devices: ["Mac"], store: ["GOG"], online: "No", played: "No" });
-  assert.deepEqual(r.body, { ok: true, kept: "same" });
-  assert.equal(kv.writes, before);
+await test("an unchanged set with a newer number records the number, so an older set cannot win", async () => {
+  const r = await signUp("dogfighter.net", "race@example.com");
+  const ticket = r.body.ticket;
+  assert.equal((await save(ticket, 3, {})).body.kept, "same");
+  assert.equal((await stored(ticket)).seq, 3);
+  assert.equal((await save(ticket, 2, { store: ["Steam"] })).body.kept, "newer");
+  assert.equal((await stored(ticket)).answers.store, "");
 });
 
-await test("a ticket stops writing after ten saves", async () => {
+await test("a ticket stops writing after ten saves and says so", async () => {
   const r = await signUp("dogfighter.net", "busy@example.com");
   const ticket = r.body.ticket;
   const before = kv.writes;
@@ -151,6 +153,19 @@ await test("a ticket stops writing after ten saves", async () => {
   assert.equal(kv.writes - before, 10);
   assert.equal((await stored(ticket)).saves, 10);
   assert.equal((await save(ticket, 41, { online: "Maybe" })).body.kept, "limit");
+});
+
+await test("after the cap, up to three final saves still go through", async () => {
+  const ticket = (await signUp("dogfighter.net", "final@example.com")).body.ticket;
+  for (let i = 1; i <= 10; i++) await save(ticket, i, { online: i % 2 ? "Yes" : "No" });
+  const before = kv.writes;
+  assert.equal((await save(ticket, 11, { online: "Maybe", cd: "Yes" }, true)).body.kept, "saved");
+  assert.equal((await stored(ticket)).answers.cd, "Yes");
+  assert.equal((await save(ticket, 12, { online: "No" }, true)).body.kept, "saved");
+  assert.equal((await save(ticket, 13, { online: "Yes" }, true)).body.kept, "saved");
+  assert.equal((await save(ticket, 14, { online: "Maybe" }, true)).body.kept, "limit");
+  assert.equal(kv.writes - before, 3);
+  assert.equal((await stored(ticket)).answers.online, "Yes");
 });
 
 await test("unknown tickets are refused", async () => {
@@ -190,7 +205,7 @@ await test("the cron posts one entry per sign-up and deletes every due record", 
   calls.length = 0;
   await runCron();
   const posts = calls.filter((c) => c.url === FORM).map((c) => new URLSearchParams(c.body));
-  assert.equal(posts.length, 3);
+  assert.equal(posts.length, 5);
   const pilot = posts.find((p) => p.get("entry.1012705176") === "Pilot@Example.com");
   assert.equal(pilot.get("entry.1744446073"), "Mac");
   assert.equal(pilot.get("entry.1288670731"), "GOG");

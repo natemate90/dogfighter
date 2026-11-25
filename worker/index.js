@@ -34,6 +34,7 @@ const SEND_GRACE = 2 * 60 * 1000;
 const MAX_OTHER = 200;
 const MAX_SENDS = 40;
 const MAX_SAVES = 10;
+const MAX_FINALS = 3;
 const TICKET = /^[0-9a-f]{32}$/;
 
 export default {
@@ -198,17 +199,18 @@ async function answer(request, env, url) {
     const record = JSON.parse(stored.value);
     if (!(Date.now() - Date.parse(record.signedUpAt) < ANSWER_WINDOW)) return reply(410, { ok: false, error: "closed" });
     if (body.seq <= (record.seq || 0)) return reply(200, { ok: true, kept: "newer" });
-    if (Object.keys(QUESTIONS).every((name) => (record.answers || {})[name] === answers[name])) return reply(200, { ok: true, kept: "same" });
-    if ((record.saves || 0) >= MAX_SAVES) return reply(200, { ok: true, kept: "limit" });
+    const same = Object.keys(QUESTIONS).every((name) => (record.answers || {})[name] === answers[name]);
+    if ((record.saves || 0) < MAX_SAVES) record.saves = (record.saves || 0) + 1;
+    else if (body.final === true && (record.finals || 0) < MAX_FINALS) record.finals = (record.finals || 0) + 1;
+    else return reply(200, { ok: true, kept: same ? "same" : "limit" });
     record.answers = answers;
     record.seq = body.seq;
-    record.saves = (record.saves || 0) + 1;
     await kv.put(key, JSON.stringify(record), { metadata: stored.metadata });
+    return reply(200, { ok: true, kept: same ? "same" : "saved" });
   } catch {
     console.log("notify: answers not stored");
     return reply(503, { ok: false, error: "storage" });
   }
-  return reply(200, { ok: true });
 }
 
 function cleanAnswers(answers) {

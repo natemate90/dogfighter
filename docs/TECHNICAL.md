@@ -1276,13 +1276,13 @@ The "Get told about the new edition" section collects emails for one message on 
 `site/release.js` runs it in two steps.
 
 1. Sign up. The email, a consent tick and a Turnstile token go to `POST /api/notify`. The Worker checks the origin, the hidden `website` field, the token and the email, like the contact form.
-2. Six optional questions, one at a time. The page keeps every answer and sends the whole set to `POST /api/notify/answer` when the visitor moves to another question, finishes, or leaves the page, at most once every 3 seconds. Each set carries a number that goes up by one. The Worker checks every answer against fixed lists, ignores a set older than the one it has, writes nothing when the set has not changed, and refuses answers after 30 minutes.
+2. Six optional questions, one at a time. The page keeps every answer and sends the whole set to `POST /api/notify/answer` when the visitor moves to another question, finishes, switches tabs or leaves the page, at most once every 3 seconds, and only when the set differs from the last one the Worker kept. Each set carries a number that goes up by one. The Worker checks every answer against fixed lists, ignores a set older than the one it has, records the newer number when an unchanged set arrives, and refuses answers after 30 minutes.
 
 On dogfighter.net the Worker keeps everything in the KV namespace `dogfighter-release-list` (binding `RELEASE_LIST`).
 
 - `salt`: 32 random bytes, made once by the Worker.
 - `fp:<hash>`: the SHA-256 of the salt and the lowercased email. It holds no personal data and has no time limit. A known email gets the same answer as a new one, but is not stored again.
-- `pending:<ticket>`: the email, the country from the connection, the sign-up time, the consent, the answers, the number of the last set and how many sets were saved. The ticket is 128 random bits. A ticket saves at most 10 sets; later ones get a success answer and are not written.
+- `pending:<ticket>`: the email, the country from the connection, the sign-up time, the consent, the answers, the number of the last set and how many sets were saved. The ticket is 128 random bits. A ticket saves at most 10 sets, plus up to 3 final sets sent on Finish or when the page closes; later sets are not written, and the page then does not claim they were saved.
 
 There is no counter, because two sign-ups at once would lose one.
 The number of sign-ups is the number of `fp:` keys.
@@ -1290,8 +1290,8 @@ List them, logged in to Cloudflare, with `npx wrangler kv key list --binding REL
 
 Cloudflare's free plan allows 1,000 KV writes a day.
 A sign-up costs 2 writes: the pending record and the fingerprint.
-The answers cost one write per question step whose answers changed, usually 6 and at most 10.
-So a sign-up costs about 8 writes and at most 12: about 125 sign-ups a day, and at least 83.
+The answers cost one write per question step whose answers changed, usually 6 and at most 13.
+So a sign-up costs about 8 writes and at most 15: about 125 sign-ups a day, and at least 66.
 The cron's delete counts against the separate limit of 1,000 deletes a day.
 
 `node worker/test.mjs` runs the Worker's tests with an in-memory KV and a fake network. It needs no packages.
