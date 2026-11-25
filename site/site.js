@@ -196,10 +196,14 @@
     const words = document.createRange();
     words.selectNodeContents(story);
     const head = words.getBoundingClientRect();
-    const lane = Math.min(Math.max(head.left + head.width * 0.4, body), start.x - body);
-    const room = Math.min((start.x - lane) / 2, (start.y - body * 0.4 - top) / 1.1);
-    const r = Math.max(body * 0.4, room * (0.75 + 0.25 * Math.random()));
-    const first = start.x + 2 * r + body * 0.7 < W && Math.random() < 0.5 ? 1 : -1;
+    const low = body * 0.4, high = Math.max(low, (start.y - body * 0.4 - top) / 1.1);
+    const span = [head.left + head.width * 0.1, Math.min(head.right - head.width * 0.1, W - body * 0.7)];
+    const sides = [-1, 1].map((side) => {
+      const near = start.x + side * 2 * low, far = start.x + side * 2 * high;
+      return [side, Math.max(Math.min(near, far), span[0]), Math.min(Math.max(near, far), span[1])];
+    }).filter(([, a, b]) => a <= b);
+    const [first, a, b] = sides.length ? sides[Math.floor(Math.random() * sides.length)] : [-1, start.x - 2 * low, start.x - 2 * low];
+    const r = Math.abs(a + (b - a) * Math.random() - start.x) / 2;
     const leave = Math.random() < 0.5 ? 1 : -1;
     const turnY = Math.min(top + r * 1.1, start.y - body * 0.4);
     const meetY = Math.max(H * MEET, turnY + body * 0.5);
@@ -208,7 +212,7 @@
     const bend = Math.random() < 0.5 && meetY + out - body * 1.4 - cruise * 0.2 > top ? 0.2 + 0.15 * Math.random() : 0;
     const frames = [];
     let x = start.x, y = start.y, heading = -Math.PI / 2, v = 0.55 * cruise, size = 1, t = 0;
-    let phase = "climb", turned = 0, goal = Math.PI + first * (Math.random() - 0.5) * 0.5, sign = first, radius = r, from = 0, easing = 0, peak = 0, last = 0, turnAt = 0, meetAt = 0;
+    let phase = "climb", turned = 0, goal = Math.PI, sign = first, radius = r, from = 0, easing = 0, peak = 0, last = 0, turnAt = 0, meetAt = 0;
     const pace = { climb: 0.7, turn: 0.65, dive: 0.8, exit: 0.85, out: 0.85, bend: 0.85, away: 0.85, level: 0.85, home: 0.85 };
     const scale = { climb: 0.85, turn: 0.82, dive: 0.74, exit: 0.74, out: 0.74, bend: 0.74, away: 0.74, level: 0.74, home: 0.74 };
     const turn = (next, angle, side, arc) => [phase, turned, goal, sign, radius, from] = [next, 0, angle, side, arc, t];
