@@ -22,7 +22,7 @@
   document.getElementById("release-test").hidden = PRODUCTION;
   const WINDOW = 30 * 60 * 1000;
   const BEAT = 450;
-  const GAP = 1100;
+  const GAP = 3000;
   const SETTLE = 1300;
   const WORDS = ["no", "one", "two", "three", "four", "five", "six"];
 
@@ -258,58 +258,58 @@
   const others = new Map();
   const answered = new Set();
 
-  let chain = Promise.resolve();
+  let seq = 0;
+  let dirty = false;
   let lastSent = 0;
-  const latest = new Map();
-  const queued = new Set();
-  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  let flushTimer = 0;
+  let retries = 0;
 
   const say = (text) => {
     live.textContent = "";
     setTimeout(() => (live.textContent = text), 50);
   };
 
-  const send = (question, value) =>
-    fetch("/api/notify/answer", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticket, question, value }),
-      keepalive: true,
-    });
+  const fullSet = () => Object.fromEntries(QUESTIONS.map((question) => [question.id, valueOf(question) ?? ""]));
 
-  const post = async (question, value) => {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const pause = lastSent + GAP - Date.now();
-      if (pause > 0) await wait(pause);
-      if (expired) return;
-      lastSent = Date.now();
-      let code = 0;
-      try {
-        code = (await send(question, value)).status;
-      } catch {
-        code = 0;
-      }
-      if (code === 200) {
-        if (Array.isArray(value) ? value.length : value) answered.add(question);
-        else answered.delete(question);
-        if (!closed) say("Saved");
-        return;
-      }
-      if (code === 404 || code === 410) return finish(true);
-      if (code === 422 || code === 400) return;
+  const flush = async (now = false) => {
+    clearTimeout(flushTimer);
+    if (!ticket || expired || !dirty) return;
+    const pause = lastSent + GAP - Date.now();
+    if (!now && pause > 0) {
+      flushTimer = setTimeout(() => flush(), pause);
+      return;
     }
+    dirty = false;
+    lastSent = Date.now();
+    const answers = fullSet();
+    let code = 0;
+    try {
+      const response = await fetch("/api/notify/answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticket, seq: ++seq, answers }),
+        keepalive: true,
+      });
+      code = response.status;
+    } catch {
+      code = 0;
+    }
+    if (code === 200) {
+      retries = 0;
+      answered.clear();
+      Object.entries(answers).forEach(([name, value]) => (Array.isArray(value) ? value.length : value) && answered.add(name));
+      if (!closed) say("Saved");
+      return;
+    }
+    if (code === 404 || code === 410) return finish(true);
+    if (code === 400 || code === 422) return;
+    dirty = true;
+    if (retries++ < 2) flushTimer = setTimeout(() => flush(), GAP);
     if (!closed) say("Not saved");
     else if (savedNote) savedNote.textContent = "Some answers did not save. You are still on the list, and you get one email, on the day the new edition is out.";
   };
-  const save = (question, value) => {
-    if (closed) return;
-    latest.set(question, value);
-    if (queued.has(question)) return;
-    queued.add(question);
-    chain = chain.then(() => {
-      queued.delete(question);
-      return post(question, latest.get(question));
-    });
+  const save = () => {
+    if (!closed) dirty = true;
   };
 
   const valueOf = (question) => {
@@ -409,11 +409,9 @@
       area.placeholder = "What else?";
       area.setAttribute("aria-label", "What else should the new edition add or fix?");
       area.value = others.get(question.id) || "";
-      let typing = 0;
       area.addEventListener("input", () => {
         others.set(question.id, area.value);
-        clearTimeout(typing);
-        typing = setTimeout(() => save(question.id, valueOf(question)), 700);
+        save();
       });
       otherBox.append(area);
       field.append(otherBox);
@@ -446,11 +444,11 @@
     const parts = [];
     if (index > 0) parts.push(linkButton("Back", back));
     const acts = element("div", "pc-acts");
-    acts.append(linkButton("Skip", () => next(false)));
+    acts.append(linkButton("Skip", () => next()));
     if (question.multi) {
       const go = element("button", "button", index === QUESTIONS.length - 1 ? "Finish" : "Continue");
       go.type = "button";
-      go.addEventListener("click", () => next(true));
+      go.addEventListener("click", () => next());
       acts.append(go);
     }
     parts.push(acts);
@@ -461,7 +459,7 @@
 
   const moveOn = () => {
     clearTimeout(advance);
-    advance = setTimeout(() => next(false), BEAT);
+    advance = setTimeout(() => next(), BEAT);
   };
 
   const pick = (question, input, list, otherBox) => {
@@ -471,7 +469,7 @@
     if (!question.multi) {
       set.clear();
       set.add(label);
-      save(question.id, valueOf(question));
+      save();
       return;
     }
     if (input.checked) set.add(label);
@@ -489,21 +487,21 @@
       otherBox.hidden = !input.checked;
       if (!otherBox.hidden) otherBox.querySelector("textarea").focus();
     }
-    save(question.id, valueOf(question));
+    save();
   };
 
-  const next = (flush) => {
+  const next = () => {
     if (closed) return;
-    const question = QUESTIONS[index];
-    if (flush && question.other) save(question.id, valueOf(question));
     index++;
     show("fwd", index - 1);
+    flush();
   };
 
   const back = () => {
     if (closed || index === 0) return;
     index--;
     show("back");
+    flush();
   };
 
   const finish = (late = false) => {
@@ -578,7 +576,7 @@
     if (event.key === "Enter") {
       if (event.target.closest?.("button, a, textarea")) return;
       event.preventDefault();
-      next(true);
+      next();
       return;
     }
     if (typing || !/^[1-9]$/.test(event.key)) return;
@@ -588,11 +586,10 @@
     if (input.type === "radio" && input.checked) moveOn();
     else input.click();
   });
-  window.addEventListener("pagehide", () => {
-    if (expired) return;
-    queued.forEach((question) => send(question, latest.get(question)).catch(() => {}));
-  });
+  window.addEventListener("pagehide", () => flush(true));
   document.addEventListener("visibilitychange", () => {
-    if (!survey.hidden && !closed && Date.now() >= deadline) finish(true);
+    if (survey.hidden) return;
+    if (!closed && Date.now() >= deadline) finish(true);
+    else if (document.visibilityState === "hidden") flush(true);
   });
 })();

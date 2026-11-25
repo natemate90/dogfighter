@@ -33,6 +33,7 @@ const ANSWER_WINDOW = 30 * 60 * 1000;
 const SEND_GRACE = 2 * 60 * 1000;
 const MAX_OTHER = 200;
 const MAX_SENDS = 40;
+const MAX_SAVES = 10;
 const TICKET = /^[0-9a-f]{32}$/;
 
 export default {
@@ -161,10 +162,7 @@ async function notify(request, env, url) {
           answers: Object.fromEntries(Object.keys(QUESTIONS).map((name) => [name, ""])),
         };
     await kv.put(`pending:${ticket}`, JSON.stringify(record), { metadata: { sendAfter } });
-    if (!known) {
-      await kv.put(`fp:${fingerprint}`, "1").catch(() => console.log("notify: fingerprint not stored"));
-      await countOne(kv);
-    }
+    if (!known) await kv.put(`fp:${fingerprint}`, "1").catch(() => console.log("notify: fingerprint not stored"));
   } catch {
     console.log("notify: storage failed");
     return reply(503, { ok: false, error: "storage" });
@@ -186,8 +184,9 @@ async function answer(request, env, url) {
     return reply(400, { ok: false, error: "bad_request" });
   }
   if (!body || typeof body !== "object" || typeof body.ticket !== "string" || !TICKET.test(body.ticket)) return reply(400, { ok: false, error: "bad_request" });
-  const value = cleanAnswer(body.question, body.value);
-  if (value === null) return reply(422, { ok: false, error: "invalid" });
+  if (!Number.isInteger(body.seq) || body.seq < 1 || body.seq > 100000) return reply(400, { ok: false, error: "bad_request" });
+  const answers = cleanAnswers(body.answers);
+  if (!answers) return reply(422, { ok: false, error: "invalid" });
 
   if (!PRODUCTION_HOSTS.includes(url.hostname)) return reply(200, { ok: true, dryRun: true });
   const kv = env.RELEASE_LIST;
@@ -198,13 +197,35 @@ async function answer(request, env, url) {
     if (stored.value === null) return reply(404, { ok: false, error: "unknown" });
     const record = JSON.parse(stored.value);
     if (!(Date.now() - Date.parse(record.signedUpAt) < ANSWER_WINDOW)) return reply(410, { ok: false, error: "closed" });
-    record.answers[body.question] = value;
+    if (body.seq <= (record.seq || 0)) return reply(200, { ok: true, kept: "newer" });
+    if (Object.keys(QUESTIONS).every((name) => (record.answers || {})[name] === answers[name])) return reply(200, { ok: true, kept: "same" });
+    if ((record.saves || 0) >= MAX_SAVES) return reply(200, { ok: true, kept: "limit" });
+    record.answers = answers;
+    record.seq = body.seq;
+    record.saves = (record.saves || 0) + 1;
     await kv.put(key, JSON.stringify(record), { metadata: stored.metadata });
   } catch {
-    console.log("notify: answer not stored");
+    console.log("notify: answers not stored");
     return reply(503, { ok: false, error: "storage" });
   }
   return reply(200, { ok: true });
+}
+
+function cleanAnswers(answers) {
+  if (!answers || typeof answers !== "object" || Array.isArray(answers)) return null;
+  if (Object.keys(answers).some((name) => !Object.hasOwn(QUESTIONS, name))) return null;
+  const clean = {};
+  for (const name of Object.keys(QUESTIONS)) {
+    const value = answers[name];
+    if (value === undefined || value === "" || (Array.isArray(value) && !value.length)) {
+      clean[name] = "";
+      continue;
+    }
+    const text = cleanAnswer(name, value);
+    if (text === null) return null;
+    clean[name] = text;
+  }
+  return clean;
 }
 
 function cleanAnswer(question, value) {
@@ -299,19 +320,6 @@ async function salt(kv) {
   const fresh = hex(32);
   await kv.put(key, fresh);
   return fresh;
-}
-
-async function countOne(kv) {
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const count = Number((await kv.get("count")) || 0);
-      await kv.put("count", String(count + 1));
-      return;
-    } catch {
-      await new Promise((resolve) => setTimeout(resolve, 1100));
-    }
-  }
-  console.log("notify: count not updated");
 }
 
 function hex(bytes) {
