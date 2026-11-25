@@ -1,6 +1,6 @@
 # Dogfighter for Apple Silicon
 
-> Free setup tools that run Airfix Dogfighter, the Windows game from 2000, on a Mac with Apple Silicon (M1 or later), from your own original CD. The project contains no game files. It is an unofficial fan project, not affiliated with Unique Development Studios, Paradox Entertainment or Hornby.
+> Free setup tools that run Airfix Dogfighter, the Windows game from 2000, on a Mac with Apple Silicon (M1 or later), from your own original CD. The project contains no game files. It is an unofficial fan project, not affiliated with Unique Development Studios, Paradox Entertainment or Hornby. The site also has a sign-up to hear when a new edition of the game is out.
 
 Key facts:
 
@@ -17,6 +17,12 @@ Key facts:
 4. Copy your disc to a file: `brew install cdrdao`, then `cdrdao read-cd --read-raw --datafile Dogfighter.bin --driver generic-mmc:0x20000 Dogfighter.toc`
 5. Run setup: `./setup.sh` (add `--language=French`, `--language=German` or `--language=Italian` for another language)
 6. Play: `./dogfighter`, or double-click `Dogfighter.app`. If something goes wrong, run `./dogfighter --doctor`.
+
+## New edition
+
+A new edition is in the works: the same game, made to run on today's computers without the original CD. It is not out yet, and there is no date. The version on this site today still needs your own CD.
+
+[Sign up on the site](https://dogfighter.net/#release) and you get one note on the day the new edition is out. That is all that is ever sent. A few optional questions follow the sign-up: which devices you would play on, where you would buy it, whether you would play online, whether you played the original, whether you still have the CD, and what the new edition should add or fix.
 
 ## Questions
 
@@ -56,16 +62,40 @@ Yes, over the network. Tailscale, a free app, is the easiest way and needs no ro
 
 Setup checks every download before it uses it. The sharper textures are made on your Mac from your own game files, and nothing is uploaded. Your game files are never changed.
 
+### What is the new edition?
+
+The same game, made to run on today's computers without the original CD. I am working on it. It is not out yet, and there is no date.
+
+### When does it come out?
+
+I don't know yet, and I won't guess. Leave your email in the [section above](https://dogfighter.net/#release) and you get one note the day it is out.
+
+### Do I need the original CD for the new edition?
+
+No. That is the point of it. The version on this site today still needs your own CD.
+
+### Which devices will it run on?
+
+I'm aiming for Mac, Windows and Linux. After you sign up you can tell me which devices you play on. That helps me decide what comes first.
+
+### What happens with my email address?
+
+When you sign up, your address, the time, your country read from your connection and any answers you give are kept on the Cloudflare server that runs this site until they are passed on, usually within an hour, and longer only if passing them on fails. They go as one entry into a Google Form that only I can see, and are then deleted from Cloudflare. To stop double sign-ups, the site also keeps a scrambled code made from your address, which can't be turned back into it, for as long as the list runs. I use your address for one email on the day the new edition is out and for nothing else, and I don't share or sell it. Cloudflare Turnstile checks that you are not a bot.
+
+### Can I take myself off the list?
+
+Yes. Write to me through the [contact form](https://dogfighter.net/#contact) on this page and I take your address off the list. To sign up again after that, send me a note through the contact form first.
+
 ### Something broke. What now?
 
-Run `./dogfighter --doctor`. It checks the installation and prints a fix for each problem. When you ask for help, include the log file from the `logs` folder. Still stuck? Send a message through the [contact form](https://dogfighter.net/#contact).
+Run `./dogfighter --doctor`. It checks the installation and prints a fix for each problem. When you ask for help, include the log file from the `logs` folder. Still stuck? [Send a message](https://dogfighter.net/#contact).
 
 ## Docs
 
 - [README: install guide](https://github.com/natemate90/dogfighter#readme): requirements, install steps, options, problems and fixes
 - [Player's guide](https://github.com/natemate90/dogfighter/blob/main/docs/GUIDE.md): menus, pickups, console, multiplayer levels
 - [How it works](https://github.com/natemate90/dogfighter/blob/main/docs/TECHNICAL.md): Wine versions, setup, the sharper textures
-- [Questions and answers](https://dogfighter.net/#questions): CD, Intel Macs, legality, setup time, saves, controllers, multiplayer, safety
+- [Questions and answers](https://dogfighter.net/#questions): CD, Intel Macs, official status, setup time, saves, controllers, multiplayer, safety, the new edition, your email address
 
 ## Optional
 

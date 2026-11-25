@@ -71,6 +71,7 @@
   let hooked = false;
   let sending = false;
 
+  const track = (name, params) => window.dogfighterTrack?.(name, params);
   const element = (tag, className, text) => {
     const node = document.createElement(tag);
     if (className) node.className = className;
@@ -230,6 +231,7 @@
       form.querySelectorAll("input").forEach((input) => (input.readOnly = true));
       strike();
       write(LETTERS.sent);
+      track("release_signup");
       status.textContent = "Posted. The first question comes up in a moment.";
       setTimeout(() => startSurvey(answer.ticket), SETTLE);
       return;
@@ -514,8 +516,14 @@
     save();
   };
 
+  const leave = () => {
+    const value = valueOf(QUESTIONS[index]);
+    track("release_question", { question_id: QUESTIONS[index].id, answered: (Array.isArray(value) ? value.length : value) ? "yes" : "no" });
+  };
+
   const next = () => {
     if (closed) return;
+    leave();
     index++;
     show("fwd", index - 1);
     flush(false, index >= QUESTIONS.length);
@@ -523,6 +531,7 @@
 
   const back = () => {
     if (closed || index === 0) return;
+    leave();
     index--;
     show("back");
     flush();
@@ -555,6 +564,7 @@
     } else {
       setProgress("done");
       write(LETTERS.done);
+      track("release_finish");
       stamp.append("Received", element("b", "", `${day} ${month} ${year}`), "Release list");
       savedNote = element("p", "", "Your answers are saved. You get one email, on the day the new edition is out. Nothing else.");
       const more = element("p", "pc-hint", "Changed your mind? Use the ");
