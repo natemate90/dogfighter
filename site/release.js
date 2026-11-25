@@ -341,12 +341,14 @@
     return mark;
   };
   const choice = (question, label, className) => {
-    const button = element("button", className);
-    button.type = "button";
-    button.dataset.value = label;
-    button.setAttribute("aria-pressed", String(picks.get(question.id).has(label)));
-    button.append(marker(question), label);
-    return button;
+    const wrap = element("label", className);
+    const input = element("input");
+    input.type = question.multi ? "checkbox" : "radio";
+    input.name = `release-${question.id}`;
+    input.value = label;
+    input.checked = picks.get(question.id).has(label);
+    wrap.append(input, marker(question), label);
+    return wrap;
   };
   const linkButton = (label, onClick) => {
     const button = element("button", "linklike", label);
@@ -371,10 +373,13 @@
     setProgress("now", fresh);
     const question = QUESTIONS[index];
     if (!picks.has(question.id)) picks.set(question.id, new Set());
-    const heading = element("h3", "pc-q", question.text);
+    const field = element("fieldset", "pc-qset");
+    const heading = element("legend", "pc-q", question.text);
     heading.id = `release-q-${question.id}`;
     heading.tabIndex = -1;
     const hint = element("p", "pc-hint", question.alone ? `Pick all that apply, or ${question.alone}.` : question.multi ? "Pick all that apply." : "Tap an answer to go on.");
+    hint.id = `release-hint-${question.id}`;
+    field.setAttribute("aria-describedby", hint.id);
     let list;
     if (question.groups) {
       list = element("div", "pc-groups");
@@ -392,10 +397,8 @@
       list = element("div", "pc-opts");
       question.options.forEach((label) => list.append(choice(question, label, "pc-opt")));
     }
-    list.setAttribute("aria-labelledby", heading.id);
-    if (!question.groups) list.setAttribute("role", "group");
+    field.append(heading, hint, list);
 
-    const nodes = [heading, hint, list];
     let otherBox = null;
     if (question.other) {
       otherBox = element("div", "pc-other");
@@ -413,13 +416,31 @@
         typing = setTimeout(() => save(question.id, valueOf(question)), 700);
       });
       otherBox.append(area);
-      nodes.push(otherBox);
+      field.append(otherBox);
     }
 
-    list.addEventListener("click", (event) => {
-      const button = event.target.closest("button");
-      if (!button || closed) return;
-      pick(question, button, list, otherBox);
+    let arrowed = false;
+    list.addEventListener("pointerdown", () => (arrowed = false));
+    list.addEventListener("keydown", (event) => {
+      if (event.key.startsWith("Arrow")) arrowed = true;
+      const input = event.target;
+      if (input.type !== "radio" || closed) return;
+      if (event.key === "Enter" || (event.key === " " && input.checked)) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (!input.checked) {
+          input.checked = true;
+          pick(question, input, list, otherBox);
+        }
+        moveOn();
+      }
+    });
+    list.addEventListener("change", (event) => {
+      if (closed) return;
+      const byArrow = arrowed;
+      arrowed = false;
+      pick(question, event.target, list, otherBox);
+      if (event.target.type === "radio" && !byArrow) moveOn();
     });
 
     const parts = [];
@@ -435,35 +456,40 @@
     parts.push(acts);
     foot.replaceChildren(...parts);
     foot.classList.toggle("wide", Boolean(question.multi));
-    place(nodes, direction, quiet);
+    place([field], direction, quiet);
   };
 
-  const pick = (question, button, list, otherBox) => {
-    const label = button.dataset.value;
+  const moveOn = () => {
+    clearTimeout(advance);
+    advance = setTimeout(() => next(false), BEAT);
+  };
+
+  const pick = (question, input, list, otherBox) => {
+    const label = input.value;
     const set = picks.get(question.id);
-    button.classList.add("pc-inked");
-    if (question.multi) {
-      if (set.has(label)) set.delete(label);
-      else set.add(label);
-      if (question.alone && set.has(label)) {
-        if (label === question.alone) [...set].forEach((other) => other !== label && set.delete(other));
-        else set.delete(question.alone);
-        list.querySelectorAll("button").forEach((other) => other.setAttribute("aria-pressed", String(set.has(other.dataset.value))));
-      }
-      button.setAttribute("aria-pressed", String(set.has(label)));
-      if (otherBox && label === question.other) {
-        otherBox.hidden = !set.has(label);
-        if (!otherBox.hidden) otherBox.querySelector("textarea").focus();
-      }
+    input.closest("label").classList.add("pc-inked");
+    if (!question.multi) {
+      set.clear();
+      set.add(label);
       save(question.id, valueOf(question));
       return;
     }
-    set.clear();
-    set.add(label);
-    list.querySelectorAll("button").forEach((other) => other.setAttribute("aria-pressed", String(other === button)));
+    if (input.checked) set.add(label);
+    else set.delete(label);
+    if (question.alone && input.checked) {
+      const boxes = [...list.querySelectorAll("input")];
+      const cleared = boxes.filter((box) => box !== input && box.checked && (label === question.alone || box.value === question.alone));
+      cleared.forEach((box) => {
+        box.checked = false;
+        set.delete(box.value);
+      });
+      if (cleared.length) say(label === question.alone ? `${question.alone}: the stores are unticked` : `${question.alone} unticked`);
+    }
+    if (otherBox && label === question.other) {
+      otherBox.hidden = !input.checked;
+      if (!otherBox.hidden) otherBox.querySelector("textarea").focus();
+    }
     save(question.id, valueOf(question));
-    clearTimeout(advance);
-    advance = setTimeout(() => next(false), BEAT);
   };
 
   const next = (flush) => {
@@ -546,7 +572,7 @@
   document.addEventListener("keydown", (event) => {
     if (survey.hidden || closed || event.isComposing || event.metaKey || event.ctrlKey || event.altKey) return;
     if (!survey.contains(document.activeElement) && document.activeElement !== document.body) return;
-    const typing = event.target.closest?.("input, textarea");
+    const typing = event.target.closest?.("textarea, input[type=text], input[type=email]");
     const question = QUESTIONS[index];
     if (!question) return;
     if (event.key === "Enter") {
@@ -556,10 +582,11 @@
       return;
     }
     if (typing || !/^[1-9]$/.test(event.key)) return;
-    const button = stage.querySelectorAll(".pc-opt, .pc-pick")[Number(event.key) - 1];
-    if (!button) return;
+    const input = stage.querySelectorAll(".pc-opt input, .pc-pick input")[Number(event.key) - 1];
+    if (!input) return;
     event.preventDefault();
-    button.click();
+    if (input.type === "radio" && input.checked) moveOn();
+    else input.click();
   });
   window.addEventListener("pagehide", () => {
     if (expired) return;
