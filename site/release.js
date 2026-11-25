@@ -2,9 +2,15 @@
   const form = document.getElementById("release-form");
   if (!form) return;
   const section = document.getElementById("release");
+  const card = document.getElementById("release-card");
+  const intro = card.querySelector(".pc-intro");
+  const listed = card.querySelector(".pc-listed");
+  const postmark = card.querySelector(".pc-postmark");
   const survey = document.getElementById("release-survey");
   const stage = survey.querySelector(".survey-stage");
-  const bar = survey.querySelector(".survey-bar");
+  const bar = survey.querySelector(".pc-progress");
+  const segments = [...bar.children];
+  const count = document.getElementById("release-count");
   const live = document.getElementById("release-live");
   const result = document.getElementById("release-result");
   const sendButton = form.querySelector('button[type="submit"]');
@@ -13,6 +19,7 @@
   const WINDOW = 30 * 60 * 1000;
   const BEAT = 450;
   const GAP = 1100;
+  const SEND_LABEL = "Put me on the list";
 
   const QUESTIONS = [
     { id: "devices", text: "Which device would you play on?", multi: true, options: ["Windows", "Mac", "Linux / Steam Deck", "iPad"] },
@@ -29,7 +36,7 @@
     turnstile: { error: document.getElementById("release-turnstile-error"), target: null },
   };
   const MESSAGES = {
-    email: "Enter the email address we should write to.",
+    email: "Enter the full address, like you@example.com.",
     consent: "Tick the box so we may send that one email.",
     turnstile: "The spam check has not finished yet. Wait a moment and try again.",
   };
@@ -57,7 +64,7 @@
     widgetId = window.turnstile.render("#release-turnstile", {
       sitekey: PRODUCTION && sitekey ? sitekey : "1x00000000000000000000AA",
       action: "notify",
-      theme: "auto",
+      theme: "light",
       "response-field": false,
       callback: (value) => {
         token = value;
@@ -111,7 +118,7 @@
   }
   form.addEventListener("focusin", loadTurnstile);
 
-  const showResult = (ok, title, text) => {
+  const showResult = (title, text) => {
     result.replaceChildren();
     const heading = document.createElement("p");
     heading.className = "result-title";
@@ -119,9 +126,25 @@
     const body = document.createElement("p");
     body.textContent = text;
     result.append(heading, body);
-    result.classList.toggle("failed", !ok);
+    result.classList.add("failed");
     result.hidden = false;
     result.focus();
+  };
+
+  const setSending = (on) => {
+    sending = on;
+    sendButton.disabled = on;
+    if (on) form.setAttribute("aria-busy", "true");
+    else form.removeAttribute("aria-busy");
+    sendButton.replaceChildren();
+    if (on) {
+      const spin = document.createElement("span");
+      spin.className = "pc-spin";
+      spin.setAttribute("aria-hidden", "true");
+      sendButton.append(spin, "Putting you on the list…");
+    } else {
+      sendButton.textContent = SEND_LABEL;
+    }
   };
 
   form.addEventListener("submit", async (event) => {
@@ -142,9 +165,7 @@
       (fields[invalid[0]].target || fields[invalid[0]].error).focus();
       return;
     }
-    sending = true;
-    sendButton.disabled = true;
-    sendButton.textContent = "Sending…";
+    setSending(true);
     result.hidden = true;
     let answer = null;
     try {
@@ -157,9 +178,7 @@
     } catch {
       answer = null;
     }
-    sending = false;
-    sendButton.disabled = false;
-    sendButton.textContent = "Put me on the list";
+    setSending(false);
     token = "";
     if (widgetId !== null) window.turnstile.reset(widgetId);
     if (answer && answer.ok && answer.ticket) {
@@ -176,11 +195,10 @@
         return;
       }
     }
-    showResult(false, "You are not on the list yet.", "Something went wrong on the way. Your email is still in the form. Try again in a moment.");
+    showResult("You are not on the list yet.", "Something went wrong on the way. Your email is still in the form. Try again in a moment.");
   });
 
   let ticket = "";
-  let dryRun = false;
   let deadline = 0;
   let index = 0;
   let closed = false;
@@ -189,12 +207,18 @@
   let advance = 0;
   const picks = new Map();
   const others = new Map();
+  const answered = new Set();
 
   let chain = Promise.resolve();
   let lastSent = 0;
   const latest = new Map();
   const queued = new Set();
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const say = (text) => {
+    live.textContent = "";
+    setTimeout(() => (live.textContent = text), 50);
+  };
 
   const post = async (question, value) => {
     for (let attempt = 0; attempt < 2; attempt++) {
@@ -214,13 +238,15 @@
         status = 0;
       }
       if (status === 200) {
-        live.textContent = "";
-        setTimeout(() => (live.textContent = "Saved"), 50);
+        if (Array.isArray(value) ? value.length : value) answered.add(question);
+        else answered.delete(question);
+        if (!closed) say("Saved");
         return;
       }
       if (status === 404 || status === 410) return finish(true);
       if (status === 422 || status === 400) return;
     }
+    if (!closed) say("Not saved");
   };
   const save = (question, value) => {
     if (closed) return;
@@ -242,54 +268,63 @@
     return question.multi ? chosen : chosen[0];
   };
 
-  const setProgress = () => {
-    const done = Math.min(index, QUESTIONS.length);
-    bar.setAttribute("aria-valuenow", String(done));
-    bar.setAttribute("aria-valuetext", done < QUESTIONS.length ? `Question ${done + 1} of ${QUESTIONS.length}` : "All questions done");
-    bar.style.setProperty("--done", String(done / QUESTIONS.length));
+  const setProgress = (state) => {
+    const total = QUESTIONS.length;
+    segments.forEach((segment, i) => {
+      segment.className = state === "now" ? (i < index ? "done" : i === index ? "now" : "") : state === "off" ? (answered.has(QUESTIONS[i].id) ? "done" : "") : "done";
+    });
+    bar.classList.toggle("off", state === "off");
+    const text = state === "now" ? `Question ${index + 1} of ${total}` : state === "off" ? `${answered.size} of ${total} answered` : "All six questions done";
+    count.textContent = text;
+    bar.setAttribute("aria-valuenow", String(state === "now" ? index : state === "off" ? answered.size : total));
+    bar.setAttribute("aria-valuetext", state === "off" ? `${text}, questions closed` : text);
+  };
+
+  const element = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text) node.textContent = text;
+    return node;
   };
 
   const optionButton = (question, label, number) => {
-    const button = document.createElement("button");
+    const button = element("button", "opt");
     button.type = "button";
-    button.className = "opt";
     button.setAttribute("aria-pressed", "false");
     button.dataset.value = label;
-    const roundel = document.createElement("span");
-    roundel.className = "roundel";
-    roundel.setAttribute("aria-hidden", "true");
-    const text = document.createElement("span");
-    text.className = "opt-text";
-    text.textContent = label;
-    const key = document.createElement("kbd");
-    key.className = "opt-key";
+    const marker = element("span", question.multi ? "pc-box" : "roundel");
+    marker.setAttribute("aria-hidden", "true");
+    const key = element("kbd", "opt-key", String(number));
     key.setAttribute("aria-hidden", "true");
-    key.textContent = String(number);
-    button.append(roundel, text, key);
+    button.append(marker, element("span", "opt-text", label), key);
     return button;
+  };
+
+  const linkButton = (label, onClick) => {
+    const button = element("button", "pc-link", label);
+    button.type = "button";
+    button.addEventListener("click", onClick);
+    return button;
+  };
+
+  const place = (view) => {
+    if (!reduce.matches) view.classList.add("q-in");
+    stage.replaceChildren(view);
+    view.querySelector(".q-title").focus({ preventScroll: true });
+    if (card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: "start", behavior: reduce.matches ? "auto" : "smooth" });
   };
 
   const show = () => {
     clearTimeout(advance);
-    setProgress();
     if (index >= QUESTIONS.length) return finish();
+    setProgress("now");
     const question = QUESTIONS[index];
-    const card = document.createElement("div");
-    card.className = "q";
-    if (!reduce.matches) card.classList.add("q-in");
-    const count = document.createElement("p");
-    count.className = "q-count";
-    count.textContent = `${index + 1} of ${QUESTIONS.length}`;
-    const heading = document.createElement("h3");
-    heading.className = "q-title";
+    const view = element("div", "q");
+    const heading = element("h3", "q-title", question.text);
     heading.id = `release-q-${question.id}`;
     heading.tabIndex = -1;
-    heading.textContent = question.text;
-    const hint = document.createElement("p");
-    hint.className = "q-hint";
-    hint.textContent = question.multi ? "Pick any, then Next." : "Pick one.";
-    const list = document.createElement("div");
-    list.className = "q-options";
+    const hint = element("p", "q-hint", question.multi ? "Pick all that apply." : "Tap an answer to go on.");
+    const list = element("div", "q-options");
     list.setAttribute("role", "group");
     list.setAttribute("aria-labelledby", heading.id);
     const labels = question.other ? [...question.options, question.other] : question.options;
@@ -303,14 +338,11 @@
     });
     let otherBox = null;
     if (question.other) {
-      otherBox = document.createElement("div");
-      otherBox.className = "q-other";
+      otherBox = element("div", "pc-other");
       otherBox.hidden = !set.has(question.other);
-      const label = document.createElement("label");
-      label.className = "field-label";
+      const label = element("label", "pc-label-text", "What else?");
       label.htmlFor = "release-other";
-      label.textContent = "What else?";
-      const input = document.createElement("input");
+      const input = element("input");
       input.id = "release-other";
       input.type = "text";
       input.maxLength = 200;
@@ -324,22 +356,17 @@
       });
       otherBox.append(label, input);
     }
-    const nav = document.createElement("div");
-    nav.className = "q-nav";
-    const skip = document.createElement("button");
-    skip.type = "button";
-    skip.className = "button small ghost";
-    skip.textContent = "Skip";
-    skip.addEventListener("click", () => next(false));
-    nav.append(skip);
+    const foot = element("div", "q-foot");
+    if (index > 0) foot.append(linkButton("Back", back));
+    const acts = element("div", "q-acts");
+    acts.append(linkButton("Skip", () => next(false)));
     if (question.multi) {
-      const go = document.createElement("button");
+      const go = element("button", "button", index === QUESTIONS.length - 1 ? "Finish" : "Continue");
       go.type = "button";
-      go.className = "button";
-      go.textContent = index === QUESTIONS.length - 1 ? "Done" : "Next";
       go.addEventListener("click", () => next(true));
-      nav.append(go);
+      acts.append(go);
     }
+    foot.append(acts);
 
     list.addEventListener("click", (event) => {
       const button = event.target.closest(".opt");
@@ -347,12 +374,10 @@
       pick(question, button, buttons, otherBox);
     });
 
-    card.append(count, heading, hint, list);
-    if (otherBox) card.append(otherBox);
-    card.append(nav);
-    stage.replaceChildren(card);
-    heading.focus({ preventScroll: true });
-    if (survey.getBoundingClientRect().top < 0) survey.scrollIntoView({ block: "start", behavior: reduce.matches ? "auto" : "smooth" });
+    view.append(heading, hint, list);
+    if (otherBox) view.append(otherBox);
+    view.append(foot);
+    place(view);
   };
 
   const pick = (question, button, buttons, otherBox) => {
@@ -385,40 +410,59 @@
     show();
   };
 
+  const back = () => {
+    if (closed || index === 0) return;
+    index--;
+    show();
+  };
+
   const finish = (late = false) => {
     if (late) expired = true;
     if (closed) return;
     closed = true;
     clearTimeout(advance);
     clearInterval(timer);
-    index = QUESTIONS.length;
-    setProgress();
-    const card = document.createElement("div");
-    card.className = "q q-done";
-    if (!reduce.matches) card.classList.add("q-in");
-    const heading = document.createElement("h3");
-    heading.className = "q-title";
-    heading.tabIndex = -1;
-    heading.textContent = "Thanks, you're on the list.";
-    const stamp = document.createElement("p");
-    stamp.className = "stamp-line";
-    const mark = document.createElement("span");
-    mark.className = "stamp in";
-    mark.style.setProperty("--stamp-tilt", "-4deg");
-    mark.textContent = "On the list";
-    stamp.append(mark);
-    const body = document.createElement("p");
-    body.className = "q-hint";
-    body.textContent = dryRun ? "Preview: this test copy of the site keeps nothing for the real list." : "One email when Dogfighter is released. Nothing else.";
-    card.append(heading, stamp, body);
-    stage.replaceChildren(card);
-    heading.focus({ preventScroll: true });
+    const view = element("div", "q q-done");
+    const foot = element("div", "q-foot");
+    const play = element("a", "pc-link", "Play it today from your own CD");
+    play.href = "#install";
+    foot.append(play);
+    if (late) {
+      setProgress("off");
+      const said = answered.size;
+      view.append(
+        element("h3", "q-title", "The questions have closed."),
+        element("p", "", `They stay open for 30 minutes after you sign up. You are still on the list${said ? `, and the ${said === 1 ? "answer" : `${said} answers`} you gave ${said === 1 ? "is" : "are"} saved` : ""}.`),
+      );
+    } else {
+      setProgress("done");
+      view.append(element("h3", "q-title", "Thanks. That is everything."), element("p", "", "Your answers are saved. You hear from us once, on the day Dogfighter is released. Nothing else."));
+    }
+    const remove = element("p", "pc-soft", "Changed your mind? Use the ");
+    const contact = element("a", "", "contact form");
+    contact.href = "#contact";
+    remove.append(contact, " and we take you off the list.");
+    view.append(remove, foot);
+    view.querySelector(".q-title").tabIndex = -1;
+    live.textContent = "";
+    place(view);
+  };
+
+  const strike = () => {
+    const date = new Date();
+    postmark.querySelector(".pm-date").textContent = `${date.getDate()} ${date.toLocaleString("en-GB", { month: "short" }).toUpperCase()} ${date.getFullYear()}`;
+    postmark.removeAttribute("hidden");
+    postmark.classList.add("struck");
+    card.classList.add("listed");
+    intro.hidden = true;
+    listed.hidden = false;
   };
 
   const startSurvey = (value, preview) => {
     ticket = value;
-    dryRun = preview;
     deadline = Date.now() + WINDOW;
+    listed.querySelector(".pc-preview").hidden = !preview;
+    strike();
     survey.hidden = false;
     timer = setInterval(() => {
       if (Date.now() >= deadline) finish(true);
@@ -433,7 +477,7 @@
     const question = QUESTIONS[index];
     if (!question) return;
     if (event.key === "Enter") {
-      if (event.target.closest?.("button")) return;
+      if (event.target.closest?.("button, a")) return;
       event.preventDefault();
       next(true);
       return;

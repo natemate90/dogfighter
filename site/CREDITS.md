@@ -1,6 +1,6 @@
 # Photo credits
 
-Every photo on the site is a real Second World War photo in the public domain. Each licence was checked on the file's own page. The site stores them as WebP files of at most 1700 px, with a sepia tone and a paper frame added in CSS.
+Every photo on the site is a real Second World War photo in the public domain. Each licence was checked on the file's own page. The site stores them as WebP files of at most 1700 px, with a sepia tone and a paper frame added in CSS. The stamp on the release list stays black and white.
 
 | File | Title | Author or archive | Source | Licence |
 |---|---|---|---|---|
@@ -9,6 +9,7 @@ Every photo on the site is a real Second World War photo in the public domain. E
 | `img/scramble.webp` | Pilots of No. 19 Squadron RAF stage a mock 'scramble' from the back of a truck at Fowlmere near Duxford, September 1940 (CH 1398) | F/O S. Devon, Royal Air Force official photographer | https://commons.wikimedia.org/wiki/File:Pilots_of_No._19_Squadron_RAF_stage_a_mock_%27scramble%27_from_the_back_of_a_truck_at_Fowlmere_near_Duxford,_September_1940._CH1398.jpg | Public domain: UK Crown Copyright expired (PD-UKGov) |
 | `img/briefing.webp` | Members of the 332nd Fighter Group attending a briefing in Ramitelli, Italy, March 1945 | Toni Frissell, Library of Congress | https://commons.wikimedia.org/wiki/File:332ndFighterBriefing1945-high-res.jpg | Public domain: given to the public by the photographer (PD-Frissell) |
 | `img/airfield.webp` | Lille-Seclin airfield, Royal Air Force, France, 1939–1940 (C 1519) | H. Hensser, Royal Air Force official photographer | https://commons.wikimedia.org/wiki/File:Lille-Seclin_airfield_-_Royal_Air_Force_-_France,_1939-1940_C1519.jpg | Public domain: UK Crown Copyright expired (PD-UKGov) |
+| `img/balloon-stamp.webp` | Kite balloons and balloon winches of No. 1 Balloon Training Unit are prepared for handling practice at Cardington, Bedfordshire (CH 1521); cropped to the front balloon for the stamp on the release list | Mr B. J. Daventry, Royal Air Force official photographer | https://commons.wikimedia.org/wiki/File:Royal_Air_Force_Balloon_Command,_1939-1945._CH1521.jpg | Public domain: UK Crown Copyright expired (PD-UKGov) |
 
 # Fonts
 
