@@ -1308,6 +1308,32 @@ Sign-up returns a random ticket, each save returns success, and the browser clos
 Under the note a dashed line says "Test copy of the site: sign-ups and answers are not kept."
 So a preview behaves the same and cannot use up the KV write quota.
 
+### Analytics events
+
+Google Analytics loads only after the visitor accepts it in the cookie choice.
+Before that, `track()` in `site/site.js` sends nothing.
+No event carries an email address, a country, free text or an answer.
+
+| Event | Parameters | Sent when |
+|---|---|---|
+| `copy_command` | `step`, `command_id` | A Copy button copies an install command. |
+| `copy_command_manual` | `step`, `command_id` | The visitor copies a command by hand. |
+| `install_cta_click` | `location`: `hero`, `checklist` or `final` | An install button is clicked. |
+| `contact_submit` | `topic`: the chosen topic | The contact form is sent. |
+| `scroll_depth` | `percent`: 25, 50, 75, 90 or 100 | The page is scrolled that far, once each. |
+| `section_view` | `section`: `why`, `screens`, `needs`, `release`, `install`, `story` (the toy scene), `questions`, `contact` or `final` | Half of the section, or half the screen, has shown it for one second. Once per section per page view. Sections seen before consent are not sent later, unless they are still on screen. |
+| `release_cta_click` | `location`: `hero`, `needs`, `nav`, `menu` or `final` | A link to the new-edition sign-up is clicked. |
+| `release_signup` | none | The sign-up is accepted. |
+| `release_question` | `question_id`: `devices`, `store`, `online`, `played`, `cd` or `wishes`; `answered`: `yes` or `no` | The visitor leaves a question with Continue, Skip, Back or a pick. |
+| `release_finish` | none | The visitor reaches the end of the questions. |
+
+### Image sizes
+
+The gallery, the two framed photos and the video poster list smaller copies in `srcset`, so a phone loads a picture close to the size it shows.
+`sh tools/site-images.sh` makes them again from the large files in `site/img`, with ImageMagick: 400 and 720 px wide for the gallery, 320 and 640 px for the photos, and 960 px for the poster.
+The poster fills a 4:3 frame and is cropped at the sides, so its `sizes` is the drawn width, about a third wider than the frame.
+Run it after replacing one of those pictures.
+
 ## Legal
 
 For personal use with a disc you own.
