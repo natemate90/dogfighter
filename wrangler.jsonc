@@ -2,7 +2,7 @@
   "name": "dogfighter",
   "compatibility_date": "2026-11-01",
   "main": "worker/index.js",
-  // TURNSTILE_SECRET is set in the Cloudflare dashboard and must never be in this public repo; keep_vars stops a deploy from removing it.
+  // TURNSTILE_SECRET, FORM_URL and NOTIFY_FORM_URL are set in the Cloudflare dashboard and must never be in this public repo; keep_vars stops a deploy from removing them.
   "keep_vars": true,
   "assets": {
     "directory": "./site",
@@ -10,5 +10,7 @@
     "not_found_handling": "404-page",
     "run_worker_first": ["/api/*"]
   },
+  "kv_namespaces": [{ "binding": "RELEASE_LIST", "id": "b2e8106fe502422c8a1deb45cff63e9e" }],
+  "triggers": { "crons": ["*/15 * * * *"] },
   "previews": {}
 }
