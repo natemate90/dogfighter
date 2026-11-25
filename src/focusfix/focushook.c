@@ -117,7 +117,7 @@ static SIZE max_client, mac_screen, fitted_for, modes[32];
 static unsigned int mode_count;
 static struct wined3d_display_mode_copy game_mode;
 static BOOL mode_set, dinput_wants_mouse, mouse_free, widen_view, test_on_right_display, test_leaves_mouse, pointer_hidden, deep_z, keep_shape, test_saves_full_size;
-static RECT test_display;
+static RECT test_display, given_area;
 static void *front_swapchain, *front_texture;
 static DWORD front_thread;
 static unsigned int anisotropy, texture_limit, edge_samples, frames_a_second;
@@ -1348,7 +1348,13 @@ static BOOL keep_picture_shape(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         WINDOWPOS *pos = (WINDOWPOS *)lp;
 
         if (pos->flags & SWP_NOSIZE) return FALSE;
+        SetRectEmpty(&given_area);
         size = picture_shaped(hwnd, pos->cx, pos->cy, FIT_INSIDE);
+        if (!(pos->flags & SWP_NOMOVE))
+        {
+            pos->x += (pos->cx - size.cx) / 2;
+            pos->y += (pos->cy - size.cy) / 2;
+        }
         if ((size.cx != pos->cx || size.cy != pos->cy) && said++ < 20)
             say("window asked to be %dx%d; made %ldx%ld to keep the picture's shape", pos->cx, pos->cy, size.cx, size.cy);
         pos->cx = size.cx;
@@ -1785,6 +1791,81 @@ static void fit_on_test_display(DWORD style, DWORD ex)
     if (max_client.cy > high) max_client.cy = high;
 }
 
+static void centre_picture_in(HWND w, const RECT *area)
+{
+    LONG wide = area->right - area->left, high = area->bottom - area->top;
+    SIZE size = { wide, wide * (LONG)game_mode.height / (LONG)game_mode.width };
+    RECT frame;
+
+    if (size.cy > high)
+    {
+        size.cy = high;
+        size.cx = high * (LONG)game_mode.width / (LONG)game_mode.height;
+    }
+    SetRect(&frame, area->left + (wide - size.cx) / 2, area->top + (high - size.cy) / 2, 0, 0);
+    frame.right = frame.left + size.cx;
+    frame.bottom = frame.top + size.cy;
+    say("the window was given %ldx%ld at %ld,%ld without being asked; the picture, %ldx%ld, goes in its middle at %ld,%ld",
+        wide, high, area->left, area->top, size.cx, size.cy, frame.left, frame.top);
+    AdjustWindowRectEx(&frame, GetWindowLongA(w, GWL_STYLE), FALSE, GetWindowLongA(w, GWL_EXSTYLE));
+    fitted_for.cx = game_mode.width;
+    fitted_for.cy = game_mode.height;
+    SetWindowPos(w, NULL, frame.left, frame.top, frame.right - frame.left, frame.bottom - frame.top,
+                 SWP_NOSENDCHANGING | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+static void keep_middle_on_display(HWND w, RECT *frame)
+{
+    MONITORINFO display = { sizeof(display) };
+    RECT now, *room = &display.rcWork;
+    LONG wide = frame->right - frame->left, high = frame->bottom - frame->top, x, y;
+
+    if (!GetWindowRect(w, &now) || !GetMonitorInfoA(MonitorFromWindow(w, MONITOR_DEFAULTTONEAREST), &display)) return;
+    x = now.left + (now.right - now.left - wide) / 2;
+    y = now.top;
+    if (x + wide > room->right) x = room->right - wide;
+    if (x < room->left) x = room->left;
+    if (y + high > room->bottom) y = room->bottom - high;
+    if (y < room->top) y = room->top;
+    SetRect(frame, x, y, x + wide, y + high);
+}
+
+/* macOS full screen. Wine's Mac driver hands the window its new size with
+   SWP_NOSENDCHANGING, so WM_WINDOWPOSCHANGING never comes and the size is only
+   seen afterwards. The picture is then centred in the area that was given, and
+   again when the game changes its mode. A size the window is asked about ends
+   this: that is how leaving full screen arrives. */
+static BOOL fill_given_area(HWND w, BOOL same_shape)
+{
+    static RECT seen;
+    static int steady, tries;
+    LONG width = game_mode.width, height = game_mode.height, off;
+    RECT client = { 0 };
+
+    GetClientRect(w, &client);
+    MapWindowPoints(w, NULL, (POINT *)&client, 2);
+    if (!IsRectEmpty(&given_area))
+    {
+        if (same_shape && (!EqualRect(&client, &given_area) || ++tries > 3)) return TRUE;
+        centre_picture_in(w, &given_area);
+        return TRUE;
+    }
+    tries = 0;
+    if (!same_shape) return FALSE;
+    off = (client.right - client.left) * height - (client.bottom - client.top) * width;
+    if (labs(off) <= 2 * max(width, height))
+    {
+        steady = 0;
+        return FALSE;
+    }
+    if (!EqualRect(&client, &seen)) steady = 0;
+    seen = client;
+    if (++steady < 4) return TRUE;
+    given_area = client;
+    centre_picture_in(w, &given_area);
+    return TRUE;
+}
+
 static void make_normal_window(HWND w)
 {
     static BOOL placed;
@@ -1794,8 +1875,9 @@ static void make_normal_window(HWND w)
     RECT client = { 0 }, frame;
     SIZE size;
 
-    if (!game_mode.width || !game_mode.height || (normal && same_shape)) return;
-    if (IsIconic(w)) return;
+    if (!game_mode.width || !game_mode.height || IsIconic(w)) return;
+    if (keep_shape && normal && fitted_for.cx && !IsZoomed(w) && fill_given_area(w, same_shape)) return;
+    if (normal && same_shape) return;
     if (IsZoomed(w))
     {
         MONITORINFO display = { sizeof(display) };
@@ -1829,8 +1911,10 @@ static void make_normal_window(HWND w)
     AdjustWindowRectEx(&frame, style, FALSE, ex);
     SetWindowLongA(w, GWL_STYLE, style);
     SetWindowLongA(w, GWL_EXSTYLE, ex);
-    SetWindowPos(w, HWND_NOTOPMOST, test_display.left, test_display.top, frame.right - frame.left,
-                 frame.bottom - frame.top, SWP_FRAMECHANGED | SWP_NOACTIVATE | (placed ? SWP_NOMOVE : 0));
+    OffsetRect(&frame, test_display.left - frame.left, test_display.top - frame.top);
+    if (placed) keep_middle_on_display(w, &frame);
+    SetWindowPos(w, HWND_NOTOPMOST, frame.left, frame.top, frame.right - frame.left,
+                 frame.bottom - frame.top, SWP_FRAMECHANGED | SWP_NOACTIVATE);
     placed = TRUE;
     if (test_on_right_display && GetWindowRect(w, &frame))
         say("test run: window at %ld,%ld %ldx%ld, on the display with room at %ld,%ld %ldx%ld", frame.left, frame.top,

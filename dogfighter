@@ -15,6 +15,7 @@ Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [-
                   [--diag-hd-dir=FOLDER] [--diag-draws] [--diag-shot-on=TEXT]
                   [--diag-intros-shown=COUNT]
                   [--diag-end=SECONDS] [--diag-zoom=SECONDS] [--diag-drag=SECONDS]
+                  [--diag-full-screen=SECONDS]
                   [--join=ADDRESS] [--winecfg] [--stop]
        dogfighter [--wine=NAME] --doctor
        dogfighter --backup | --restore[=FILE]
@@ -74,8 +75,10 @@ Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [-
                     elsewhere.
   --keep-shape      On by default. Keep the window in the shape of the game's
                     picture when you resize or zoom it: drag one side and the
-                    other follows. A resize and a zoom done by the test tool
-                    kept the shape. A drag by hand is not tried yet.
+                    other follows. In full screen and when zoomed the picture is
+                    as large as the screen allows and sits in the middle. A
+                    resize and a zoom done by the test tool kept the shape. A
+                    drag and a click on the green button by hand are not tried yet.
   --no-keep-shape   Let the window take any shape. The picture is then stretched
                     to fill it.
   --fps=N           Show at most N pictures a second, from 15 to 1000, e.g.
@@ -200,6 +203,11 @@ Usage: dogfighter [--res=WxH] [--full-res|--no-full-res] [--sharp] [--retina] [-
                     game's own quit, so it does not write its settings.
   --diag-zoom=SECONDS
                     Zoom the window this long after the first picture.
+  --diag-full-screen=SECONDS
+                    Give the window the whole screen this long after the first
+                    picture, without asking the game first. That is what the game
+                    is told when the green button is clicked. The Mac itself does
+                    not go to full screen; only a click by hand does that.
   --diag-drag=SECONDS
                     Ask for seven window sizes as a drag of an edge or a corner
                     does, and log what the window became. The pointer is not moved.
@@ -252,6 +260,7 @@ DIAG_HD_DIR=
 DIAG_END=
 DIAG_ZOOM=
 DIAG_DRAG=
+DIAG_FULL_SCREEN=
 DIAG_DRAWS=0
 DIAG_SHOT_ON=
 DIAG_INTROS_SHOWN=
@@ -311,6 +320,7 @@ for arg in "$@"; do
     --diag-end=*) DIAG_END="${arg#--diag-end=}" ;;
     --diag-zoom=*) DIAG_ZOOM="${arg#--diag-zoom=}" ;;
     --diag-drag=*) DIAG_DRAG="${arg#--diag-drag=}" ;;
+    --diag-full-screen=*) DIAG_FULL_SCREEN="${arg#--diag-full-screen=}" ;;
     --diag-draws) DIAG_DRAWS=1 ;;
     --diag-shot-on=*) DIAG_SHOT_ON="${arg#--diag-shot-on=}" ;;
     --diag-intros-shown=*) DIAG_INTROS_SHOWN="${arg#--diag-intros-shown=}" ;;
@@ -373,7 +383,7 @@ if [ -n "$DIAG_MOUSE" ]; then
   [[ "$DIAG_MOUSE" =~ ^[0-9]+:-?[0-9]+:-?[0-9]+(:[co])?(,[0-9]+:-?[0-9]+:-?[0-9]+(:[co])?)*$ ]] || { echo "Bad mouse list: $DIAG_MOUSE" >&2; exit 2; }
   DIAG="${DIAG:-log} mouse=$DIAG_MOUSE"
 fi
-for timed in "end=$DIAG_END" "zoom=$DIAG_ZOOM" "drag=$DIAG_DRAG"; do
+for timed in "end=$DIAG_END" "zoom=$DIAG_ZOOM" "drag=$DIAG_DRAG" "full-screen=$DIAG_FULL_SCREEN"; do
   [ -n "${timed#*=}" ] || continue
   [[ "${timed#*=}" =~ ^[0-9]+$ ]] || { echo "Bad number of seconds: ${timed#*=}" >&2; exit 2; }
   DIAG="${DIAG:-log} $timed"

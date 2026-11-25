@@ -192,6 +192,20 @@ static void resize_client(int width, int height)
                  SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 }
 
+/* Wine's Mac driver hands a window its full-screen size with
+   SWP_NOSENDCHANGING, so the game is not asked first. */
+static void take_whole_screen(void)
+{
+    MONITORINFO display = { sizeof(display) };
+    RECT frame;
+
+    if (!GetMonitorInfoA(MonitorFromWindow(game_hwnd, MONITOR_DEFAULTTONEAREST), &display)) return;
+    frame = display.rcMonitor;
+    AdjustWindowRectEx(&frame, GetWindowLongA(game_hwnd, GWL_STYLE), FALSE, GetWindowLongA(game_hwnd, GWL_EXSTYLE));
+    SetWindowPos(game_hwnd, NULL, frame.left, frame.top, frame.right - frame.left, frame.bottom - frame.top,
+                 SWP_NOSENDCHANGING | SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
 static void end_game(const char *why)
 {
     HANDLE process = OpenProcess(PROCESS_TERMINATE, FALSE, game);
@@ -592,7 +606,7 @@ static void draw_test(void)
 int main(int argc, char **argv)
 {
     BOOL seen = FALSE, window_test = FALSE, move_test = FALSE, start_test = FALSE, press_ok = FALSE, press_cancel = FALSE;
-    DWORD start = GetTickCount(), wait = 10, end_after = 0, zoom_at = 0, drag_at = 0;
+    DWORD start = GetTickCount(), wait = 10, end_after = 0, zoom_at = 0, drag_at = 0, whole_screen_at = 0;
     int next_step = 0;
 
     logf = fopen("C:\\dogfighter-windiag.log", "w");
@@ -614,6 +628,7 @@ int main(int argc, char **argv)
         if (!strncmp(argv[i], "end=", 4)) end_after = atoi(argv[i] + 4);
         if (!strncmp(argv[i], "zoom=", 5)) zoom_at = atoi(argv[i] + 5);
         if (!strncmp(argv[i], "drag=", 5)) drag_at = atoi(argv[i] + 5);
+        if (!strncmp(argv[i], "full-screen=", 12)) whole_screen_at = atoi(argv[i] + 12);
         if (!strncmp(argv[i], "keys=", 5)) read_keys(argv[i] + 5);
         if (!strncmp(argv[i], "mouse=", 6)) read_moves(argv[i] + 6);
         if (!strncmp(argv[i], "console=", 8)) read_command(argv[i] + 8);
@@ -649,6 +664,12 @@ int main(int argc, char **argv)
             note("zooming the window");
             ShowWindowAsync(game_hwnd, SW_MAXIMIZE);
             zoom_at = 0;
+        }
+        if (whole_screen_at && shown >= whole_screen_at)
+        {
+            note("giving the window the whole screen");
+            take_whole_screen();
+            whole_screen_at = 0;
         }
         if (drag_at && shown >= drag_at)
         {
