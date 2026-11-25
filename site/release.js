@@ -3,15 +3,18 @@
   if (!form) return;
   const section = document.getElementById("release");
   const card = document.getElementById("release-card");
-  const intro = card.querySelector(".pc-intro");
-  const listed = card.querySelector(".pc-listed");
-  const postmark = card.querySelector(".pc-postmark");
+  const letter = document.getElementById("release-letter");
+  const postmark = card.querySelector(".pc-pm");
+  const censor = card.querySelector(".pc-censor");
+  const slot = card.querySelector(".pc-slot");
   const survey = document.getElementById("release-survey");
-  const stage = survey.querySelector(".survey-stage");
-  const bar = survey.querySelector(".pc-progress");
-  const segments = [...bar.children];
+  const stage = survey.querySelector(".pc-stage");
+  const bar = survey.querySelector(".pc-boxes");
+  const boxes = [...bar.querySelectorAll("li")];
   const count = document.getElementById("release-count");
   const live = document.getElementById("release-live");
+  const foot = survey.querySelector(".pc-foot");
+  const status = document.getElementById("release-status");
   const result = document.getElementById("release-result");
   const sendButton = form.querySelector('button[type="submit"]');
   const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -19,16 +22,35 @@
   const WINDOW = 30 * 60 * 1000;
   const BEAT = 450;
   const GAP = 1100;
-  const SEND_LABEL = "Put me on the list";
+  const SETTLE = 1300;
+  const WORDS = ["no", "one", "two", "three", "four", "five", "six"];
+
+  const LETTERS = {
+    sent: ["You are on the list, thank you.", " If you can spare a minute, I would love to hear how you would play: six small questions, and you may skip any of them."],
+    done: ["Thank you, that is everything I wanted to ask. You are on the list, and you get one note from me, the day the new edition is out."],
+    closed: ["The questions have closed, but you are still on the list. What you answered is saved, and you get one note from me, the day the new edition is out."],
+  };
 
   const QUESTIONS = [
-    { id: "devices", text: "Which device would you play on?", multi: true, options: ["Windows", "Mac", "Linux / Steam Deck", "iPad"] },
-    { id: "store", text: "Where would you buy it?", options: ["Steam", "GOG", "dogfighter.net", "No preference"] },
+    {
+      id: "devices",
+      text: "Which devices would you play on?",
+      multi: true,
+      groups: [
+        ["Computers", ["Windows PC", "Mac", "Linux", "Steam Deck"]],
+        ["Mobile devices", ["iPhone", "iPad", "Android phone", "Android tablet"]],
+        ["TV and consoles", ["Apple TV", "Nintendo Switch", "PlayStation", "Xbox"]],
+      ],
+    },
+    { id: "store", text: "Where would you buy it?", options: ["Steam", "GOG", "dogfighter.net", "App Store", "Google Play", "No preference"] },
     { id: "online", text: "Would you play online with friends?", options: ["Yes", "Maybe", "No"] },
     { id: "played", text: "Did you play the original?", options: ["Yes, back then", "Yes, recently", "No"] },
     { id: "cd", text: "Do you still have the original CD?", options: ["Yes", "No", "Not sure"] },
-    { id: "wishes", text: "What should the re-release add or fix?", multi: true, other: "Something else…", options: ["Online multiplayer", "Widescreen", "Controller support", "New missions", "Level editor"] },
+    { id: "wishes", text: "What should the new edition add or fix?", multi: true, other: "Something else…", options: ["Online multiplayer", "Widescreen", "Controller support", "New missions", "Level editor"] },
   ];
+  QUESTIONS.forEach((question) => {
+    if (question.groups) question.options = question.groups.flatMap(([, options]) => options);
+  });
 
   const fields = {
     email: { error: document.getElementById("release-email-error"), target: document.getElementById("release-email") },
@@ -48,10 +70,24 @@
   let hooked = false;
   let sending = false;
 
+  const element = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text) node.textContent = text;
+    return node;
+  };
+  const replay = (node, name) => {
+    node.classList.remove(name);
+    void node.offsetWidth;
+    node.classList.add(name);
+  };
+
   const showError = (name, text) => {
     const field = fields[name];
+    const was = field.error.textContent;
     field.error.textContent = text || "";
     field.error.hidden = !text;
+    if (text && text !== was) replay(field.error, "nudge");
     if (field.target) {
       if (text) field.target.setAttribute("aria-invalid", "true");
       else field.target.removeAttribute("aria-invalid");
@@ -65,7 +101,10 @@
       sitekey: PRODUCTION && sitekey ? sitekey : "1x00000000000000000000AA",
       action: "notify",
       theme: "light",
+      appearance: "interaction-only",
       "response-field": false,
+      "before-interactive-callback": () => slot.classList.add("asks"),
+      "after-interactive-callback": () => slot.classList.remove("asks"),
       callback: (value) => {
         token = value;
         turnstileFailed = false;
@@ -120,36 +159,36 @@
 
   const showResult = (title, text) => {
     result.replaceChildren();
-    const heading = document.createElement("p");
-    heading.className = "result-title";
-    heading.textContent = title;
-    const body = document.createElement("p");
-    body.textContent = text;
-    result.append(heading, body);
+    const heading = element("p", "result-title", title);
+    result.append(heading, element("p", "", text));
     result.classList.add("failed");
     result.hidden = false;
     result.focus();
   };
 
-  const setSending = (on) => {
-    sending = on;
-    sendButton.disabled = on;
-    if (on) form.setAttribute("aria-busy", "true");
-    else form.removeAttribute("aria-busy");
-    sendButton.replaceChildren();
-    if (on) {
-      const spin = document.createElement("span");
-      spin.className = "pc-spin";
-      spin.setAttribute("aria-hidden", "true");
-      sendButton.append(spin, "Putting you on the list…");
-    } else {
-      sendButton.textContent = SEND_LABEL;
-    }
+  const write = ([first, more]) => {
+    letter.replaceChildren(first);
+    if (more) letter.append(element("span", "pc-more", more));
+  };
+
+  const today = () => {
+    const date = new Date();
+    return { day: date.getDate(), month: date.toLocaleString("en-GB", { month: "short" }).toUpperCase(), year: date.getFullYear() };
+  };
+
+  const strike = () => {
+    const { day, month, year } = today();
+    postmark.querySelector(".pm-date").textContent = `${day} ${month} ${String(year).slice(2)}`;
+    postmark.setAttribute("aria-label", `Postmark: Dogfighter field post, on the list, ${day} ${month} ${year}`);
+    postmark.removeAttribute("hidden");
+    postmark.classList.add("struck");
+    censor.hidden = false;
+    censor.classList.add("struck");
   };
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (sending) return;
+    if (sending || card.classList.contains("listed")) return;
     const data = new FormData(form);
     const email = String(data.get("email") || "").trim();
     const consent = data.get("consent") === "yes";
@@ -165,7 +204,9 @@
       (fields[invalid[0]].target || fields[invalid[0]].error).focus();
       return;
     }
-    setSending(true);
+    sending = true;
+    sendButton.disabled = true;
+    form.setAttribute("aria-busy", "true");
     result.hidden = true;
     let answer = null;
     try {
@@ -178,15 +219,21 @@
     } catch {
       answer = null;
     }
-    setSending(false);
+    sending = false;
+    form.removeAttribute("aria-busy");
     token = "";
     if (widgetId !== null) window.turnstile.reset(widgetId);
     if (answer && answer.ok && answer.ticket) {
-      form.reset();
-      form.hidden = true;
-      startSurvey(answer.ticket, Boolean(answer.dryRun));
+      sendButton.textContent = "Signed up";
+      card.classList.add("listed");
+      form.querySelectorAll("input").forEach((input) => (input.readOnly = true));
+      strike();
+      write(LETTERS.sent);
+      status.textContent = answer.dryRun ? "Posted on a test copy: nothing is kept." : "Posted. The first question comes up in a moment.";
+      setTimeout(() => startSurvey(answer.ticket), SETTLE);
       return;
     }
+    sendButton.disabled = false;
     if (answer && answer.error === "invalid" && Array.isArray(answer.fields)) {
       const known = answer.fields.filter((name) => fields[name]);
       known.forEach((name) => showError(name, MESSAGES[name]));
@@ -205,6 +252,7 @@
   let expired = false;
   let timer = 0;
   let advance = 0;
+  let savedNote = null;
   const picks = new Map();
   const others = new Map();
   const answered = new Set();
@@ -220,7 +268,6 @@
     setTimeout(() => (live.textContent = text), 50);
   };
 
-  let savedNote = null;
   const send = (question, value) =>
     fetch("/api/notify/answer", {
       method: "POST",
@@ -235,23 +282,23 @@
       if (pause > 0) await wait(pause);
       if (expired) return;
       lastSent = Date.now();
-      let status = 0;
+      let code = 0;
       try {
-        status = (await send(question, value)).status;
+        code = (await send(question, value)).status;
       } catch {
-        status = 0;
+        code = 0;
       }
-      if (status === 200) {
+      if (code === 200) {
         if (Array.isArray(value) ? value.length : value) answered.add(question);
         else answered.delete(question);
         if (!closed) say("Saved");
         return;
       }
-      if (status === 404 || status === 410) return finish(true);
-      if (status === 422 || status === 400) return;
+      if (code === 404 || code === 410) return finish(true);
+      if (code === 422 || code === 400) return;
     }
     if (!closed) say("Not saved");
-    else if (savedNote) savedNote.textContent = "Some answers did not save. You are still on the list, and you hear from us once, on the day Dogfighter is released.";
+    else if (savedNote) savedNote.textContent = "Some answers did not save. You are still on the list, and you get one email, on the day the new edition is out.";
   };
   const save = (question, value) => {
     if (closed) return;
@@ -273,10 +320,12 @@
     return question.multi ? chosen : chosen[0];
   };
 
-  const setProgress = (state) => {
+  const setProgress = (state, fresh = -1) => {
     const total = QUESTIONS.length;
-    segments.forEach((segment, i) => {
-      segment.className = state === "now" ? (i < index ? "done" : i === index ? "now" : "") : state === "off" ? (answered.has(QUESTIONS[i].id) ? "done" : "") : "done";
+    boxes.forEach((box, i) => {
+      const done = state === "off" ? answered.has(QUESTIONS[i].id) : state === "done" || i < index;
+      box.className = done ? "done" : state === "now" && i === index ? "now" : "";
+      if (i === fresh && done) replay(box, "fresh");
     });
     bar.classList.toggle("off", state === "off");
     const text = state === "now" ? `Question ${index + 1} of ${total}` : state === "off" ? `${answered.size} of ${total} answered` : "All six questions done";
@@ -285,26 +334,19 @@
     bar.setAttribute("aria-valuetext", state === "off" ? `${text}, questions closed` : text);
   };
 
-  const element = (tag, className, text) => {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text) node.textContent = text;
-    return node;
+  const marker = (question) => {
+    const mark = element("span", question.multi ? "pc-box" : "pc-rnd");
+    mark.setAttribute("aria-hidden", "true");
+    return mark;
   };
-
-  const optionButton = (question, label, number) => {
-    const button = element("button", "opt");
+  const choice = (question, label, className) => {
+    const button = element("button", className);
     button.type = "button";
-    button.setAttribute("aria-pressed", "false");
     button.dataset.value = label;
-    const marker = element("span", question.multi ? "pc-box" : "roundel");
-    marker.setAttribute("aria-hidden", "true");
-    const key = element("kbd", "opt-key", String(number));
-    key.setAttribute("aria-hidden", "true");
-    button.append(marker, element("span", "opt-text", label), key);
+    button.setAttribute("aria-pressed", String(picks.get(question.id).has(label)));
+    button.append(marker(question), label);
     return button;
   };
-
   const linkButton = (label, onClick) => {
     const button = element("button", "linklike", label);
     button.type = "button";
@@ -312,60 +354,76 @@
     return button;
   };
 
-  const place = (view, quiet = false) => {
-    if (!reduce.matches) view.classList.add("q-in");
+  const place = (nodes, direction, quiet = false) => {
     const here = survey.contains(document.activeElement) || document.activeElement === document.body;
-    stage.replaceChildren(view);
+    stage.replaceChildren(...nodes);
+    stage.classList.remove("fwd", "back");
+    if (direction) replay(stage, direction);
     if (quiet && !here) return;
-    view.querySelector(".q-title").focus({ preventScroll: true });
+    stage.querySelector(".pc-q")?.focus({ preventScroll: true });
     if (!quiet && card.getBoundingClientRect().top < 0) card.scrollIntoView({ block: "start", behavior: reduce.matches ? "auto" : "smooth" });
   };
 
-  const show = () => {
+  const show = (direction = "fwd", fresh = -1, quiet = false) => {
     clearTimeout(advance);
     if (index >= QUESTIONS.length) return finish();
-    setProgress("now");
+    setProgress("now", fresh);
     const question = QUESTIONS[index];
-    const view = element("div", "q");
-    const heading = element("h3", "q-title", question.text);
+    if (!picks.has(question.id)) picks.set(question.id, new Set());
+    const heading = element("h3", "pc-q", question.text);
     heading.id = `release-q-${question.id}`;
     heading.tabIndex = -1;
-    const hint = element("p", "q-hint", question.multi ? "Pick all that apply." : "Tap an answer to go on.");
-    const list = element("div", "q-options");
-    list.setAttribute("role", "group");
+    const hint = element("p", "pc-hint", question.multi ? "Pick all that apply." : "Tap an answer to go on.");
+    let list;
+    if (question.groups) {
+      list = element("div", "pc-groups");
+      question.groups.forEach(([name, options]) => {
+        const group = element("div", "pc-group");
+        group.setAttribute("role", "group");
+        group.setAttribute("aria-label", name);
+        group.append(element("p", "pc-cap", name), ...options.map((label) => choice(question, label, "pc-pick")));
+        list.append(group);
+      });
+    } else if (question.multi) {
+      list = element("div", "pc-picks");
+      (question.other ? [...question.options, question.other] : question.options).forEach((label) => list.append(choice(question, label, "pc-pick")));
+    } else {
+      list = element("div", "pc-opts");
+      question.options.forEach((label) => list.append(choice(question, label, "pc-opt")));
+    }
     list.setAttribute("aria-labelledby", heading.id);
-    const labels = question.other ? [...question.options, question.other] : question.options;
-    const set = picks.get(question.id) || new Set();
-    picks.set(question.id, set);
-    const buttons = labels.map((label, i) => {
-      const button = optionButton(question, label, i + 1);
-      button.setAttribute("aria-pressed", String(set.has(label)));
-      list.append(button);
-      return button;
-    });
+    if (!question.groups) list.setAttribute("role", "group");
+
+    const nodes = [heading, hint, list];
     let otherBox = null;
     if (question.other) {
       otherBox = element("div", "pc-other");
-      otherBox.hidden = !set.has(question.other);
-      const label = element("label", "field-label", "What else?");
-      label.htmlFor = "release-other";
-      const input = element("input");
-      input.id = "release-other";
-      input.type = "text";
-      input.maxLength = 200;
-      input.autocomplete = "off";
-      input.value = others.get(question.id) || "";
+      otherBox.hidden = !picks.get(question.id).has(question.other);
+      const area = element("textarea", "pc-ta");
+      area.id = "release-other";
+      area.maxLength = 200;
+      area.placeholder = "What else?";
+      area.setAttribute("aria-label", "What else should the new edition add or fix?");
+      area.value = others.get(question.id) || "";
       let typing = 0;
-      input.addEventListener("input", () => {
-        others.set(question.id, input.value);
+      area.addEventListener("input", () => {
+        others.set(question.id, area.value);
         clearTimeout(typing);
         typing = setTimeout(() => save(question.id, valueOf(question)), 700);
       });
-      otherBox.append(label, input);
+      otherBox.append(area);
+      nodes.push(otherBox);
     }
-    const foot = element("div", "q-foot");
-    if (index > 0) foot.append(linkButton("Back", back));
-    const acts = element("div", "q-acts");
+
+    list.addEventListener("click", (event) => {
+      const button = event.target.closest("button");
+      if (!button || closed) return;
+      pick(question, button, list, otherBox);
+    });
+
+    const parts = [];
+    if (index > 0) parts.push(linkButton("Back", back));
+    const acts = element("div", "pc-acts");
     acts.append(linkButton("Skip", () => next(false)));
     if (question.multi) {
       const go = element("button", "button", index === QUESTIONS.length - 1 ? "Finish" : "Continue");
@@ -373,37 +431,30 @@
       go.addEventListener("click", () => next(true));
       acts.append(go);
     }
-    foot.append(acts);
-
-    list.addEventListener("click", (event) => {
-      const button = event.target.closest(".opt");
-      if (!button || closed) return;
-      pick(question, button, buttons, otherBox);
-    });
-
-    view.append(heading, hint, list);
-    if (otherBox) view.append(otherBox);
-    view.append(foot);
-    place(view);
+    parts.push(acts);
+    foot.replaceChildren(...parts);
+    foot.classList.toggle("wide", Boolean(question.multi));
+    place(nodes, direction, quiet);
   };
 
-  const pick = (question, button, buttons, otherBox) => {
+  const pick = (question, button, list, otherBox) => {
     const label = button.dataset.value;
     const set = picks.get(question.id);
+    button.classList.add("pc-inked");
     if (question.multi) {
       if (set.has(label)) set.delete(label);
       else set.add(label);
       button.setAttribute("aria-pressed", String(set.has(label)));
       if (otherBox && label === question.other) {
         otherBox.hidden = !set.has(label);
-        if (!otherBox.hidden) otherBox.querySelector("input").focus();
+        if (!otherBox.hidden) otherBox.querySelector("textarea").focus();
       }
       save(question.id, valueOf(question));
       return;
     }
     set.clear();
     set.add(label);
-    buttons.forEach((other) => other.setAttribute("aria-pressed", String(other === button)));
+    list.querySelectorAll("button").forEach((other) => other.setAttribute("aria-pressed", String(other === button)));
     save(question.id, valueOf(question));
     clearTimeout(advance);
     advance = setTimeout(() => next(false), BEAT);
@@ -414,13 +465,13 @@
     const question = QUESTIONS[index];
     if (flush && question.other) save(question.id, valueOf(question));
     index++;
-    show();
+    show("fwd", index - 1);
   };
 
   const back = () => {
     if (closed || index === 0) return;
     index--;
-    show();
+    show("back");
   };
 
   const finish = (late = false) => {
@@ -429,53 +480,61 @@
     closed = true;
     clearTimeout(advance);
     clearInterval(timer);
-    const view = element("div", "q q-done");
-    const foot = element("div", "q-foot");
-    const play = element("a", "linklike", "Play it today from your own CD");
-    play.href = "#install";
-    foot.append(play);
+    card.classList.remove("asking");
+    const { day, month, year } = today();
+    const view = element("div", "pc-end");
+    const heading = element("h3", "pc-q", late ? "The questions have closed." : "That is everything. Thank you.");
+    heading.tabIndex = -1;
+    const stamp = element("span", late ? "pc-hs pc-cl struck" : "pc-hs pc-rc struck");
+    stamp.setAttribute("aria-hidden", "true");
     if (late) {
       setProgress("off");
+      write(LETTERS.closed);
       const said = answered.size;
-      view.append(
-        element("h3", "q-title", "The questions have closed."),
-        element("p", "", `They stay open for 30 minutes after you sign up. You are still on the list${said ? `, and the ${said === 1 ? "answer" : `${said} answers`} you gave ${said === 1 ? "is" : "are"} saved` : ""}.`),
-      );
+      stamp.append("Post closed", element("b", "", "30 minutes"));
+      view.append(heading, element("p", "", `They stay open for 30 minutes after you sign up. You are still on the list${said ? `, and the ${said === 1 ? "answer" : `${WORDS[said]} answers`} you gave ${said === 1 ? "is" : "are"} saved` : ""}.`));
+      const more = element("p", "pc-hint", "Something you still want to tell us? Use the ");
+      const contact = element("a", "", "contact form");
+      contact.href = "#contact";
+      more.append(contact, ".");
+      view.append(more);
     } else {
       setProgress("done");
-      savedNote = element("p", "", "Your answers are saved. You hear from us once, on the day Dogfighter is released. Nothing else.");
-      view.append(element("h3", "q-title", "Thanks. That is everything."), savedNote);
+      write(LETTERS.done);
+      stamp.append("Received", element("b", "", `${day} ${month} ${year}`), "Release list");
+      savedNote = element("p", "", "Your answers are saved. You get one email, on the day the new edition is out. Nothing else.");
+      const more = element("p", "pc-hint", "Changed your mind? Use the ");
+      const contact = element("a", "", "contact form");
+      contact.href = "#contact";
+      more.append(contact, " and we take you off the list.");
+      view.append(heading, savedNote, more);
     }
-    const remove = element("p", "pc-soft", "Changed your mind? Use the ");
-    const contact = element("a", "", "contact form");
-    contact.href = "#contact";
-    remove.append(contact, " and we take you off the list.");
-    view.append(remove, foot);
-    view.querySelector(".q-title").tabIndex = -1;
+    const row = element("div", "pc-row");
+    row.append(stamp);
+    view.append(row);
+    const play = element("a", "linklike", "Play it today from your own CD");
+    play.href = "#install";
+    const acts = element("div", "pc-acts");
+    acts.append(play);
+    foot.replaceChildren(acts);
+    foot.classList.remove("wide");
     live.textContent = "";
-    place(view, late);
+    place([view], reduce.matches ? "" : "fwd", late);
   };
 
-  const strike = () => {
-    const date = new Date();
-    postmark.querySelector(".pm-date").textContent = `${date.getDate()} ${date.toLocaleString("en-GB", { month: "short" }).toUpperCase()} ${date.getFullYear()}`;
-    postmark.removeAttribute("hidden");
-    postmark.classList.add("struck");
-    card.classList.add("listed");
-    intro.hidden = true;
-    listed.hidden = false;
-  };
-
-  const startSurvey = (value, preview) => {
+  const startSurvey = (value) => {
     ticket = value;
     deadline = Date.now() + WINDOW;
-    listed.querySelector(".pc-preview").hidden = !preview;
-    strike();
+    const here = form.contains(document.activeElement) || document.activeElement === document.body;
+    const stay = here ? null : document.activeElement;
+    form.hidden = true;
     survey.hidden = false;
+    card.classList.add("asking");
     timer = setInterval(() => {
       if (Date.now() >= deadline) finish(true);
     }, 1000);
-    show();
+    show("fwd", -1, !here);
+    if (stay && document.activeElement !== stay) stay.focus({ preventScroll: true });
   };
 
   document.addEventListener("keydown", (event) => {
@@ -485,13 +544,13 @@
     const question = QUESTIONS[index];
     if (!question) return;
     if (event.key === "Enter") {
-      if (event.target.closest?.("button, a")) return;
+      if (event.target.closest?.("button, a, textarea")) return;
       event.preventDefault();
       next(true);
       return;
     }
     if (typing || !/^[1-9]$/.test(event.key)) return;
-    const button = stage.querySelectorAll(".opt")[Number(event.key) - 1];
+    const button = stage.querySelectorAll(".pc-opt, .pc-pick")[Number(event.key) - 1];
     if (!button) return;
     event.preventDefault();
     button.click();

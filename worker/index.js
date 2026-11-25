@@ -22,8 +22,8 @@ const NOTIFY_ENTRY = {
   consent: "entry.1691053737",
 };
 const QUESTIONS = {
-  devices: { multi: true, options: ["Windows", "Mac", "Linux / Steam Deck", "iPad"] },
-  store: { options: ["Steam", "GOG", "dogfighter.net", "No preference"] },
+  devices: { multi: true, options: ["Windows PC", "Mac", "Linux", "Steam Deck", "iPhone", "iPad", "Android phone", "Android tablet", "Apple TV", "Nintendo Switch", "PlayStation", "Xbox"] },
+  store: { options: ["Steam", "GOG", "dogfighter.net", "App Store", "Google Play", "No preference"] },
   online: { options: ["Yes", "Maybe", "No"] },
   played: { options: ["Yes, back then", "Yes, recently", "No"] },
   cd: { options: ["Yes", "No", "Not sure"] },
