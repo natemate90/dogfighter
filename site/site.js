@@ -178,7 +178,7 @@
 
   const MEET = 0.45, MID_X = 520, MID_Y = 320, LENGTH = 460, EASE_TURN = 0.5, STEP = 1 / 120;
   const steps = document.querySelector(".install-steps");
-  const story = document.getElementById("story-h");
+  const scene = document.getElementById("scene");
   let flown = false, inFlight = false, retired = false, steered = false, steeredAt = -Infinity, trip = 0, gliding = 0, layer = null;
   let goingDown = false, scrolledTo = window.scrollY, stepsWere = Infinity, pose = null;
   function onScreen() {
@@ -193,9 +193,7 @@
   function course(start, body, W, H) {
     const cruise = H * 0.48;
     const top = Math.max(0, bar.getBoundingClientRect().bottom) + body * 0.7 + 0.3 * cruise * EASE_TURN;
-    const words = document.createRange();
-    words.selectNodeContents(story);
-    const head = words.getBoundingClientRect();
+    const head = scene.getBoundingClientRect();
     const low = body * 0.4, high = Math.max(low, (start.y - body * 0.4 - top) / 1.1);
     const span = [head.left + head.width * 0.1, Math.min(head.right - head.width * 0.1, W - body * 0.7)];
     const sides = [-1, 1].map((side) => {
@@ -319,8 +317,8 @@
   }
 
   function glide(ms, y) {
-    if (!story || ms < 50) return;
-    const distance = story.getBoundingClientRect().top + story.offsetHeight / 2 - y;
+    if (!scene || ms < 50) return;
+    const distance = scene.getBoundingClientRect().top - y;
     if (distance <= 1) return;
     let t0 = 0, done = 0;
     const tick = (now) => {
